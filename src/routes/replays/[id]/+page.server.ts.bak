@@ -1,0 +1,30 @@
+import type { PageServerLoad } from './$types';
+
+export const load: PageServerLoad = async ({ params, fetch }) => {
+  try {
+    const replayId = params.id;
+    
+    // Fetch replay details
+    const response = await fetch(`/api/replays/${replayId}`);
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Replay not found');
+      }
+      throw new Error(`Failed to fetch replay: ${response.status}`);
+    }
+    
+    const replay = await response.json();
+    
+    return {
+      replay,
+      error: null
+    };
+  } catch (error) {
+    console.error('Failed to load replay:', error);
+    return {
+      replay: null,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+};

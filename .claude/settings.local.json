@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(node:*)",
+      "Bash(npm:*)",
+      "Bash(go:*)",
+      "Bash(tsc --version)",
+      "Bash(npx sv:*)",
+      "Bash(npx --yes sv create frontend --template minimal --types typescript --prettier --eslint --no-add-ons)",
+      "Bash(npx --yes sv create frontend --template minimal --types ts --prettier --eslint --no-add-ons)",
+      "Bash(npx:*)",
+      "Bash(mkdir:*)",
+      "Bash(psql:*)",
+      "Bash(ls:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)",
+      "Bash(true)",
+      "Bash(kill:*)",
+      "Bash(rm:*)",
+      "Bash(grep:*)",
+      "Bash(awk:*)",
+      "Bash(mv:*)"
+    ],
+    "deny": []
+  }
+}
