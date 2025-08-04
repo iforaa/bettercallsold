@@ -50,28 +50,13 @@ function getDbPool() {
   return pgPool;
 }
 
-// Create Redis client (optional - disabled on Vercel)
-let redisClient;
-const REDIS_ENABLED = process.env.REDIS_ENABLED !== 'false' && process.env.REDIS_HOST;
+// Redis completely disabled on Vercel - set to false by default
+const REDIS_ENABLED = false;
+let redisClient = null;
 
 async function getRedisClient() {
-  if (!REDIS_ENABLED) {
-    console.log('Redis is disabled - skipping connection');
-    return null;
-  }
-  
-  if (!redisClient) {
-    try {
-      redisClient = createClient(redisConfig);
-      redisClient.on('error', (err) => console.error('Redis Client Error:', err));
-      await redisClient.connect();
-      console.log('Redis connected successfully');
-    } catch (error) {
-      console.error('Redis connection failed:', error);
-      redisClient = null;
-    }
-  }
-  return redisClient;
+  console.log('Redis is completely disabled');
+  return null;
 }
 
 // Database query helper
@@ -86,43 +71,15 @@ export async function query(text, params = []) {
   }
 }
 
-// Redis helpers (gracefully handle disabled Redis)
+// Redis helpers (completely disabled)
 export async function redisGet(key) {
-  try {
-    if (!REDIS_ENABLED) {
-      console.log('Redis disabled - redisGet returning null for key:', key);
-      return null;
-    }
-    
-    const client = await getRedisClient();
-    if (!client) return null;
-    
-    return await client.get(key);
-  } catch (error) {
-    console.error('Redis get error:', error);
-    return null; // Return null instead of throwing
-  }
+  console.log('Redis disabled - redisGet returning null for key:', key);
+  return null;
 }
 
 export async function redisSet(key, value, ttl = null) {
-  try {
-    if (!REDIS_ENABLED) {
-      console.log('Redis disabled - redisSet skipped for key:', key);
-      return true; // Pretend success
-    }
-    
-    const client = await getRedisClient();
-    if (!client) return false;
-    
-    if (ttl) {
-      return await client.setEx(key, ttl, value);
-    } else {
-      return await client.set(key, value);
-    }
-  } catch (error) {
-    console.error('Redis set error:', error);
-    return false; // Return false instead of throwing
-  }
+  console.log('Redis disabled - redisSet skipped for key:', key);
+  return true; // Pretend success
 }
 
 // Health check functions
@@ -136,19 +93,6 @@ export async function checkDatabaseHealth() {
 }
 
 export async function checkRedisHealth() {
-  try {
-    if (!REDIS_ENABLED) {
-      console.log('Redis disabled - health check returns true');
-      return true; // Consider healthy if disabled
-    }
-    
-    const client = await getRedisClient();
-    if (!client) return false;
-    
-    const pong = await client.ping();
-    return pong === 'PONG';
-  } catch (error) {
-    console.error('Redis health check error:', error);
-    return false;
-  }
+  console.log('Redis disabled - health check returns true');
+  return true; // Always healthy since disabled
 }

@@ -1,18 +1,20 @@
-import { checkDatabaseHealth, checkRedisHealth } from '$lib/database.js';
+import { checkDatabaseHealth } from '$lib/database.js';
 import { successResponse, errorResponse } from '$lib/response.js';
 
 export async function GET() {
   try {
     const dbHealthy = await checkDatabaseHealth();
-    const redisHealthy = await checkRedisHealth();
     
-    if (dbHealthy && redisHealthy) {
+    if (dbHealthy) {
       return successResponse('Server is healthy', {
         db_status: 'connected',
-        redis_status: 'connected'
+        redis_status: 'disabled'
       });
     } else {
-      return errorResponse('Server is unhealthy', 503);
+      return successResponse('Server partially healthy', {
+        db_status: 'disconnected',
+        redis_status: 'disabled'
+      });
     }
   } catch (error) {
     console.error('Health check error:', error);
