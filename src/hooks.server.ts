@@ -2,11 +2,6 @@ import type { Handle } from '@sveltejs/kit';
 import { API_BYPASS_KEY } from '$lib/stores/auth.js';
 
 export const handle: Handle = async ({ event, resolve }) => {
-	// Allow API routes to bypass authentication completely
-	if (event.url.pathname.startsWith('/api/')) {
-		return await resolve(event);
-	}
-
 	// Check for API bypass key in query params (for curl access)
 	const bypassKey = event.url.searchParams.get('auth');
 	if (bypassKey === API_BYPASS_KEY) {
@@ -18,6 +13,6 @@ export const handle: Handle = async ({ event, resolve }) => {
 		});
 	}
 
-	// For non-API routes, continue with normal flow (auth handled client-side)
+	// Allow all requests to proceed normally
 	return await resolve(event);
 };
