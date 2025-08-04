@@ -1,9 +1,8 @@
 import { Pool } from 'pg';
 import { createClient } from 'redis';
-import dotenv from 'dotenv';
 
-// Load environment variables
-dotenv.config();
+// Note: dotenv not needed on Vercel - env vars are already available
+// dotenv.config() would only be needed in local development
 
 // Database configuration
 const dbConfig = {

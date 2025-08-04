@@ -1,23 +1,27 @@
-import { successResponse } from '$lib/response.js';
-
 export async function GET() {
   try {
-    // Simple health check without database connection
-    const hasDbUrl = !!process.env.DATABASE_URL;
-    
-    return successResponse('Server is running', {
+    // Ultra-simple health check - no imports, no external dependencies
+    return new Response(JSON.stringify({
       status: 'healthy',
+      message: 'Server is running',
       timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || 'development',
-      db_configured: hasDbUrl,
-      redis_status: 'disabled'
+      environment: process.env.NODE_ENV || 'development'
+    }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
   } catch (error) {
-    console.error('Health check error:', error);
-    return successResponse('Server error', {
+    return new Response(JSON.stringify({
       status: 'error',
-      timestamp: new Date().toISOString(),
-      error: error.message
+      message: error.message,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
   }
 }
