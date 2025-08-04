@@ -4,9 +4,24 @@ import { browser } from '$app/environment';
 // Secret key for authentication
 const SECRET_KEY = 'sweethomealabama';
 
-// Check if user is authenticated from localStorage
+// API bypass key for programmatic access
+export const API_BYPASS_KEY = 'sweethomealabama';
+
+// Check if user is authenticated from localStorage or bypass cookie
 function getInitialAuthState() {
 	if (!browser) return null; // Return null during SSR to prevent flash
+	
+	// Check for auth bypass cookie first
+	const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+		const [key, value] = cookie.trim().split('=');
+		acc[key] = value;
+		return acc;
+	}, {});
+	
+	if (cookies.auth_bypass === 'true') {
+		return true;
+	}
+	
 	return localStorage.getItem('bcs_authenticated') === 'true';
 }
 
@@ -18,8 +33,15 @@ export const authLoaded = writable(false);
 
 // Initialize auth state on client side
 if (browser) {
-	// Set auth state immediately on client
-	isAuthenticated.set(localStorage.getItem('bcs_authenticated') === 'true');
+	// Check for bypass cookie first, then localStorage
+	const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+		const [key, value] = cookie.trim().split('=');
+		acc[key] = value;
+		return acc;
+	}, {});
+	
+	const isAuthenticatedValue = cookies.auth_bypass === 'true' || localStorage.getItem('bcs_authenticated') === 'true';
+	isAuthenticated.set(isAuthenticatedValue);
 	authLoaded.set(true);
 }
 
