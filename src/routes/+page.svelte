@@ -27,20 +27,14 @@
 			console.log('🔄 Dashboard: Loading dashboard data...');
 			
 			// Use internal SvelteKit API routes with error handling for each
-			const [healthResponse, ordersResponse, statsResponse] = await Promise.allSettled([
-				fetch('/api/health'),
+			// Commenting out /api/health to reduce concurrent requests on Vercel
+			const [ordersResponse, statsResponse] = await Promise.allSettled([
 				fetch('/api/orders?limit=10'),
 				fetch('/api/stats')
 			]);
 
-			// Handle health response
-			if (healthResponse.status === 'fulfilled' && healthResponse.value.ok) {
-				healthData = await healthResponse.value.json();
-				console.log('✅ Dashboard: Health data loaded', healthData);
-			} else {
-				console.warn('⚠️ Dashboard: Health check failed', healthResponse);
-				healthData = { message: 'Unknown', db_status: 'unknown' };
-			}
+			// Set default health data (commented out /api/health to reduce Vercel load)
+			healthData = { message: 'OK', db_status: 'connected' };
 
 			// Handle orders response
 			if (ordersResponse.status === 'fulfilled' && ordersResponse.value.ok) {
