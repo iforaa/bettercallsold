@@ -1,8 +1,9 @@
 import { Pool } from 'pg';
 import { createClient } from 'redis';
+import { config } from 'dotenv';
 
-// Note: dotenv not needed on Vercel - env vars are already available
-// dotenv.config() would only be needed in local development
+// Load environment variables from .env file for local development
+config();
 
 // Database configuration
 const dbConfig = {
@@ -32,9 +33,9 @@ function getDbPool() {
     console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'exists' : 'not found');
     console.log('DB_NAME:', process.env.DB_NAME);
     
-    // If DATABASE_URL is provided, use it directly
-    if (process.env.DATABASE_URL) {
-      console.log('Using DATABASE_URL for connection');
+    // Always prioritize DATABASE_URL if it exists (for Neon DB)
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.trim() !== '') {
+      console.log('Using DATABASE_URL for connection (Neon DB)');
       pgPool = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: {
@@ -42,7 +43,7 @@ function getDbPool() {
         }
       });
     } else {
-      console.log('Using individual DB config for connection');
+      console.log('Using individual DB config for connection (local/fallback)');
       pgPool = new Pool(dbConfig);
     }
   }

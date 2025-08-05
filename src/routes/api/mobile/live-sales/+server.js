@@ -2,6 +2,28 @@ import { query } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
 
+// Helper function to get Agora settings from database
+async function getAgoraSettings(tenantId = DEFAULT_TENANT_ID) {
+  try {
+    const result = await query(`
+      SELECT setting_key, setting_value 
+      FROM settings 
+      WHERE tenant_id = $1 AND setting_key LIKE 'agora_%'
+    `, [tenantId]);
+    
+    const settings = {};
+    result.rows.forEach(row => {
+      const key = row.setting_key.replace('agora_', ''); // Remove prefix
+      settings[key] = row.setting_value;
+    });
+    
+    return settings;
+  } catch (error) {
+    console.error('Error fetching Agora settings:', error);
+    return {};
+  }
+}
+
 export async function GET({ url }) {
   try {
     // Parse query parameters (similar to CommentSold API)
@@ -84,8 +106,11 @@ export async function GET({ url }) {
     const result = await query(queryText, params);
     const liveSales = result.rows;
 
+    // Get Agora settings for mobile app integration
+    const agoraSettings = await getAgoraSettings(DEFAULT_TENANT_ID);
+
     // Transform live sales to mobile format
-    const mobileLiveSales = liveSales.map(liveSale => transformLiveSaleForMobile(liveSale));
+    const mobileLiveSales = liveSales.map(liveSale => transformLiveSaleForMobile(liveSale, agoraSettings));
 
     // Get total count for pagination
     let totalCountQuery = `
@@ -154,7 +179,7 @@ export async function GET({ url }) {
   }
 }
 
-function transformLiveSaleForMobile(liveSale) {
+function transformLiveSaleForMobile(liveSale, agoraSettings = {}) {
   // Parse JSON fields safely
   let metadata = null;
   let settings = null;
@@ -199,9 +224,10 @@ function transformLiveSaleForMobile(liveSale) {
     peak_viewers: liveSale.peak_viewers || 0,
     concurrent_viewers: liveSale.is_live ? liveSale.peak_viewers || 0 : 0,
     
-    // Agora information (when available)
-    ...(liveSale.agora_channel && { agora_channel: liveSale.agora_channel }),
-    ...(liveSale.agora_token && { agora_token: liveSale.agora_token }),
+    // Agora information (prioritize current settings over stored data)
+    agora_channel: agoraSettings.channel || liveSale.agora_channel || null,
+    agora_token: agoraSettings.token || liveSale.agora_token || null,
+    agora_app_id: "1fe1d3f0d301498d9e43e0094f091800", // Static App ID
     
     // Product information
     product_count: parseInt(liveSale.product_count || liveSale.products_count || 0),

@@ -7,7 +7,11 @@
 	let { data }: { data: PageData } = $props();
 	
 	let customer: any = $state(null);
+	let orders: any[] = $state([]);
+	let waitlists: any[] = $state([]);
 	let loading = $state(true);
+	let loadingOrders = $state(false);
+	let loadingWaitlists = $state(false);
 	let error = $state('');
 
 	async function loadCustomer() {
@@ -40,6 +44,62 @@
 
 	onMount(() => {
 		loadCustomer();
+	});
+
+	async function loadCustomerOrders() {
+		if (!browser || !customer) return;
+		
+		try {
+			loadingOrders = true;
+			
+			const response = await fetch(`/api/customers/${data.customerId}/orders`);
+			
+			if (!response.ok) {
+				throw new Error('Failed to fetch customer orders');
+			}
+
+			const ordersData = await response.json();
+			orders = ordersData;
+		} catch (err) {
+			console.error('Load customer orders error:', err);
+			// Don't show error for orders, just keep empty array
+			orders = [];
+		} finally {
+			loadingOrders = false;
+		}
+	}
+
+	async function loadCustomerWaitlists() {
+		if (!browser || !customer) return;
+		
+		try {
+			loadingWaitlists = true;
+			
+			const response = await fetch(`/api/customers/${data.customerId}/waitlists`);
+			
+			if (!response.ok) {
+				throw new Error('Failed to fetch customer waitlists');
+			}
+
+			const waitlistsData = await response.json();
+			waitlists = waitlistsData;
+		} catch (err) {
+			console.error('Load customer waitlists error:', err);
+			// Don't show error for waitlists, just keep empty array
+			waitlists = [];
+		} finally {
+			loadingWaitlists = false;
+		}
+	}
+
+	// Load orders and waitlists when customer data is loaded
+	$effect(() => {
+		if (customer && customer.stats.order_count > 0) {
+			loadCustomerOrders();
+		}
+		if (customer) {
+			loadCustomerWaitlists();
+		}
 	});
 	let activeTab = $state('overview');
 	let toasts = $state([]);
@@ -197,10 +257,22 @@
 								<p>This customer hasn't placed any orders yet</p>
 								<button class="btn-secondary">Create order</button>
 							</div>
+						{:else if orders.length > 0}
+							<div class="last-order-preview">
+								<div class="last-order-card" onclick={() => goto(`/orders/${orders[0].id}`)}>
+									<div class="last-order-info">
+										<div class="last-order-id">Order #{orders[0].id.slice(0, 8)}...</div>
+										<div class="last-order-amount">{formatCurrency(orders[0].total_amount)}</div>
+										<div class="last-order-date">{new Date(orders[0].created_at).toLocaleDateString()}</div>
+									</div>
+									<div class="last-order-status status-{orders[0].status}">{orders[0].status}</div>
+								</div>
+								<button class="btn-secondary" onclick={() => activeTab = 'orders'}>View all orders</button>
+							</div>
 						{:else}
 							<div class="order-preview">
 								<p>Customer has {customer.stats.order_count} order{customer.stats.order_count !== 1 ? 's' : ''}</p>
-								<button class="btn-secondary">View orders</button>
+								<button class="btn-secondary" onclick={() => activeTab = 'orders'}>View orders</button>
 							</div>
 						{/if}
 					</div>
@@ -233,6 +305,12 @@
 						>
 							Posts ({customer.stats.posts_count})
 						</button>
+						<button 
+							class="tab {activeTab === 'waitlists' ? 'active' : ''}"
+							onclick={() => activeTab = 'waitlists'}
+						>
+							Waitlists ({waitlists.length})
+						</button>
 					</div>
 					
 					<div class="tab-content">
@@ -250,11 +328,38 @@
 								</div>
 							</div>
 						{:else if activeTab === 'orders'}
-							<div class="empty-state">
-								<div class="empty-icon">📦</div>
-								<p>No orders found</p>
-								<p class="empty-hint">Orders will appear here when the customer places them</p>
-							</div>
+							{#if loadingOrders}
+								<div class="loading-state">
+									<div class="loading-spinner-large"></div>
+									<p>Loading orders...</p>
+								</div>
+							{:else if orders.length > 0}
+								<div class="orders-list">
+									{#each orders as order}
+										<div class="order-card" onclick={() => goto(`/orders/${order.id}`)}>
+											<div class="order-header">
+												<div class="order-id">#{order.id.slice(0, 8)}...</div>
+												<div class="order-status status-{order.status}">{order.status}</div>
+											</div>
+											<div class="order-details">
+												<div class="order-amount">{formatCurrency(order.total_amount)}</div>
+												<div class="order-meta">
+													<span class="order-items">{order.items_count} item{order.items_count !== 1 ? 's' : ''}</span>
+													<span class="order-payment">{order.payment_method}</span>
+												</div>
+												<div class="order-date">{new Date(order.created_at).toLocaleDateString()}</div>
+											</div>
+											<div class="order-arrow">→</div>
+										</div>
+									{/each}
+								</div>
+							{:else}
+								<div class="empty-state">
+									<div class="empty-icon">📦</div>
+									<p>No orders found</p>
+									<p class="empty-hint">Orders will appear here when the customer places them</p>
+								</div>
+							{/if}
 						{:else if activeTab === 'cart'}
 							<div class="empty-state">
 								<div class="empty-icon">🛒</div>
@@ -267,6 +372,67 @@
 								<p>No posts found</p>
 								<p class="empty-hint">Customer posts and activity will appear here</p>
 							</div>
+						{:else if activeTab === 'waitlists'}
+							{#if loadingWaitlists}
+								<div class="loading-state">
+									<div class="loading-spinner-large"></div>
+									<p>Loading waitlists...</p>
+								</div>
+							{:else if waitlists.length > 0}
+								<div class="waitlists-list">
+									{#each waitlists as waitlist}
+										<div class="waitlist-card" onclick={() => goto(`/waitlists/${waitlist.id}`)}>
+											<div class="waitlist-header">
+												<div class="position">
+													<strong>#{waitlist.position || 'N/A'}</strong>
+												</div>
+												<div class="status">
+													{#if waitlist.authorized_at}
+														<span class="status-badge green">Authorized</span>
+													{:else}
+														<span class="status-badge orange">Pending</span>
+													{/if}
+												</div>
+											</div>
+											<div class="waitlist-content">
+												<div class="waitlist-main">
+													<div class="product-info">
+														<strong>{waitlist.product_name || 'No Product'}</strong>
+														{#if waitlist.product_price}
+															<div class="product-price">{formatCurrency(waitlist.product_price)}</div>
+														{/if}
+													</div>
+												</div>
+												<div class="waitlist-meta">
+													<div class="inventory-info">
+														{#if waitlist.color || waitlist.size}
+															<div class="inventory-details">
+																{#if waitlist.color}<span class="detail-badge">{waitlist.color}</span>{/if}
+																{#if waitlist.size}<span class="detail-badge">{waitlist.size}</span>{/if}
+															</div>
+														{/if}
+														{#if waitlist.inventory_quantity !== null}
+															<div class="inventory-quantity">
+																Qty: {waitlist.inventory_quantity}
+															</div>
+														{/if}
+													</div>
+													<div class="waitlist-details">
+														<div class="created-date">{new Date(waitlist.created_at).toLocaleDateString()}</div>
+													</div>
+												</div>
+											</div>
+											<div class="waitlist-arrow">→</div>
+										</div>
+									{/each}
+								</div>
+							{:else}
+								<div class="empty-state">
+									<div class="empty-icon">⏱️</div>
+									<p>No waitlist entries found</p>
+									<p class="empty-hint">Waitlist entries will appear here when the customer joins product waitlists</p>
+								</div>
+							{/if}
 						{/if}
 					</div>
 				</div>
@@ -940,6 +1106,294 @@
 		}
 	}
 
+	/* Orders styling */
+	.orders-list {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.order-card {
+		display: flex;
+		align-items: center;
+		padding: 1rem;
+		border: 1px solid #e1e1e1;
+		border-radius: 8px;
+		background: white;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		gap: 1rem;
+	}
+
+	.order-card:hover {
+		border-color: #005bd3;
+		box-shadow: 0 2px 8px rgba(0, 91, 211, 0.1);
+	}
+
+	.order-header {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		min-width: 120px;
+	}
+
+	.order-id {
+		font-family: monospace;
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: #202223;
+	}
+
+	.order-status {
+		padding: 0.125rem 0.375rem;
+		border-radius: 4px;
+		font-size: 0.75rem;
+		font-weight: 500;
+		text-transform: capitalize;
+		width: fit-content;
+	}
+
+	.order-status.status-completed {
+		background: #d1fae5;
+		color: #047857;
+	}
+
+	.order-status.status-pending {
+		background: #fef3c7;
+		color: #92400e;
+	}
+
+	.order-status.status-cancelled {
+		background: #fee2e2;
+		color: #991b1b;
+	}
+
+	.order-status.status-processing {
+		background: #dbeafe;
+		color: #1e40af;
+	}
+
+	.order-details {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.order-amount {
+		font-size: 1.125rem;
+		font-weight: 600;
+		color: #202223;
+	}
+
+	.order-meta {
+		display: flex;
+		gap: 0.75rem;
+		font-size: 0.875rem;
+		color: #6d7175;
+	}
+
+	.order-date {
+		font-size: 0.75rem;
+		color: #8c9196;
+	}
+
+	.order-arrow {
+		color: #c9cccf;
+		font-size: 1.25rem;
+	}
+
+	.last-order-preview {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.last-order-card {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 1rem;
+		border: 1px solid #e1e1e1;
+		border-radius: 8px;
+		background: #fafbfb;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.last-order-card:hover {
+		border-color: #005bd3;
+		background: white;
+		box-shadow: 0 2px 4px rgba(0, 91, 211, 0.1);
+	}
+
+	.last-order-info {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.last-order-id {
+		font-family: monospace;
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: #202223;
+	}
+
+	.last-order-amount {
+		font-size: 1rem;
+		font-weight: 600;
+		color: #202223;
+	}
+
+	.last-order-date {
+		font-size: 0.75rem;
+		color: #8c9196;
+	}
+
+	.last-order-status {
+		padding: 0.25rem 0.5rem;
+		border-radius: 4px;
+		font-size: 0.75rem;
+		font-weight: 500;
+		text-transform: capitalize;
+	}
+
+	/* Waitlist styling */
+	.waitlists-list {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.waitlist-card {
+		display: flex;
+		align-items: center;
+		padding: 1rem;
+		border: 1px solid #e1e1e1;
+		border-radius: 8px;
+		background: #fafbfb;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		gap: 1rem;
+	}
+
+	.waitlist-card:hover {
+		border-color: #005bd3;
+		background: white;
+		box-shadow: 0 2px 8px rgba(0, 91, 211, 0.1);
+		transform: translateY(-1px);
+	}
+
+	.waitlist-header {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		min-width: 100px;
+		align-items: center;
+		text-align: center;
+	}
+
+	.waitlist-content {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.waitlist-main {
+		display: flex;
+		gap: 2rem;
+		align-items: flex-start;
+	}
+
+	.waitlist-meta {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.waitlist-details {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.waitlist-arrow {
+		color: #c9cccf;
+		font-size: 1.25rem;
+		flex-shrink: 0;
+	}
+
+	.position strong {
+		color: #202223;
+		font-family: monospace;
+		font-size: 0.875rem;
+	}
+
+	.product-info strong {
+		color: #202223;
+		display: block;
+		margin-bottom: 0.25rem;
+		font-size: 0.875rem;
+	}
+
+	.product-price {
+		color: #6d7175;
+		font-size: 0.8125rem;
+		font-weight: 500;
+	}
+
+	.inventory-info {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.inventory-details {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+	}
+
+	.detail-badge {
+		background: #f3f4f6;
+		color: #374151;
+		padding: 0.125rem 0.375rem;
+		border-radius: 4px;
+		font-size: 0.75rem;
+		font-weight: 500;
+	}
+
+	.inventory-quantity {
+		color: #6d7175;
+		font-size: 0.75rem;
+	}
+
+	.status-badge {
+		padding: 0.25rem 0.5rem;
+		border-radius: 4px;
+		font-size: 0.75rem;
+		font-weight: 500;
+		text-transform: capitalize;
+	}
+
+	.status-badge.green {
+		background: #d1fae5;
+		color: #047857;
+	}
+
+	.status-badge.orange {
+		background: #fef3c7;
+		color: #92400e;
+	}
+
+	.created-date {
+		font-size: 0.75rem;
+		color: #8c9196;
+	}
+
 	@media (max-width: 768px) {
 		.page-content {
 			padding: 1rem;
@@ -962,6 +1416,38 @@
 		.tab {
 			flex: 1;
 			min-width: 120px;
+		}
+
+		.order-card, .waitlist-card {
+			flex-direction: column;
+			align-items: stretch;
+			gap: 0.75rem;
+		}
+
+		.order-header, .waitlist-header {
+			flex-direction: row;
+			justify-content: space-between;
+			align-items: center;
+			min-width: auto;
+		}
+
+		.waitlist-main {
+			flex-direction: column;
+			gap: 1rem;
+		}
+
+		.waitlist-meta {
+			flex-direction: column;
+			align-items: stretch;
+			gap: 0.75rem;
+		}
+
+		.waitlist-details {
+			justify-content: space-between;
+		}
+
+		.order-arrow, .waitlist-arrow {
+			display: none;
 		}
 	}
 </style>

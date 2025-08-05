@@ -9,6 +9,11 @@
 	let waitlists: any[] = $state([]);
 	let loading = $state(true);
 	let error = $state('');
+	let selectedWaitlists: string[] = $state([]);
+	let selectAll = $state(false);
+
+	// Import goto for navigation
+	import { goto } from '$app/navigation';
 
 	// Client-side data fetching
 	async function loadWaitlists() {
@@ -75,6 +80,23 @@
 			default: return 'Other';
 		}
 	}
+
+	function toggleSelectAll() {
+		if (selectAll) {
+			selectedWaitlists = waitlists?.map(w => w.id) || [];
+		} else {
+			selectedWaitlists = [];
+		}
+	}
+
+	function toggleWaitlist(waitlistId: string) {
+		if (selectedWaitlists.includes(waitlistId)) {
+			selectedWaitlists = selectedWaitlists.filter(id => id !== waitlistId);
+		} else {
+			selectedWaitlists = [...selectedWaitlists, waitlistId];
+		}
+		selectAll = selectedWaitlists.length === waitlists?.length;
+	}
 </script>
 
 <svelte:head>
@@ -115,107 +137,89 @@
 				</div>
 			</div>
 		{:else if waitlists && waitlists.length > 0}
-			<div class="waitlists-container">
-				<div class="waitlists-summary">
-					<div class="summary-card">
-						<h3>Total Entries</h3>
-						<div class="summary-number">{waitlists.length}</div>
-					</div>
-					<div class="summary-card">
-						<h3>Products</h3>
-						<div class="summary-number">{new Set(waitlists.map(w => w.product_id).filter(Boolean)).size}</div>
-					</div>
-					<div class="summary-card">
-						<h3>Users</h3>
-						<div class="summary-number">{new Set(waitlists.map(w => w.user_id).filter(Boolean)).size}</div>
-					</div>
-					<div class="summary-card">
-						<h3>Authorized</h3>
-						<div class="summary-number">{waitlists.filter(w => w.authorized_at).length}</div>
-					</div>
-				</div>
-
-				<div class="waitlists-table-container">
-					<table class="waitlists-table">
-						<thead>
-							<tr>
-								<th>Position</th>
-								<th>User</th>
-								<th>Product</th>
-								<th>Inventory</th>
-								<th>Source</th>
-								<th>Created</th>
-								<th>Status</th>
-								<th>Actions</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each waitlists as waitlist}
-								<tr>
-									<td>
-										<div class="position">
-											<strong>#{waitlist.position || 'N/A'}</strong>
-										</div>
-									</td>
-									<td>
-										<div class="user-info">
-											<strong>{waitlist.user_name || 'Unknown User'}</strong>
-											{#if waitlist.user_email}
-												<div class="user-email">{waitlist.user_email}</div>
-											{/if}
-										</div>
-									</td>
-									<td>
-										<div class="product-info">
-											<strong>{waitlist.product_name || 'No Product'}</strong>
-											{#if waitlist.product_price}
-												<div class="product-price">{formatCurrency(waitlist.product_price)}</div>
-											{/if}
-										</div>
-									</td>
-									<td>
-										<div class="inventory-info">
-											{#if waitlist.color || waitlist.size}
-												<div class="inventory-details">
-													{#if waitlist.color}<span class="detail-badge">{waitlist.color}</span>{/if}
-													{#if waitlist.size}<span class="detail-badge">{waitlist.size}</span>{/if}
-												</div>
-											{/if}
-											{#if waitlist.inventory_quantity !== null}
-												<div class="inventory-quantity">
-													Qty: {waitlist.inventory_quantity}
-												</div>
-											{/if}
-										</div>
-									</td>
-									<td>
-										<span class="source-badge {getOrderSourceBadgeColor(waitlist.order_source)}">
-											{getOrderSourceLabel(waitlist.order_source)}
-										</span>
-									</td>
-									<td>{formatDate(waitlist.created_at)}</td>
-									<td>
-										{#if waitlist.authorized_at}
-											<span class="status-badge green">Authorized</span>
-										{:else}
-											<span class="status-badge orange">Pending</span>
+			<!-- Table -->
+			<div class="table-container">
+				<table class="waitlists-table">
+					<thead>
+						<tr>
+							<th class="checkbox-col">
+								<input 
+									type="checkbox" 
+									bind:checked={selectAll}
+									onchange={toggleSelectAll}
+								/>
+							</th>
+							<th class="customer-col">Customer</th>
+							<th class="product-col">Product</th>
+							<th>Position</th>
+							<th>Status</th>
+							<th>Source</th>
+							<th>Date</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each waitlists as waitlist}
+							<tr class="waitlist-row" onclick={() => goto(`/waitlists/${waitlist.id}`)}>
+								<td class="checkbox-col" onclick={(e) => e.stopPropagation()}>
+									<input 
+										type="checkbox" 
+										checked={selectedWaitlists.includes(waitlist.id)}
+										onchange={() => toggleWaitlist(waitlist.id)}
+									/>
+								</td>
+								<td class="customer-col">
+									<div class="customer-info">
+										<div class="customer-name">{waitlist.user_name || 'Unknown User'}</div>
+										{#if waitlist.user_email}
+											<div class="customer-email">{waitlist.user_email}</div>
 										{/if}
-									</td>
-									<td>
-										<div class="actions">
-											<button class="btn-sm" onclick={() => alert('View waitlist details coming soon!')}>
-												View
-											</button>
-											<button class="btn-sm secondary" onclick={() => alert('Edit waitlist coming soon!')}>
-												Edit
-											</button>
+									</div>
+								</td>
+								<td class="product-col">
+									<div class="product-info">
+										<div class="product-image">
+											📦
 										</div>
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
+										<div class="product-details">
+											<div class="product-title">{waitlist.product_name || 'No Product'}</div>
+											<div class="product-variants">
+												{#if waitlist.color || waitlist.size}
+													{#if waitlist.color}<span class="variant-badge">{waitlist.color}</span>{/if}
+													{#if waitlist.size}<span class="variant-badge">{waitlist.size}</span>{/if}
+												{:else}
+													<span class="price">{formatCurrency(waitlist.product_price || 0)}</span>
+												{/if}
+											</div>
+										</div>
+									</div>
+								</td>
+								<td>
+									<span class="position-number">#{waitlist.position || 'N/A'}</span>
+								</td>
+								<td>
+									{#if waitlist.authorized_at}
+										<span class="status-badge authorized">Authorized</span>
+									{:else}
+										<span class="status-badge pending">Pending</span>
+									{/if}
+								</td>
+								<td>
+									<span class="source-badge {getOrderSourceBadgeColor(waitlist.order_source)}">
+										{getOrderSourceLabel(waitlist.order_source)}
+									</span>
+								</td>
+								<td>
+									<span class="date">{formatDate(waitlist.created_at)}</span>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Pagination -->
+			<div class="pagination">
+				<span class="pagination-info">1-{waitlists.length}</span>
 			</div>
 		{:else}
 			<div class="empty-state">
@@ -361,62 +365,9 @@
 		line-height: 1.5;
 	}
 
-	.waitlists-container {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-		padding: 1.5rem 2rem;
-	}
-
-	.waitlists-summary {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-		gap: 1rem;
-		margin-bottom: 1rem;
-	}
-
-	.summary-card {
+	.table-container {
 		background: white;
-		padding: 1.5rem;
-		border-radius: 8px;
-		border: 1px solid #e1e1e1;
-		text-align: center;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-		position: relative;
-	}
-
-	.summary-card::before {
-		content: '';
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: 4px;
-		border-radius: 8px 8px 0 0;
-		background: #005bd3;
-	}
-
-	.summary-card h3 {
-		margin: 0 0 0.5rem 0;
-		font-size: 0.75rem;
-		color: #6d7175;
-		text-transform: uppercase;
-		font-weight: 500;
-		letter-spacing: 0.5px;
-	}
-
-	.summary-number {
-		font-size: 2rem;
-		font-weight: 600;
-		color: #202223;
-	}
-
-	.waitlists-table-container {
-		background: white;
-		border-radius: 8px;
-		border: 1px solid #e1e1e1;
-		overflow: hidden;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+		overflow-x: auto;
 	}
 
 	.waitlists-table {
@@ -426,7 +377,7 @@
 
 	.waitlists-table th {
 		background: #fafbfb;
-		padding: 0.75rem 1rem;
+		padding: 0.5rem 1rem;
 		text-align: left;
 		font-weight: 500;
 		font-size: 0.75rem;
@@ -437,59 +388,82 @@
 	}
 
 	.waitlists-table td {
-		padding: 1rem;
+		padding: 0.75rem 1rem;
 		border-bottom: 1px solid #e1e1e1;
 		vertical-align: middle;
 	}
 
-	.waitlists-table tr:last-child td {
-		border-bottom: none;
+	.checkbox-col {
+		width: 40px;
+		padding: 0.75rem 0.5rem 0.75rem 1rem;
 	}
 
-	.position strong {
-		color: #202223;
-		font-family: monospace;
-		font-size: 0.875rem;
+	.customer-col {
+		min-width: 200px;
+		width: 25%;
 	}
 
-	.user-info strong {
-		color: #202223;
-		display: block;
-		margin-bottom: 0.25rem;
-		font-size: 0.875rem;
+	.product-col {
+		min-width: 250px;
+		width: 30%;
 	}
 
-	.user-email {
-		color: #6d7175;
-		font-size: 0.8125rem;
-	}
-
-	.product-info strong {
-		color: #202223;
-		display: block;
-		margin-bottom: 0.25rem;
-		font-size: 0.875rem;
-	}
-
-	.product-price {
-		color: #6d7175;
-		font-size: 0.8125rem;
-		font-weight: 500;
-	}
-
-	.inventory-info {
+	.customer-info {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
 	}
 
-	.inventory-details {
+	.customer-name {
+		font-weight: 500;
+		color: #202223;
+		font-size: 0.875rem;
+		margin-bottom: 0.25rem;
+	}
+
+	.customer-email {
+		color: #6d7175;
+		font-size: 0.8125rem;
+	}
+
+	.product-info {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 0.25rem;
+		align-items: center;
+		gap: 0.5rem;
 	}
 
-	.detail-badge {
+	.product-image {
+		width: 40px;
+		height: 40px;
+		background: #f6f6f7;
+		border-radius: 6px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1rem;
+		overflow: hidden;
+		border: 1px solid #e1e3e5;
+		flex-shrink: 0;
+		opacity: 0.6;
+	}
+
+	.product-details {
+		flex: 1;
+	}
+
+	.product-title {
+		font-weight: 500;
+		color: #202223;
+		font-size: 0.875rem;
+		margin-bottom: 0.25rem;
+	}
+
+	.product-variants {
+		display: flex;
+		gap: 0.25rem;
+		flex-wrap: wrap;
+	}
+
+	.variant-badge {
 		background: #f3f4f6;
 		color: #374151;
 		padding: 0.125rem 0.375rem;
@@ -498,9 +472,17 @@
 		font-weight: 500;
 	}
 
-	.inventory-quantity {
+	.price {
 		color: #6d7175;
-		font-size: 0.75rem;
+		font-size: 0.8125rem;
+		font-weight: 500;
+	}
+
+	.position-number {
+		font-family: monospace;
+		font-weight: 600;
+		color: #202223;
+		font-size: 0.875rem;
 	}
 
 	.source-badge {
@@ -544,45 +526,47 @@
 		text-transform: capitalize;
 	}
 
-	.status-badge.green {
+	.status-badge.authorized {
 		background: #d1fae5;
 		color: #047857;
 	}
 
-	.status-badge.orange {
+	.status-badge.pending {
 		background: #fef3c7;
 		color: #92400e;
 	}
 
-	.actions {
-		display: flex;
-		gap: 0.5rem;
-	}
-
-	.btn-sm {
-		padding: 0.375rem 0.75rem;
-		border-radius: 6px;
-		font-size: 0.75rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.15s ease;
-		border: none;
-		background: #202223;
-		color: white;
-	}
-
-	.btn-sm:hover {
-		background: #1a1a1a;
-	}
-
-	.btn-sm.secondary {
-		background: white;
+	.date {
+		font-size: 0.875rem;
 		color: #6d7175;
-		border: 1px solid #c9cccf;
 	}
 
-	.btn-sm.secondary:hover {
-		background: #f6f6f7;
+	.waitlist-row {
+		cursor: pointer;
+	}
+
+	.waitlist-row:hover {
+		background: #fafbfb;
+	}
+
+	input[type="checkbox"] {
+		width: 16px;
+		height: 16px;
+		cursor: pointer;
+	}
+
+	.pagination {
+		padding: 1rem 2rem;
+		background: white;
+		border-top: 1px solid #e1e1e1;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.pagination-info {
+		font-size: 0.875rem;
+		color: #6d7175;
 	}
 
 	.empty-state {
@@ -625,20 +609,8 @@
 			justify-content: flex-end;
 		}
 		
-		.waitlists-container {
-			padding: 1rem;
-		}
-		
-		.waitlists-summary {
-			grid-template-columns: repeat(2, 1fr);
-		}
-		
-		.waitlists-table-container {
-			overflow-x: auto;
-		}
-		
 		.waitlists-table {
-			min-width: 1000px;
+			min-width: 800px;
 		}
 		
 		.empty-state {

@@ -11,6 +11,7 @@
 	}
 	
 	let currentPath = $derived($page.url.pathname);
+	let isStorefront = $derived(currentPath.startsWith('/store'));
 	
 	const menuSections = [
 		{
@@ -59,6 +60,7 @@
 		{
 			title: 'Sales channels',
 			items: [
+				{ path: '/sales-channels/web-store', label: 'Web Store', icon: '🌐' },
 				{ path: '/sales-channels/mobile-app', label: 'Mobile App', icon: '📱' },
 				{ path: '/sales-channels/point-of-sale', label: 'Point of Sale', icon: '🏪' }
 			]
@@ -92,7 +94,11 @@
 	}
 </script>
 
-{#if $authLoaded && $isAuthenticated}
+{#if isStorefront}
+	<!-- Storefront - No admin UI, accessible to everyone -->
+	{@render children()}
+{:else if $authLoaded && $isAuthenticated}
+	<!-- Admin Interface -->
 	<div class="app-layout">
 		<!-- Top Header -->
 		<header class="top-header">

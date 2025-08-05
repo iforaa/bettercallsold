@@ -553,6 +553,101 @@
 						</div>
 					</div>
 
+					<!-- Variants -->
+					{#if variants && variants.length > 0}
+						<div class="form-section">
+							<div class="section-header">
+								<h3 class="section-title">Variants</h3>
+								<button class="btn-secondary add-variant-btn">
+									+ Add variant
+								</button>
+							</div>
+							
+							<!-- Variant options display (simplified) -->
+							{#if variants.some(v => v.color)}
+								<div class="variant-option">
+									<h4 class="option-title">Color</h4>
+									<div class="option-values">
+										{#each [...new Set(variants.filter(v => v.color).map(v => v.color))] as color}
+											<span class="option-value">{color}</span>
+										{/each}
+									</div>
+								</div>
+							{/if}
+							
+							{#if variants.some(v => v.size)}
+								<div class="variant-option">
+									<h4 class="option-title">Size</h4>
+									<div class="option-values">
+										{#each [...new Set(variants.filter(v => v.size).map(v => v.size))] as size}
+											<span class="option-value">{size}</span>
+										{/each}
+									</div>
+								</div>
+							{/if}
+						</div>
+					{/if}
+
+					<!-- Inventory -->
+					{#if variants && variants.length > 0}
+						<div class="form-section">
+							<div class="section-header">
+								<h3 class="section-title">Inventory</h3>
+								<div class="inventory-controls">
+									<div class="location-selector">
+										<span class="location-label">All locations</span>
+										<button class="btn-icon">▼</button>
+									</div>
+								</div>
+							</div>
+							
+							<!-- Inventory table -->
+							<div class="inventory-table-container">
+								<table class="inventory-table">
+									<thead>
+										<tr>
+											<th class="checkbox-col">
+												<input type="checkbox" />
+											</th>
+											<th class="variant-col">Variant</th>
+											<th class="price-col">Price</th>
+											<th class="available-col">Available</th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each variants as variant}
+											<tr class="inventory-row" onclick={() => goto(`/products/${productId}/variants/${variant.id}?fromInventory=true`)}>
+												<td class="checkbox-col" onclick={(e) => e.stopPropagation()}>
+													<input type="checkbox" />
+												</td>
+												<td class="variant-col">
+													<div class="variant-info">
+														<div class="variant-details">
+															<div class="variant-name">
+																{variant.color || variant.size || 'Default'}
+															</div>
+														</div>
+													</div>
+												</td>
+												<td class="price-col">
+													<span class="price-label">${variant.price || 0}</span>
+												</td>
+												<td class="available-col">
+													<span class="available-quantity">{variant.inventory_quantity || 0}</span>
+												</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+							
+							<!-- Total inventory -->
+							<div class="inventory-summary">
+								Total inventory across all locations: {variants.reduce((total, v) => total + (v.inventory_quantity || 0), 0)} available
+							</div>
+						</div>
+					{/if}
+
 				</div>
 
 				<!-- Sidebar -->
@@ -1551,5 +1646,226 @@
 		outline: none;
 		border-color: #005bd3;
 		box-shadow: 0 0 0 2px rgba(0, 91, 211, 0.1);
+	}
+
+	/* Variants and Inventory Styles */
+	.section-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 1.5rem;
+	}
+
+	.add-variant-btn {
+		font-size: 0.875rem;
+		padding: 0.5rem 0.75rem;
+	}
+
+	.variant-option {
+		margin-bottom: 1.5rem;
+	}
+
+	.variant-option:last-child {
+		margin-bottom: 0;
+	}
+
+	.option-title {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: #202223;
+		margin: 0 0 0.75rem 0;
+	}
+
+	.option-values {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.option-value {
+		background: #f3f4f6;
+		color: #374151;
+		padding: 0.375rem 0.75rem;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		font-weight: 500;
+	}
+
+	.inventory-controls {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		margin-bottom: 1rem;
+	}
+
+	.location-selector {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border: 1px solid #c9cccf;
+		border-radius: 6px;
+		background: white;
+		cursor: pointer;
+	}
+
+	.location-label {
+		font-size: 0.875rem;
+		color: #202223;
+	}
+
+	.btn-icon {
+		background: none;
+		border: none;
+		color: #6d7175;
+		cursor: pointer;
+		font-size: 0.75rem;
+	}
+
+	.inventory-table-container {
+		border: 1px solid #e1e1e1;
+		border-radius: 8px;
+		overflow: hidden;
+		margin-bottom: 1rem;
+	}
+
+	.inventory-table {
+		width: 100%;
+		border-collapse: collapse;
+	}
+
+	.inventory-table th {
+		background: #fafbfb;
+		padding: 0.75rem 1rem;
+		text-align: left;
+		font-weight: 500;
+		font-size: 0.75rem;
+		color: #6d7175;
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
+		border-bottom: 1px solid #e1e1e1;
+	}
+
+	.inventory-table td {
+		padding: 0.75rem 1rem;
+		border-bottom: 1px solid #e1e1e1;
+		vertical-align: middle;
+	}
+
+	.inventory-table tbody tr:last-child td {
+		border-bottom: none;
+	}
+
+	.inventory-row {
+		cursor: pointer;
+		transition: background-color 0.15s ease;
+	}
+
+	.inventory-row:hover {
+		background: #fafbfb;
+	}
+
+	.checkbox-col {
+		width: 40px;
+		text-align: center;
+	}
+
+	.variant-col {
+		width: 40%;
+	}
+
+	.price-col {
+		width: 30%;
+	}
+
+	.available-col {
+		width: 20%;
+		text-align: center;
+	}
+
+	.variant-info {
+		display: flex;
+		align-items: center;
+	}
+
+	.variant-details {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.variant-name {
+		font-weight: 500;
+		color: #202223;
+		font-size: 0.875rem;
+	}
+
+	.price-label {
+		font-weight: 500;
+		color: #202223;
+		font-size: 0.875rem;
+	}
+
+	.available-quantity {
+		font-weight: 500;
+		color: #6d7175;
+		font-size: 0.875rem;
+	}
+
+	.price-input-inline {
+		position: relative;
+		display: flex;
+		align-items: center;
+		max-width: 120px;
+	}
+
+	.price-input-inline .currency {
+		position: absolute;
+		left: 0.75rem;
+		color: #6d7175;
+		font-size: 0.875rem;
+		pointer-events: none;
+		z-index: 1;
+	}
+
+	.inline-input {
+		width: 100%;
+		padding: 0.5rem 0.75rem 0.5rem 1.75rem;
+		border: 1px solid #c9cccf;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		background: white;
+		transition: border-color 0.15s ease;
+	}
+
+	.inline-input:focus {
+		outline: none;
+		border-color: #005bd3;
+		box-shadow: 0 0 0 2px rgba(0, 91, 211, 0.1);
+	}
+
+	.available-quantity {
+		font-weight: 500;
+		color: #202223;
+		font-size: 0.875rem;
+	}
+
+	.inventory-summary {
+		text-align: center;
+		padding: 1rem;
+		background: #f9fafb;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		color: #6d7175;
+		border: 1px solid #e5e7eb;
+	}
+
+	.inventory-row:hover {
+		background: #fafbfb;
+	}
+
+	input[type="checkbox"] {
+		width: 16px;
+		height: 16px;
+		cursor: pointer;
 	}
 </style>

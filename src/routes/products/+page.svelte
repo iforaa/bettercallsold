@@ -359,7 +359,7 @@
 							</th>
 							<th class="product-col">Product</th>
 							<th>Status</th>
-							<th>Inventory</th>
+							<th class="inventory-col">Inventory</th>
 							<th>Category</th>
 							<th>Channels</th>
 							<th>Catalogs</th>
@@ -399,7 +399,6 @@
 										</div>
 										<div class="product-details">
 											<div class="product-title">{product.name}</div>
-											<div class="product-subtitle">{product.description}</div>
 										</div>
 									</div>
 								</td>
@@ -408,7 +407,7 @@
 										{product.status}
 									</span>
 								</td>
-								<td>
+								<td class="inventory-col">
 									<div class="inventory-info">
 										{#if product.total_inventory > 0}
 											<span class="inventory-text">
@@ -717,7 +716,7 @@
 
 	.products-table th {
 		background: #fafbfb;
-		padding: 0.75rem 1rem;
+		padding: 0.5rem 1rem;
 		text-align: left;
 		font-weight: 500;
 		font-size: 0.75rem;
@@ -728,35 +727,41 @@
 	}
 
 	.products-table td {
-		padding: 1rem;
+		padding: 0.75rem 1rem;
 		border-bottom: 1px solid #e1e1e1;
 		vertical-align: middle;
 	}
 
 	.checkbox-col {
 		width: 40px;
-		padding: 1rem 0.5rem 1rem 1rem;
+		padding: 0.75rem 0.5rem 0.75rem 1rem;
 	}
 
 	.product-col {
-		min-width: 300px;
+		min-width: 250px;
+		width: 30%;
+	}
+
+	.inventory-col {
+		min-width: 200px;
+		width: 25%;
 	}
 
 	.product-info {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: 0.5rem;
 	}
 
 	.product-image {
-		width: 48px;
-		height: 48px;
+		width: 40px;
+		height: 40px;
 		background: #f6f6f7;
-		border-radius: 8px;
+		border-radius: 6px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 1.25rem;
+		font-size: 1rem;
 		overflow: hidden;
 		position: relative;
 		border: 1px solid #e1e3e5;
@@ -794,18 +799,9 @@
 		font-weight: 500;
 		color: #202223;
 		font-size: 0.875rem;
-		margin-bottom: 0.25rem;
+		margin-bottom: 0;
 	}
 
-	.product-subtitle {
-		color: #6d7175;
-		font-size: 0.8125rem;
-		line-height: 1.3;
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-	}
 
 	.status-badge {
 		padding: 0.25rem 0.5rem;
@@ -821,6 +817,11 @@
 	}
 
 	.status-badge.draft {
+		background: #f3f4f6;
+		color: #6b7280;
+	}
+
+	.status-badge.archived {
 		background: #f3f4f6;
 		color: #6b7280;
 	}

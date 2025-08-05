@@ -41,7 +41,16 @@ export async function getProductWithInventory(productId, tenantId) {
 }
 
 // Get all products with inventory totals for listing
-export async function getProductsWithInventory(tenantId, limit = 50, offset = 0) {
+export async function getProductsWithInventory(tenantId, limit = 50, offset = 0, status = null) {
+    let whereClause = 'WHERE p.tenant_id = $1';
+    let params = [tenantId, limit, offset];
+    
+    // Add status filter if provided
+    if (status && status !== 'all') {
+        whereClause += ' AND p.status = $4';
+        params.push(status);
+    }
+    
     const result = await query(`
         SELECT 
             p.id,
@@ -53,14 +62,26 @@ export async function getProductsWithInventory(tenantId, limit = 50, offset = 0)
             p.created_at,
             p.updated_at,
             COALESCE(SUM(i.quantity), 0) as total_inventory,
-            COUNT(i.id) as variant_count
+            COUNT(i.id) as variant_count,
+            COALESCE(
+                jsonb_agg(
+                    DISTINCT jsonb_build_object(
+                        'id', c.id,
+                        'name', c.name,
+                        'description', c.description
+                    )
+                ) FILTER (WHERE c.id IS NOT NULL),
+                '[]'::jsonb
+            ) as product_collections
         FROM products p
         LEFT JOIN inventory i ON p.id = i.product_id AND i.tenant_id = $1
-        WHERE p.tenant_id = $1
+        LEFT JOIN product_collections pc ON p.id = pc.product_id
+        LEFT JOIN collections c ON pc.collection_id = c.id
+        ${whereClause}
         GROUP BY p.id
         ORDER BY p.created_at DESC
         LIMIT $2 OFFSET $3
-    `, [tenantId, limit, offset]);
+    `, params);
     
     return result.rows;
 }

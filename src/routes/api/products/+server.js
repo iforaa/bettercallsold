@@ -8,9 +8,10 @@ export async function GET({ url }) {
     const searchParams = url.searchParams;
     const limit = parseInt(searchParams.get('limit')) || 50;
     const offset = parseInt(searchParams.get('offset')) || 0;
+    const status = searchParams.get('status'); // Get status filter
     
-    // Use new inventory-aware query
-    const products = await getProductsWithInventory(DEFAULT_TENANT_ID, limit, offset);
+    // Use new inventory-aware query with status filtering
+    const products = await getProductsWithInventory(DEFAULT_TENANT_ID, limit, offset, status);
     
     return jsonResponse(products);
   } catch (error) {

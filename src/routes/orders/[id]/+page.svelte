@@ -84,6 +84,11 @@
 					Order Details
 				</h1>
 			</div>
+			<div class="header-right">
+				<button class="btn-primary" onclick={() => alert('Edit order functionality coming soon!')}>
+					Edit Order
+				</button>
+			</div>
 		</div>
 	</div>
 
@@ -134,7 +139,7 @@
 					<div class="order-section">
 						<h3>Customer Information</h3>
 						<div class="info-card">
-							<div class="customer-details">
+							<div class="customer-details clickable" onclick={() => goto(`/customers/${order.customer_id}`)}>
 								<div class="customer-name">{order.customer_name}</div>
 								<div class="customer-email">{order.customer_email}</div>
 								<div class="customer-id">Customer ID: {order.customer_id}</div>
@@ -142,25 +147,45 @@
 						</div>
 					</div>
 
+
 					<div class="order-section">
-						<h3>Payment Information</h3>
+						<h3>Order Items</h3>
 						<div class="info-card">
-							<div class="payment-details">
-								<div class="payment-method">
-									<strong>Method:</strong> {order.payment_method}
+							{#if order.items && order.items.length > 0}
+								<div class="order-items">
+									{#each order.items as item}
+										<div class="order-item">
+											<div class="item-image">
+												{#if item.product_images && item.product_images.length > 0}
+													<img src="{item.product_images[0].url}" alt="{item.product_name}" />
+												{:else}
+													<div class="no-image">📦</div>
+												{/if}
+											</div>
+											<div class="item-details">
+												<div class="item-name">{item.product_name}</div>
+												{#if item.variant_data && (item.variant_data.color || item.variant_data.size)}
+													<div class="item-variants">
+														{#if item.variant_data.color}<span class="variant-badge">{item.variant_data.color}</span>{/if}
+														{#if item.variant_data.size}<span class="variant-badge">{item.variant_data.size}</span>{/if}
+													</div>
+												{/if}
+												<div class="item-quantity">Qty: {item.quantity}</div>
+											</div>
+											<div class="item-price">
+												{formatCurrency(item.price)}
+												{#if item.quantity > 1}
+													<div class="item-subtotal">Total: {formatCurrency(item.price * item.quantity)}</div>
+												{/if}
+											</div>
+										</div>
+									{/each}
 								</div>
-								{#if order.payment_id && order.payment_id.Valid && order.payment_id.String}
-									<div class="payment-id">
-										<strong>Payment ID:</strong> {order.payment_id.String}
-									</div>
-								{/if}
-								<div class="payment-status">
-									<strong>Status:</strong> 
-									<span class="status-badge {getStatusColor(order.status)}">
-										{order.status}
-									</span>
+							{:else}
+								<div class="no-items">
+									<p>No items found for this order.</p>
 								</div>
-							</div>
+							{/if}
 						</div>
 					</div>
 
@@ -180,6 +205,22 @@
 									<span>Updated:</span>
 									<span>{formatDate(order.updated_at)}</span>
 								</div>
+								<div class="summary-row">
+									<span>Payment Method:</span>
+									<span>{order.payment_method}</span>
+								</div>
+								{#if order.payment_id && order.payment_id.Valid && order.payment_id.String}
+									<div class="summary-row">
+										<span>Payment ID:</span>
+										<span class="monospace">{order.payment_id.String}</span>
+									</div>
+								{/if}
+								<div class="summary-row">
+									<span>Status:</span>
+									<span class="status-badge {getStatusColor(order.status)}">
+										{order.status}
+									</span>
+								</div>
 								<div class="summary-row total">
 									<span><strong>Total Amount:</strong></span>
 									<span><strong>{formatCurrency(order.total_amount)}</strong></span>
@@ -189,14 +230,6 @@
 					</div>
 				</div>
 
-				<div class="order-actions">
-					<button class="btn-secondary" onclick={goBack}>
-						← Back to Orders
-					</button>
-					<button class="btn-primary" onclick={() => alert('Edit order functionality coming soon!')}>
-						Edit Order
-					</button>
-				</div>
 			</div>
 		{/if}
 	</div>
@@ -218,6 +251,12 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
+	}
+
+	.header-right {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
 	}
 
 	.header-left {
@@ -436,17 +475,21 @@
 		font-family: monospace;
 	}
 
-	.payment-details div {
-		margin-bottom: 0.75rem;
+	.customer-details.clickable {
+		cursor: pointer;
+		padding: 0.5rem;
+		border-radius: 6px;
+		transition: all 0.15s ease;
+		margin: -0.5rem;
 	}
 
-	.payment-details div:last-child {
-		margin-bottom: 0;
+	.customer-details.clickable:hover {
+		background: #f6f6f7;
+		transform: translateY(-1px);
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	}
 
-	.payment-method, .payment-id, .payment-status {
-		color: #202223;
-	}
+
 
 	.order-summary {
 		display: flex;
@@ -511,16 +554,101 @@
 		color: #6d7175;
 	}
 
-	.order-actions {
+	.order-items {
 		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		background: white;
-		border-radius: 8px;
-		padding: 1.5rem;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-		border: 1px solid #e1e1e1;
+		flex-direction: column;
+		gap: 1rem;
 	}
+
+	.order-item {
+		display: flex;
+		align-items: flex-start;
+		gap: 1rem;
+		padding: 1rem;
+		border: 1px solid #e3e3e3;
+		border-radius: 8px;
+		background: #fafbfb;
+	}
+
+	.item-image {
+		width: 60px;
+		height: 60px;
+		border-radius: 6px;
+		overflow: hidden;
+		flex-shrink: 0;
+		background: #f3f4f6;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.item-image img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.no-image {
+		font-size: 1.5rem;
+		color: #9ca3af;
+	}
+
+	.item-details {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.item-name {
+		font-weight: 600;
+		color: #202223;
+		margin-bottom: 0.5rem;
+		line-height: 1.4;
+	}
+
+	.item-variants {
+		display: flex;
+		gap: 0.25rem;
+		margin-bottom: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.variant-badge {
+		background: #e5e7eb;
+		color: #374151;
+		padding: 0.125rem 0.375rem;
+		border-radius: 4px;
+		font-size: 0.75rem;
+		font-weight: 500;
+	}
+
+	.item-quantity {
+		color: #6d7175;
+		font-size: 0.875rem;
+	}
+
+	.item-price {
+		text-align: right;
+		flex-shrink: 0;
+	}
+
+	.item-price {
+		font-weight: 600;
+		color: #202223;
+		font-size: 1rem;
+	}
+
+	.item-subtotal {
+		color: #6d7175;
+		font-size: 0.75rem;
+		margin-top: 0.25rem;
+	}
+
+	.no-items {
+		text-align: center;
+		padding: 2rem;
+		color: #6d7175;
+	}
+
 
 	.btn-primary, .btn-secondary {
 		padding: 0.75rem 1.5rem;
@@ -573,21 +701,21 @@
 			grid-template-columns: 1fr;
 		}
 
-		.order-actions {
+
+		.header-main {
 			flex-direction: column;
 			gap: 1rem;
-		}
-
-		.order-actions .btn-primary,
-		.order-actions .btn-secondary {
-			width: 100%;
-			justify-content: center;
+			align-items: stretch;
 		}
 
 		.header-left {
 			flex-direction: column;
 			align-items: flex-start;
 			gap: 0.5rem;
+		}
+
+		.header-right {
+			justify-content: flex-end;
 		}
 	}
 </style>

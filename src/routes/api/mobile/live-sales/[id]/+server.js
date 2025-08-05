@@ -2,6 +2,28 @@ import { query } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, notFoundResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
 
+// Helper function to get Agora settings from database
+async function getAgoraSettings(tenantId = DEFAULT_TENANT_ID) {
+  try {
+    const result = await query(`
+      SELECT setting_key, setting_value 
+      FROM settings 
+      WHERE tenant_id = $1 AND setting_key LIKE 'agora_%'
+    `, [tenantId]);
+    
+    const settings = {};
+    result.rows.forEach(row => {
+      const key = row.setting_key.replace('agora_', ''); // Remove prefix
+      settings[key] = row.setting_value;
+    });
+    
+    return settings;
+  } catch (error) {
+    console.error('Error fetching Agora settings:', error);
+    return {};
+  }
+}
+
 export async function GET({ params }) {
   try {
     const liveSaleId = params.id;
@@ -32,8 +54,11 @@ export async function GET({ params }) {
       ORDER BY shown_at ASC
     `, [liveSale.id]); // Use internal ID for products query
 
+    // Get Agora settings for mobile app integration
+    const agoraSettings = await getAgoraSettings(DEFAULT_TENANT_ID);
+
     // Transform to CommentSold live-sale details format
-    const detailedLiveSale = transformLiveSaleDetailsForMobile(liveSale, productsResult.rows);
+    const detailedLiveSale = transformLiveSaleDetailsForMobile(liveSale, productsResult.rows, agoraSettings);
 
     return jsonResponse(detailedLiveSale);
 
@@ -43,7 +68,7 @@ export async function GET({ params }) {
   }
 }
 
-function transformLiveSaleDetailsForMobile(liveSale, products) {
+function transformLiveSaleDetailsForMobile(liveSale, products, agoraSettings = {}) {
   // Parse JSON fields safely
   let metadata = null;
   let settings = null;
@@ -121,6 +146,17 @@ function transformLiveSaleDetailsForMobile(liveSale, products) {
       liveSale.animated_thumb.replace(/\/thumbnails\/.*$/, '/playlist.m3u8') : null),
     hls_url: liveSale.source_url || (liveSale.animated_thumb ? 
       liveSale.animated_thumb.replace(/\/thumbnails\/.*$/, '/index.m3u8') : null),
+    
+    // Agora RTC information (prioritize current settings over stored data)
+    agora_channel: agoraSettings.channel || liveSale.agora_channel || null,
+    agora_token: agoraSettings.token || liveSale.agora_token || null,
+    agora_app_id: "1fe1d3f0d301498d9e43e0094f091800", // Static App ID
+    agora_settings: {
+      app_id: "1fe1d3f0d301498d9e43e0094f091800",
+      channel: agoraSettings.channel || liveSale.agora_channel || null,
+      token: agoraSettings.token || liveSale.agora_token || null,
+      token_updated_at: agoraSettings.lastUpdated || null
+    },
     
     // Visual properties
     is_wide_cell: liveSale.is_wide_cell || false,

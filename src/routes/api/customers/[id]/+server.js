@@ -33,7 +33,7 @@ export async function GET({ params }) {
           COUNT(*) as order_count,
           COALESCE(SUM(total_amount), 0) as total_spent
         FROM orders 
-        WHERE customer_id = $1 AND tenant_id = $2
+        WHERE user_id = $1 AND tenant_id = $2
       `, [id, DEFAULT_TENANT_ID]);
     } catch (error) {
       console.log('Orders table not found, using default values');
@@ -44,7 +44,7 @@ export async function GET({ params }) {
       cartStats = await query(`
         SELECT COUNT(*) as cart_items_count
         FROM cart_items 
-        WHERE customer_id = $1 AND tenant_id = $2
+        WHERE user_id = $1 AND tenant_id = $2
       `, [id, DEFAULT_TENANT_ID]);
     } catch (error) {
       console.log('Cart_items table not found, using default values');
@@ -55,7 +55,7 @@ export async function GET({ params }) {
       postsStats = await query(`
         SELECT COUNT(*) as posts_count
         FROM posts 
-        WHERE customer_id = $1 AND tenant_id = $2
+        WHERE user_id = $1 AND tenant_id = $2
       `, [id, DEFAULT_TENANT_ID]);
     } catch (error) {
       console.log('Posts table not found, using default values');

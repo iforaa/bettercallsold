@@ -86,6 +86,29 @@ export const QUERIES = {
     ORDER BY o.created_at DESC
   `,
   
+  // Single order with customer info
+  GET_ORDER_BY_ID: `
+    SELECT 
+      o.id, o.tenant_id, o.user_id as customer_id, o.status, o.total_amount, 
+      o.shipping_address, o.payment_method, o.payment_id, 
+      o.created_at, o.updated_at,
+      u.name as customer_name, u.email as customer_email
+    FROM orders o
+    LEFT JOIN users u ON o.user_id = u.id
+    WHERE o.id = $1 AND o.tenant_id = $2
+  `,
+  
+  // Order items for a specific order
+  GET_ORDER_ITEMS: `
+    SELECT 
+      oi.id, oi.order_id, oi.product_id, oi.quantity, oi.price, oi.variant_data,
+      p.name as product_name, p.description as product_description, p.images as product_images
+    FROM order_items oi
+    LEFT JOIN products p ON oi.product_id = p.id
+    WHERE oi.order_id = $1
+    ORDER BY oi.id
+  `,
+  
   // Collections
   GET_COLLECTIONS: `
     SELECT c.*, 
