@@ -13,18 +13,22 @@ const pusher = new Pusher({
 
 export async function POST({ request }) {
     try {
-        const { user, message, timestamp } = await request.json();
+        const { user, message, timestamp, channel } = await request.json();
         
         // Validate input
-        if (!user || !message || !timestamp) {
+        if (!user || !message) {
             return json({ error: 'Missing required fields' }, { status: 400 });
         }
         
-        // Trigger the message event on the live-chat channel
-        await pusher.trigger('live-chat', 'new-message', {
+        // Use provided channel or default to standard public channel
+        const targetChannel = channel || 'live-chat';
+        
+        // Trigger the message event on the specified channel
+        await pusher.trigger(targetChannel, 'new-message', {
+            id: Date.now().toString(),
             user: user.trim(),
             message: message.trim(),
-            timestamp: timestamp
+            timestamp: timestamp || new Date().toISOString()
         });
         
         return json({ success: true });

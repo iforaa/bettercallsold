@@ -1,6 +1,8 @@
 import { query } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, notFoundResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
+import { PUSHER_APP_ID, PUSHER_KEY, PUSHER_SECRET, PUSHER_CLUSTER } from '$env/static/private';
+import Pusher from 'pusher';
 
 // Helper function to get Agora settings from database
 async function getAgoraSettings(tenantId = DEFAULT_TENANT_ID) {
@@ -21,6 +23,41 @@ async function getAgoraSettings(tenantId = DEFAULT_TENANT_ID) {
   } catch (error) {
     console.error('Error fetching Agora settings:', error);
     return {};
+  }
+}
+
+// Helper function to get Pusher credentials with auth info
+async function getPusherCredentials(liveSaleId) {
+  try {
+    // Use standard private channel name for all live chat  
+    const channelName = "private-live-chat";
+    
+    console.log('getPusherCredentials:', {
+      PUSHER_APP_ID,
+      PUSHER_KEY,
+      PUSHER_SECRET: PUSHER_SECRET ? 'SET' : 'UNDEFINED',
+      PUSHER_CLUSTER,
+      channelName
+    });
+    
+    // For now, don't require auth for private channels - just return basic credentials
+    // The mobile app and web can connect without auth for testing
+    return {
+      key: PUSHER_KEY || "2df4398e22debaee3ec6",
+      cluster: PUSHER_CLUSTER || "mt1",
+      channel: channelName,
+      auth: null, // Skip auth for now
+      socket_id: null
+    };
+  } catch (error) {
+    console.error('Error generating Pusher credentials:', error);
+    return {
+      key: PUSHER_KEY || "2df4398e22debaee3ec6",
+      cluster: PUSHER_CLUSTER || "mt1",
+      channel: "private-live-chat",
+      auth: null,
+      socket_id: null
+    };
   }
 }
 
@@ -58,7 +95,7 @@ export async function GET({ params }) {
     const agoraSettings = await getAgoraSettings(DEFAULT_TENANT_ID);
 
     // Transform to CommentSold live-sale details format
-    const detailedLiveSale = transformLiveSaleDetailsForMobile(liveSale, productsResult.rows, agoraSettings);
+    const detailedLiveSale = await transformLiveSaleDetailsForMobile(liveSale, productsResult.rows, agoraSettings);
 
     return jsonResponse(detailedLiveSale);
 
@@ -68,7 +105,7 @@ export async function GET({ params }) {
   }
 }
 
-function transformLiveSaleDetailsForMobile(liveSale, products, agoraSettings = {}) {
+async function transformLiveSaleDetailsForMobile(liveSale, products, agoraSettings = {}) {
   // Parse JSON fields safely
   let metadata = null;
   let settings = null;
@@ -86,6 +123,7 @@ function transformLiveSaleDetailsForMobile(liveSale, products, agoraSettings = {
   }
 
   // Transform products to mobile format
+  // For live sales (is_live: true), products array will be empty but structure is consistent
   const mobileProducts = products.map(product => transformProductForMobile(product));
 
   // Main live sale object with detailed information
@@ -157,6 +195,9 @@ function transformLiveSaleDetailsForMobile(liveSale, products, agoraSettings = {
       token: agoraSettings.token || liveSale.agora_token || null,
       token_updated_at: agoraSettings.lastUpdated || null
     },
+    
+    // Pusher Chat credentials (always included for testing)
+    pusher_credentials: await getPusherCredentials(liveSale.id),
     
     // Visual properties
     is_wide_cell: liveSale.is_wide_cell || false,
