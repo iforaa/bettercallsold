@@ -392,27 +392,30 @@
 
         <!-- Main Layout -->
         <div class="main-layout">
-            <!-- Stream Display -->
-            <StreamDisplay
-                channel={agoraSettings.channel}
-                {isStreamActive}
-                {joined}
-                {isLiveSelling}
-                bind:liveSellingForm
-                onStartLiveSelling={startLiveSelling}
-                onStopLiveSelling={stopLiveSelling}
-            />
+            <!-- Left Column -->
+            <div class="left-column">
+                <!-- Live Chat -->
+                <LiveChat />
+
+                <!-- Products List (moved below chat) -->
+                <ProductsListSimple />
+            </div>
 
             <!-- Right Column -->
             <div class="right-column">
+                <!-- Stream Display -->
+                <StreamDisplay
+                    channel={agoraSettings.channel}
+                    {isStreamActive}
+                    {joined}
+                    {isLiveSelling}
+                    bind:liveSellingForm
+                    onStartLiveSelling={startLiveSelling}
+                    onStopLiveSelling={stopLiveSelling}
+                />
+
                 <!-- Test Camera -->
                 <TestCamera {agoraService} {joined} />
-
-                <!-- Products List -->
-                <ProductsListSimple />
-
-                <!-- Live Chat -->
-                <LiveChat />
             </div>
         </div>
 
@@ -603,9 +606,16 @@
 
     .main-layout {
         display: grid;
-        grid-template-columns: 1fr 400px;
+        grid-template-columns: 1fr 300px;
         gap: 2rem;
         margin-bottom: 2rem;
+        align-items: start; /* Align items to the top */
+    }
+
+    .left-column {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
     }
 
     .right-column {

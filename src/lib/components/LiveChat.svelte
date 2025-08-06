@@ -110,6 +110,16 @@
             }
         }, 100);
     }
+    
+    function isLatestProductMessage(messages, currentIndex) {
+        // Find the last product message index
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].isProductMessage) {
+                return i === currentIndex;
+            }
+        }
+        return false;
+    }
 </script>
 
 <div class="chat-display">
@@ -138,9 +148,11 @@
                 <p class="hint">Be the first to say hello!</p>
             </div>
         {:else}
-            {#each messages as message (message.id)}
+            {#each messages as message, index (message.id)}
                 {#if message.isProductMessage}
-                    <div class="message product-message">
+                    <!-- Only show the most recent product message -->
+                    {#if isLatestProductMessage(messages, index)}
+                        <div class="message product-message">
                         <div class="product-message-header">
                             <span class="product-icon">🛍️</span>
                             <span class="message-user">{message.user}</span>
@@ -168,6 +180,7 @@
                             </div>
                         </div>
                     </div>
+                    {/if}
                 {:else}
                     <div class="message">
                         <div class="message-header">
@@ -227,7 +240,9 @@
         padding: 0;
         display: flex;
         flex-direction: column;
-        height: 400px;
+        height: calc(100vh - 400px); /* Leave space for products below */
+        max-height: 500px; /* Smaller max height to share space with products */
+        min-height: 300px; /* Smaller minimum height */
         flex: 1;
     }
 

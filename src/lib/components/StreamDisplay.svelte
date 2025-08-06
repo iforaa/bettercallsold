@@ -134,21 +134,22 @@
 
 <div class="stream-display">
     <div class="stream-header">
-        <h3>Live Stream from Mobile</h3>
-        <div class="stream-info">
-            <span class="channel-info">Channel: {channel}</span>
-            {#if isStreamActive}
-                <span class="live-badge">
-                    <span class="live-dot"></span>
-                    LIVE
-                </span>
-            {:else if joined}
-                <span class="waiting-badge">
-                    <span class="waiting-dot"></span>
-                    WAITING
-                </span>
-            {/if}
-        </div>
+        <h3>Live Stream</h3>
+    </div>
+    
+    <div class="stream-info">
+        <span class="channel-info">Channel: {channel}</span>
+        {#if isStreamActive}
+            <span class="live-badge">
+                <span class="live-dot"></span>
+                LIVE
+            </span>
+        {:else if joined}
+            <span class="waiting-badge">
+                <span class="waiting-dot"></span>
+                WAITING
+            </span>
+        {/if}
     </div>
 
     <div class="video-container main-stream">
@@ -168,32 +169,27 @@
         </div>
     </div>
 
-    <!-- Live Selling Form -->
-    <div class="live-selling-form">
-        <div class="form-section">
-            <h4>Live Sale Details</h4>
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="streamName">Stream Name</label>
-                    <input
-                        id="streamName"
-                        type="text"
-                        bind:value={liveSellingForm.name}
-                        placeholder="e.g., Fashion Friday Sale"
-                        class="form-input"
-                    />
-                </div>
-                <div class="form-group">
-                    <label for="streamDescription">Description</label>
-                    <input
-                        id="streamDescription"
-                        type="text"
-                        bind:value={liveSellingForm.description}
-                        placeholder="Describe what you'll be selling..."
-                        class="form-input"
-                    />
-                </div>
-            </div>
+    <!-- Stream Details (without background) -->
+    <div class="stream-details">
+        <div class="form-group">
+            <label for="streamName">Stream Name</label>
+            <input
+                id="streamName"
+                type="text"
+                bind:value={liveSellingForm.name}
+                placeholder="e.g., Fashion Friday Sale"
+                class="form-input"
+            />
+        </div>
+        <div class="form-group">
+            <label for="streamDescription">Description</label>
+            <input
+                id="streamDescription"
+                type="text"
+                bind:value={liveSellingForm.description}
+                placeholder="Describe what you'll be selling..."
+                class="form-input"
+            />
         </div>
     </div>
 
@@ -226,22 +222,16 @@
         background: white;
         border: 1px solid #e1e1e1;
         border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
+        padding: 1.25rem;
     }
 
     .stream-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid #f0f0f0;
+        margin-bottom: 0.75rem;
     }
 
     .stream-header h3 {
         margin: 0;
-        font-size: 1.125rem;
+        font-size: 1rem;
         font-weight: 600;
         color: #202223;
     }
@@ -249,11 +239,14 @@
     .stream-info {
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #f0f0f0;
     }
 
     .channel-info {
-        font-size: 0.875rem;
+        font-size: 0.75rem;
         color: #6d7175;
         font-family: monospace;
     }
@@ -261,9 +254,9 @@
     .live-badge {
         background: #ef4444;
         color: white;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
+        padding: 0.125rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.625rem;
         font-weight: 600;
         display: flex;
         align-items: center;
@@ -274,9 +267,9 @@
     .waiting-badge {
         background: #ffa500;
         color: white;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
+        padding: 0.125rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.625rem;
         font-weight: 600;
         display: flex;
         align-items: center;
@@ -295,15 +288,13 @@
 
     .video-container {
         width: 100%;
-        max-width: 400px;
-        height: 600px;
+        max-width: 225px; /* iPhone-like width */
+        height: 400px; /* iPhone aspect ratio (9:16) */
         background: #000;
         border-radius: 8px;
         overflow: hidden;
-        margin-bottom: 1rem;
+        margin: 0 auto 1rem auto; /* Center the video container */
         position: relative;
-        margin-left: auto;
-        margin-right: auto;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -338,33 +329,11 @@
         opacity: 0.8;
     }
 
-    .live-selling-form {
-        background: #f9fafb;
-        border: 1px solid #e1e1e1;
-        border-radius: 8px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-    }
-
-    .form-section {
-        margin-bottom: 1.5rem;
-    }
-
-    .form-section:last-child {
-        margin-bottom: 0;
-    }
-
-    .form-section h4 {
-        margin: 0 0 1rem 0;
-        font-size: 1rem;
-        font-weight: 600;
-        color: #202223;
-    }
-
-    .form-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
+    .stream-details {
+        margin-bottom: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
     }
 
     .form-group {
@@ -373,17 +342,17 @@
     }
 
     .form-group label {
-        font-size: 0.875rem;
+        font-size: 0.75rem;
         font-weight: 500;
         color: #202223;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.375rem;
     }
 
     .form-input {
-        padding: 0.75rem;
+        padding: 0.5rem 0.75rem;
         border: 1px solid #c9cccf;
         border-radius: 6px;
-        font-size: 0.875rem;
+        font-size: 0.75rem;
         background: white;
         transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
@@ -463,11 +432,6 @@
     }
 
     @media (max-width: 768px) {
-        .form-row {
-            grid-template-columns: 1fr;
-            gap: 0.75rem;
-        }
-
         .control-buttons {
             flex-direction: column;
             width: 100%;
