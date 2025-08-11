@@ -69,7 +69,7 @@
                 </h1>
             </div>
             <div class="page-actions">
-                {#if waitlistsState.currentWaitlist && !waitlistsState.currentWaitlist.authorized_at}
+                {#if waitlistsState.currentWaitlist && !waitlistsState.currentWaitlist?.authorized_at}
                     <button 
                         class="btn btn-warning" 
                         onclick={handleAuthorize}
@@ -139,44 +139,44 @@
                             <div class="detail-list">
                                 <div class="detail-row">
                                     <span class="detail-label">Entry ID:</span>
-                                    <span class="detail-value detail-value-mono">{waitlistsState.currentWaitlist.id}</span>
+                                    <span class="detail-value detail-value-mono">{waitlistsState.currentWaitlist?.id}</span>
                                 </div>
                                 <div class="detail-row">
                                     <span class="detail-label">Position:</span>
                                     <span class="detail-value position-highlight">
-                                        #{waitlistsState.currentWaitlist.position || 'N/A'}
+                                        #{waitlistsState.currentWaitlist?.position || 'N/A'}
                                     </span>
                                 </div>
                                 <div class="detail-row">
                                     <span class="detail-label">Source:</span>
                                     <span class="detail-value">
-                                        <span class="source-badge {getOrderSourceColor(waitlistsState.currentWaitlist.order_source)}">
-                                            {getOrderSourceLabel(waitlistsState.currentWaitlist.order_source)}
+                                        <span class="source-badge {getOrderSourceColor(waitlistsState.currentWaitlist?.order_source)}">
+                                            {getOrderSourceLabel(waitlistsState.currentWaitlist?.order_source)}
                                         </span>
                                     </span>
                                 </div>
                                 <div class="detail-row">
                                     <span class="detail-label">Created:</span>
-                                    <span class="detail-value">{dateTime(waitlistsState.currentWaitlist.created_at)}</span>
+                                    <span class="detail-value">{dateTime(waitlistsState.currentWaitlist?.created_at)}</span>
                                 </div>
-                                {#if waitlistsState.currentWaitlist.authorized_at}
+                                {#if waitlistsState.currentWaitlist?.authorized_at}
                                     <div class="detail-row">
                                         <span class="detail-label">Authorized:</span>
                                         <span class="detail-value">
-                                            {dateTime(new Date(waitlistsState.currentWaitlist.authorized_at * 1000).toISOString())}
+                                            {dateTime(new Date((waitlistsState.currentWaitlist?.authorized_at || 0) * 1000).toISOString())}
                                         </span>
                                     </div>
                                 {/if}
-                                {#if waitlistsState.currentWaitlist.comment_id}
+                                {#if waitlistsState.currentWaitlist?.comment_id}
                                     <div class="detail-row">
                                         <span class="detail-label">Comment ID:</span>
-                                        <span class="detail-value detail-value-mono">{waitlistsState.currentWaitlist.comment_id}</span>
+                                        <span class="detail-value detail-value-mono">{waitlistsState.currentWaitlist?.comment_id}</span>
                                     </div>
                                 {/if}
-                                {#if waitlistsState.currentWaitlist.instagram_comment_id}
+                                {#if waitlistsState.currentWaitlist?.instagram_comment_id}
                                     <div class="detail-row">
                                         <span class="detail-label">Instagram Comment:</span>
-                                        <span class="detail-value detail-value-mono">{waitlistsState.currentWaitlist.instagram_comment_id}</span>
+                                        <span class="detail-value detail-value-mono">{waitlistsState.currentWaitlist?.instagram_comment_id}</span>
                                     </div>
                                 {/if}
                             </div>

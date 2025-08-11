@@ -10,7 +10,7 @@ export async function load({ fetch, params }) {
 		}
 
 		const users = await response.json();
-		const user = users.find(u => u.id.toString() === params.id);
+		const user = users.find((u) => u.id.toString() === params.id);
 		
 		if (!user) {
 			throw error(404, 'User not found');

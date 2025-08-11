@@ -10,7 +10,15 @@
 		"sourceMap": true,
 		"strict": true,
 		"moduleResolution": "bundler"
-	}
+	},
+	"exclude": [
+		"src/lib/commentsold-api.js",
+		"src/lib/commentsold-api.server.ts",
+		"src/lib/database.js",
+		"src/lib/constants.js",
+		"src/lib/inventory-db.js",
+		"src/lib/response.js"
+	]
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
 	// except $lib which is handled by https://svelte.dev/docs/kit/configuration#files
 	//
