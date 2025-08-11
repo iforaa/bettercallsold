@@ -85,10 +85,42 @@ export async function GET({ params }) {
     const liveSale = liveSaleResult.rows[0];
 
     // Get products associated with this live sale
+    // This includes both static replay products AND memorized pusher products
     const productsResult = await query(`
-      SELECT * FROM replay_products 
-      WHERE replay_id = $1
-      ORDER BY shown_at ASC
+      SELECT 
+        rp.id,
+        rp.replay_id,
+        rp.external_id as external_product_id,
+        rp.product_name,
+        rp.brand,
+        rp.identifier,
+        rp.thumbnail,
+        rp.price,
+        rp.price_label,
+        rp.quantity,
+        rp.badge_label,
+        rp.shown_at,
+        rp.hidden_at,
+        rp.is_favorite,
+        rp.description,
+        rp.store_description,
+        rp.product_path,
+        rp.product_type,
+        rp.shopify_product_id,
+        rp.media,
+        rp.overlay_texts,
+        rp.inventory,
+        rp.metadata,
+        rp.created_at,
+        rp.updated_at,
+        -- Add source type indicator based on metadata
+        CASE 
+          WHEN rp.metadata::text LIKE '%pusher_featured%' THEN 'pusher_memory'
+          ELSE 'commentsold'
+        END as source_type
+      FROM replay_products rp
+      WHERE rp.replay_id = $1
+      ORDER BY rp.shown_at ASC
     `, [liveSale.id]); // Use internal ID for products query
 
     // Get Agora settings for mobile app integration
@@ -254,10 +286,19 @@ function transformProductForMobile(product) {
   let inventory = [];
   let metadata = null;
 
+  // Handle images field (from replay_products table)
   try {
-    media = product.media ? (typeof product.media === 'string' ? JSON.parse(product.media) : product.media) : [];
+    if (product.media) {
+      media = typeof product.media === 'string' ? JSON.parse(product.media) : product.media;
+    } else if (product.images) {
+      media = typeof product.images === 'string' ? JSON.parse(product.images) : product.images;
+    }
+    // If no media array, create one from thumbnail
+    if (media.length === 0 && product.thumbnail) {
+      media = [{ url: product.thumbnail, alt: product.product_name }];
+    }
   } catch (e) {
-    media = [];
+    media = product.thumbnail ? [{ url: product.thumbnail, alt: product.product_name }] : [];
   }
 
   try {
@@ -281,14 +322,14 @@ function transformProductForMobile(product) {
   return {
     id: product.id, // Our internal database ID
     external_id: product.external_product_id, // CommentSold product ID
-    product_id: product.external_product_id || product.id, // For backward compatibility
+    product_id: product.external_product_id || product.product_id || product.id, // For backward compatibility
     product_name: product.product_name || '',
     name: product.product_name || '',
     description: product.description || '',
     
     // Pricing
     price: parseFloat(product.price || 0),
-    price_label: product.price_label || (product.price ? `$${product.price}` : null),
+    price_label: product.price ? `$${parseFloat(product.price).toFixed(2)}` : 'Price not available',
     formatted_price: product.price ? `$${parseFloat(product.price).toFixed(2)}` : 'Price not available',
     compare_at_price: product.compare_at_price ? parseFloat(product.compare_at_price) : null,
     
@@ -303,8 +344,8 @@ function transformProductForMobile(product) {
     })),
     
     // Timing in live sale
-    shown_at: product.shown_at ? Math.floor(new Date(product.shown_at).getTime() / 1000) : null,
-    hidden_at: product.hidden_at ? Math.floor(new Date(product.hidden_at).getTime() / 1000) : null,
+    shown_at: product.shown_at ? Math.floor(new Date(product.shown_at).getTime() / 1000) : 0,
+    hidden_at: product.hidden_at ? Math.floor(new Date(product.hidden_at).getTime() / 1000) : 0,
     shown_at_formatted: product.shown_at ? new Date(product.shown_at).toLocaleTimeString() : null,
     display_duration: product.shown_at && product.hidden_at 
       ? Math.round((new Date(product.hidden_at) - new Date(product.shown_at)) / 1000) // seconds
@@ -324,7 +365,7 @@ function transformProductForMobile(product) {
     tags: product.tags || [],
     
     // Live sale specific
-    badge_label: product.badge_label || null,
+    badge_label: product.source_type === 'pusher_memory' ? 'LIVE FEATURED' : (product.badge_label || null),
     strikethrough_label: product.strikethrough_label || null,
     overlay_texts: overlayTexts,
     featured_in_live: true,
@@ -348,7 +389,9 @@ function transformProductForMobile(product) {
     metadata: metadata,
     sync_data: {
       replay_id: product.replay_id,
-      sync_source: 'commentsold'
+      sync_source: product.source_type || 'commentsold',
+      featured_at: product.featured_at,
+      is_pusher_memory: product.source_type === 'pusher_memory'
     }
   };
 }

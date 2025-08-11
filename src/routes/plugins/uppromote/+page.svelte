@@ -34,234 +34,286 @@
 
 <div class="page">
 	<div class="page-header">
-		<div class="header-content">
-			<div class="plugin-logo">
+		<div class="page-header-content">
+			<div class="flex-header">
 				<div class="uppromote-logo">UP</div>
+				<div>
+					<h1 class="page-title">UpPromote</h1>
+					<p class="page-subtitle">Affiliate & Referral Marketing</p>
+				</div>
 			</div>
-			<div class="header-text">
-				<h1>UpPromote</h1>
-				<p>Affiliate & Referral Marketing</p>
+			<div class="page-actions">
+				<div class="breadcrumb">
+					<div class="breadcrumb-item">
+						<span class="page-icon">🤝</span>
+						<span>Plugins</span>
+					</div>
+					<span class="breadcrumb-separator">›</span>
+					<div class="breadcrumb-item">
+						<span>UpPromote</span>
+					</div>
+				</div>
 			</div>
-		</div>
-		<div class="breadcrumb">
-			<span class="breadcrumb-icon">🤝</span>
-			<span>Plugins</span>
-			<span class="breadcrumb-separator">›</span>
-			<span>UpPromote</span>
 		</div>
 	</div>
 
-	<div class="page-content">
-		<div class="plugin-content">
-			{#if !isConnected}
-				<!-- Connection Setup -->
-				<div class="connection-section">
-					<div class="connection-card">
-						<div class="connection-header">
-							<div class="connection-icon">🤝</div>
-							<h2>Connect UpPromote</h2>
-						</div>
-						<p class="connection-description">
-							Build a powerful affiliate marketing program to grow your business through referrals. 
-							Recruit affiliates, track performance, and automate commission payments.
-						</p>
-						<div class="connection-features">
-							<div class="feature-item">
-								<span class="feature-icon">👥</span>
-								<span>Affiliate recruitment</span>
+	<div class="page-content-padded">
+		{#if !isConnected}
+			<!-- Connection Setup -->
+			<div class="content-section">
+				<div class="flex-center" style="min-height: 50vh;">
+					<div class="content-narrow">
+						<div class="card">
+							<div class="card-body" style="text-align: center; padding: var(--space-12);">
+								<div class="flex-column" style="align-items: center; margin-bottom: var(--space-8);">
+									<div style="font-size: 4rem; margin-bottom: var(--space-6);">🤝</div>
+									<h2 class="section-title" style="margin-bottom: var(--space-2);">Connect UpPromote</h2>
+									<p class="section-description" style="max-width: 500px;">
+										Build a powerful affiliate marketing program to grow your business through referrals. 
+										Recruit affiliates, track performance, and automate commission payments.
+									</p>
+								</div>
+								
+								<div class="grid grid-cols-2 gap-6" style="margin-bottom: var(--space-10);">
+									<div class="flex-start text-sm">
+										<span style="margin-right: var(--space-3); font-size: 1.25rem;">👥</span>
+										<span>Affiliate recruitment</span>
+									</div>
+									<div class="flex-start text-sm">
+										<span style="margin-right: var(--space-3); font-size: 1.25rem;">🔗</span>
+										<span>Custom referral links</span>
+									</div>
+									<div class="flex-start text-sm">
+										<span style="margin-right: var(--space-3); font-size: 1.25rem;">💰</span>
+										<span>Automated commissions</span>
+									</div>
+									<div class="flex-start text-sm">
+										<span style="margin-right: var(--space-3); font-size: 1.25rem;">📊</span>
+										<span>Performance tracking</span>
+									</div>
+									<div class="flex-start text-sm">
+										<span style="margin-right: var(--space-3); font-size: 1.25rem;">🎯</span>
+										<span>Multi-tier programs</span>
+									</div>
+									<div class="flex-start text-sm">
+										<span style="margin-right: var(--space-3); font-size: 1.25rem;">📱</span>
+										<span>Mobile affiliate portal</span>
+									</div>
+								</div>
+								
+								<div class="flex-column" style="align-items: center; gap: var(--space-4);">
+									<button class="btn btn-primary btn-xl uppromote-btn" on:click={connectUpPromote}>
+										Connect UpPromote Account
+									</button>
+									<div class="bg-surface-alt rounded-md" style="padding: var(--space-4); max-width: 400px;">
+										<div class="flex-center text-xs text-muted">
+											<span style="margin-right: var(--space-2);">ℹ️</span>
+											<span>Demo mode - This will simulate a connection for testing purposes</span>
+										</div>
+									</div>
+								</div>
 							</div>
-							<div class="feature-item">
-								<span class="feature-icon">🔗</span>
-								<span>Custom referral links</span>
-							</div>
-							<div class="feature-item">
-								<span class="feature-icon">💰</span>
-								<span>Automated commissions</span>
-							</div>
-							<div class="feature-item">
-								<span class="feature-icon">📊</span>
-								<span>Performance tracking</span>
-							</div>
-							<div class="feature-item">
-								<span class="feature-icon">🎯</span>
-								<span>Multi-tier programs</span>
-							</div>
-							<div class="feature-item">
-								<span class="feature-icon">📱</span>
-								<span>Mobile affiliate portal</span>
-							</div>
-						</div>
-						<button class="connect-button" on:click={connectUpPromote}>
-							Connect UpPromote Account
-						</button>
-						<div class="connection-note">
-							<span class="note-icon">ℹ️</span>
-							<span>Demo mode - This will simulate a connection for testing purposes</span>
 						</div>
 					</div>
 				</div>
-			{:else}
-				<!-- Connected Dashboard -->
-				<div class="status-section">
-					<div class="status-card connected">
-						<div class="status-info">
-							<div class="status-icon">✅</div>
-							<div class="status-text">
-								<h3>Connected to UpPromote</h3>
-								<p>Program: BetterCallSold Affiliate Program</p>
+			</div>
+		{:else}
+			<!-- Connected Dashboard -->
+			<div class="content-section">
+				<div class="card bg-success">
+					<div class="card-body">
+						<div class="flex-between items-center">
+							<div class="flex-header">
+								<div class="flex-center" style="width: 56px; height: 56px; background: rgba(22, 101, 52, 0.1); border-radius: var(--radius-full);">
+									<span style="font-size: 1.75rem;">✅</span>
+								</div>
+								<div>
+									<h3 class="card-title font-semibold">Connected to UpPromote</h3>
+									<p class="card-subtitle">Program: <span class="font-medium">BetterCallSold Affiliate Program</span></p>
+								</div>
 							</div>
+							<button class="btn btn-secondary btn-sm" on:click={disconnectUpPromote}>Disconnect</button>
 						</div>
-						<button class="disconnect-button" on:click={disconnectUpPromote}>Disconnect</button>
 					</div>
 				</div>
+			</div>
 
-				<div class="dashboard-grid">
-					<!-- Overview Stats -->
-					<div class="stats-section">
-						<h3>Program Overview</h3>
-						<div class="stats-grid">
-							<div class="stat-card">
-								<div class="stat-value">25</div>
-								<div class="stat-label">Active Affiliates</div>
-							</div>
-							<div class="stat-card">
-								<div class="stat-value">$8,460</div>
-								<div class="stat-label">Total Sales (30d)</div>
-							</div>
-							<div class="stat-card">
-								<div class="stat-value">$847</div>
-								<div class="stat-label">Commissions Paid</div>
-							</div>
-							<div class="stat-card">
-								<div class="stat-value">172</div>
-								<div class="stat-label">Referrals</div>
+			<!-- Overview Stats -->
+			<div class="content-section">
+				<div class="section-header">
+					<h3 class="section-title">Affiliate Program Overview</h3>
+					<p class="section-description">Performance metrics for your affiliate marketing program</p>
+				</div>
+				<div class="metrics-grid">
+					<div class="metric-card metric-card-bordered metric-card-accent">
+						<div class="metric-card-value">25</div>
+						<div class="metric-card-label">Active Affiliates</div>
+					</div>
+					<div class="metric-card metric-card-bordered metric-card-success">
+						<div class="metric-card-value">$8,460</div>
+						<div class="metric-card-label">Total Sales (30d)</div>
+					</div>
+					<div class="metric-card metric-card-bordered metric-card-warning">
+						<div class="metric-card-value">$847</div>
+						<div class="metric-card-label">Commissions Paid</div>
+					</div>
+					<div class="metric-card metric-card-bordered metric-card-error">
+						<div class="metric-card-value">172</div>
+						<div class="metric-card-label">Referrals</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Commission Tiers -->
+			<div class="content-section">
+				<div class="card">
+					<div class="card-header">
+						<div class="card-header-content">
+							<h3 class="card-title">Commission Tiers</h3>
+							<div class="card-actions">
+								<button class="btn btn-secondary btn-sm">Edit Tiers</button>
 							</div>
 						</div>
 					</div>
-
-					<!-- Commission Tiers -->
-					<div class="tiers-section">
-						<div class="section-header">
-							<h3>Commission Tiers</h3>
-							<button class="edit-button">Edit Tiers</button>
-						</div>
-						<div class="tiers-grid">
+					<div class="card-body">
+						<div class="grid grid-cols-4 gap-4">
 							{#each commissionRules as tier}
 								<div class="tier-card {tier.tier.toLowerCase()}">
-									<div class="tier-header">
-										<h4>{tier.tier}</h4>
+									<div class="flex-between items-start" style="margin-bottom: var(--space-3);">
+										<h4 class="font-semibold text-sm">{tier.tier}</h4>
 										<span class="tier-commission">{tier.commission}</span>
 									</div>
-									<div class="tier-range">{tier.minSales} - {tier.maxSales}</div>
-									<div class="tier-affiliates">{tier.affiliates} affiliates</div>
+									<div class="text-xs opacity-80" style="margin-bottom: var(--space-2);">{tier.minSales} - {tier.maxSales}</div>
+									<div class="text-xs opacity-70">{tier.affiliates} affiliates</div>
 								</div>
 							{/each}
 						</div>
 					</div>
+				</div>
+			</div>
 
-					<!-- Active Campaigns -->
-					<div class="campaigns-section">
-						<div class="section-header">
-							<h3>Affiliate Campaigns</h3>
-							<button class="create-button">+ Create Campaign</button>
-						</div>
-						<div class="table-container">
-							<table class="campaigns-table">
-								<thead>
-									<tr>
-										<th>Campaign</th>
-										<th>Type</th>
-										<th>Status</th>
-										<th>Affiliates</th>
-										<th>Conversions</th>
-										<th>Actions</th>
-									</tr>
-								</thead>
-								<tbody>
-									{#each campaigns as campaign}
-										<tr>
-											<td class="campaign-name">{campaign.name}</td>
-											<td>{campaign.type}</td>
-											<td>
-												<span class="status-badge {campaign.status.toLowerCase()}">{campaign.status}</span>
-											</td>
-											<td>{campaign.affiliates}</td>
-											<td>{campaign.conversions}</td>
-											<td>
-												<button class="action-button">Edit</button>
-											</td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
+			<!-- Active Campaigns & Top Affiliates -->
+			<div class="grid grid-cols-2 gap-6">
+				<!-- Active Campaigns -->
+				<div class="card">
+					<div class="card-header">
+						<div class="card-header-content">
+							<h3 class="card-title">Affiliate Campaigns</h3>
+							<div class="card-actions">
+								<button class="btn btn-primary btn-sm">+ Create Campaign</button>
+							</div>
 						</div>
 					</div>
+					<div class="table-responsive">
+						<table class="data-table">
+							<thead>
+								<tr>
+									<th>Campaign</th>
+									<th>Type</th>
+									<th>Status</th>
+									<th>Affiliates</th>
+									<th>Conversions</th>
+									<th>Actions</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each campaigns as campaign}
+									<tr>
+										<td class="table-cell-title">{campaign.name}</td>
+										<td class="text-sm">{campaign.type}</td>
+										<td>
+											<span class="status-badge {campaign.status.toLowerCase()}">{campaign.status}</span>
+										</td>
+										<td class="text-sm text-muted">{campaign.affiliates}</td>
+										<td class="text-sm text-muted">{campaign.conversions}</td>
+										<td>
+											<button class="btn btn-secondary btn-xs">Edit</button>
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				</div>
 
-					<!-- Top Affiliates -->
-					<div class="affiliates-section">
-						<div class="section-header">
-							<h3>Top Affiliates</h3>
-							<button class="manage-button">Manage All</button>
+				<!-- Top Affiliates -->
+				<div class="card">
+					<div class="card-header">
+						<div class="card-header-content">
+							<h3 class="card-title">Top Affiliates</h3>
+							<div class="card-actions">
+								<button class="btn btn-secondary btn-sm">Manage All</button>
+							</div>
 						</div>
-						<div class="affiliates-list">
+					</div>
+					<div class="card-body">
+						<div class="space-y-4">
 							{#each affiliates as affiliate}
-								<div class="affiliate-card">
+								<div class="flex-header" style="padding: var(--space-3); border: 1px solid var(--color-border-light); border-radius: var(--radius-md); background: var(--color-surface-alt);">
 									<div class="affiliate-avatar">
 										{affiliate.name.split(' ').map(n => n[0]).join('')}
 									</div>
-									<div class="affiliate-info">
-										<h4>{affiliate.name}</h4>
-										<p>{affiliate.email}</p>
+									<div class="flex-1">
+										<h4 class="font-semibold text-sm" style="margin-bottom: var(--space-1);">{affiliate.name}</h4>
+										<p class="text-xs text-muted" style="margin: 0;">{affiliate.email}</p>
 									</div>
-									<div class="affiliate-stats">
-										<div class="stat-item">
-											<span class="stat-value">{affiliate.sales}</span>
-											<span class="stat-label">Sales</span>
+									<div class="flex-header gap-4">
+										<div class="text-center">
+											<div class="font-semibold text-sm">{affiliate.sales}</div>
+											<div class="text-xs text-muted">Sales</div>
 										</div>
-										<div class="stat-item">
-											<span class="stat-value">{affiliate.referrals}</span>
-											<span class="stat-label">Referrals</span>
+										<div class="text-center">
+											<div class="font-semibold text-sm">{affiliate.referrals}</div>
+											<div class="text-xs text-muted">Referrals</div>
 										</div>
 									</div>
-									<div class="affiliate-commission">{affiliate.commission}</div>
-									<span class="affiliate-status {affiliate.status.toLowerCase()}">{affiliate.status}</span>
+									<div class="font-semibold text-sm" style="color: var(--color-success);">{affiliate.commission}</div>
+									<span class="status-badge {affiliate.status.toLowerCase()}">{affiliate.status}</span>
 								</div>
 							{/each}
 						</div>
 					</div>
+				</div>
+			</div>
 
-					<!-- Program Settings -->
-					<div class="settings-section">
-						<h3>Program Settings</h3>
-						<div class="settings-grid">
-							<div class="setting-item">
-								<div class="setting-label">
-									<h4>Auto-approve affiliates</h4>
-									<p>Automatically approve new affiliate applications</p>
+			<!-- Program Settings -->
+			<div class="content-section">
+				<div class="card">
+					<div class="card-header">
+						<div class="card-header-content">
+							<h3 class="card-title">Program Settings</h3>
+						</div>
+					</div>
+					<div class="card-body">
+						<div class="space-y-6">
+							<div class="flex-between items-start" style="padding: var(--space-4); border: 1px solid var(--color-border-light); border-radius: var(--radius-md); background: var(--color-surface-alt);">
+								<div class="flex-column" style="gap: var(--space-1);">
+									<h4 class="font-semibold text-sm">Auto-approve affiliates</h4>
+									<p class="text-xs text-muted">Automatically approve new affiliate applications</p>
 								</div>
-								<label class="toggle-switch">
+								<label class="toggle-switch" style="flex-shrink: 0;">
 									<input type="checkbox" />
 									<span class="toggle-slider"></span>
 								</label>
 							</div>
-							<div class="setting-item">
-								<div class="setting-label">
-									<h4>Cookie duration</h4>
-									<p>How long referral tracking lasts (in days)</p>
+							<div class="flex-between items-start" style="padding: var(--space-4); border: 1px solid var(--color-border-light); border-radius: var(--radius-md); background: var(--color-surface-alt);">
+								<div class="flex-column" style="gap: var(--space-1);">
+									<h4 class="font-semibold text-sm">Cookie duration</h4>
+									<p class="text-xs text-muted">How long referral tracking lasts (in days)</p>
 								</div>
-								<select class="setting-select">
+								<select class="select select-sm" style="flex-shrink: 0;">
 									<option>30 days</option>
 									<option>60 days</option>
 									<option selected>90 days</option>
 									<option>120 days</option>
 								</select>
 							</div>
-							<div class="setting-item">
-								<div class="setting-label">
-									<h4>Minimum payout</h4>
-									<p>Minimum commission amount for payments</p>
+							<div class="flex-between items-start" style="padding: var(--space-4); border: 1px solid var(--color-border-light); border-radius: var(--radius-md); background: var(--color-surface-alt);">
+								<div class="flex-column" style="gap: var(--space-1);">
+									<h4 class="font-semibold text-sm">Minimum payout</h4>
+									<p class="text-xs text-muted">Minimum commission amount for payments</p>
 								</div>
-								<select class="setting-select">
+								<select class="select select-sm" style="flex-shrink: 0;">
 									<option>$10</option>
 									<option selected>$50</option>
 									<option>$100</option>
@@ -271,337 +323,40 @@
 						</div>
 					</div>
 				</div>
-			{/if}
-		</div>
+			</div>
+		{/if}
 	</div>
 </div>
 
 <style>
-	.page {
-		padding: 0;
-		min-height: 100vh;
-		background-color: #f8fafc;
-	}
-
-	.page-header {
-		background: white;
-		border-bottom: 1px solid #e5e7eb;
-		padding: 1.5rem 2rem;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.header-content {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-	}
-
-	.plugin-logo {
-		width: 48px;
-		height: 48px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
+	/* UpPromote brand styling only */
 	.uppromote-logo {
 		width: 48px;
 		height: 48px;
 		background: linear-gradient(135deg, #10b981, #059669);
 		color: white;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		font-size: 0.875rem;
-		font-weight: bold;
+		font-weight: var(--font-weight-bold);
 	}
 
-	.header-text h1 {
-		margin: 0;
-		font-size: 1.5rem;
-		font-weight: 600;
-		color: #111827;
+	.uppromote-btn {
+		background: linear-gradient(135deg, #10b981, #059669) !important;
+		transition: all var(--transition-fast);
 	}
 
-	.header-text p {
-		margin: 0;
-		color: #6b7280;
-		font-size: 0.875rem;
-	}
-
-	.breadcrumb {
-		display: flex;
-		align-items: center;
-		color: #6b7280;
-		font-size: 0.9rem;
-	}
-
-	.breadcrumb-icon {
-		margin-right: 0.5rem;
-	}
-
-	.breadcrumb-separator {
-		margin: 0 0.5rem;
-		color: #d1d5db;
-	}
-
-	.page-content {
-		padding: 2rem;
-		max-width: 1200px;
-		margin: 0 auto;
-	}
-
-	.plugin-content {
-		background: white;
-		border-radius: 12px;
-		padding: 2rem;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-		border: 1px solid #e3e3e3;
-	}
-
-	.connection-section {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		min-height: 400px;
-	}
-
-	.connection-card {
-		max-width: 600px;
-		text-align: center;
-	}
-
-	.connection-header {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 1rem;
-		margin-bottom: 1.5rem;
-	}
-
-	.connection-icon {
-		font-size: 3rem;
-	}
-
-	.connection-header h2 {
-		margin: 0;
-		font-size: 1.5rem;
-		font-weight: 600;
-		color: #1a1a1a;
-	}
-
-	.connection-description {
-		font-size: 1rem;
-		color: #6b7280;
-		line-height: 1.6;
-		margin-bottom: 2rem;
-	}
-
-	.connection-features {
-		display: grid;
-		grid-template-columns: repeat(2, 1fr);
-		gap: 1rem;
-		margin-bottom: 2rem;
-	}
-
-	.feature-item {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.875rem;
-		color: #374151;
-	}
-
-	.feature-icon {
-		font-size: 1rem;
-	}
-
-	.connect-button {
-		background: linear-gradient(135deg, #10b981, #059669);
-		color: white;
-		border: none;
-		padding: 0.75rem 2rem;
-		border-radius: 8px;
-		font-size: 1rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: all 0.2s;
-		margin-bottom: 1rem;
-	}
-
-	.connect-button:hover {
+	.uppromote-btn:hover {
 		transform: translateY(-1px);
 		box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 	}
 
-	.connection-note {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.5rem;
-		font-size: 0.8125rem;
-		color: #6b7280;
-		background: #f9fafb;
-		padding: 0.75rem;
-		border-radius: 6px;
-		border: 1px solid #e5e7eb;
-	}
-
-	.status-section {
-		margin-bottom: 2rem;
-	}
-
-	.status-card {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 1rem 1.5rem;
-		border-radius: 8px;
-		border: 1px solid #e5e7eb;
-	}
-
-	.status-card.connected {
-		background: #f0fdf4;
-		border-color: #bbf7d0;
-	}
-
-	.status-info {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-	}
-
-	.status-icon {
-		font-size: 1.5rem;
-	}
-
-	.status-text h3 {
-		margin: 0;
-		font-size: 1rem;
-		font-weight: 600;
-		color: #166534;
-	}
-
-	.status-text p {
-		margin: 0;
-		font-size: 0.875rem;
-		color: #16a34a;
-	}
-
-	.disconnect-button {
-		background: #f3f4f6;
-		color: #374151;
-		border: 1px solid #d1d5db;
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
-		font-size: 0.875rem;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.disconnect-button:hover {
-		background: #e5e7eb;
-	}
-
-	.dashboard-grid {
-		display: grid;
-		gap: 2rem;
-	}
-
-	.stats-section h3,
-	.tiers-section h3,
-	.campaigns-section h3,
-	.affiliates-section h3,
-	.settings-section h3 {
-		margin: 0 0 1rem 0;
-		font-size: 1.125rem;
-		font-weight: 600;
-		color: #1a1a1a;
-	}
-
-	.stats-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-		gap: 1rem;
-		margin-bottom: 2rem;
-	}
-
-	.stat-card {
-		padding: 1.5rem;
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
-		background: white;
-		text-align: center;
-	}
-
-	.stat-value {
-		font-size: 1.5rem;
-		font-weight: 700;
-		color: #1a1a1a;
-		margin-bottom: 0.5rem;
-	}
-
-	.stat-label {
-		font-size: 0.875rem;
-		color: #6b7280;
-	}
-
-	.section-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 1rem;
-	}
-
-	.create-button,
-	.edit-button,
-	.manage-button {
-		background: #3b82f6;
-		color: white;
-		border: none;
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
-		font-size: 0.875rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.edit-button {
-		background: #f3f4f6;
-		color: #374151;
-		border: 1px solid #d1d5db;
-	}
-
-	.manage-button {
-		background: #f3f4f6;
-		color: #374151;
-		border: 1px solid #d1d5db;
-	}
-
-	.create-button:hover {
-		background: #2563eb;
-	}
-
-	.edit-button:hover,
-	.manage-button:hover {
-		background: #e5e7eb;
-	}
-
-	.tiers-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-		gap: 1rem;
-		margin-bottom: 2rem;
-	}
-
+	/* Commission tier cards */
 	.tier-card {
-		padding: 1.5rem;
-		border-radius: 8px;
-		background: white;
+		padding: var(--space-4);
+		border-radius: var(--radius-md);
 		border: 2px solid;
 		text-align: center;
 	}
@@ -627,222 +382,27 @@
 		color: white;
 	}
 
-	.tier-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 0.5rem;
-	}
-
-	.tier-header h4 {
-		margin: 0;
-		font-size: 1rem;
-		font-weight: 600;
-	}
-
 	.tier-commission {
 		font-size: 1.25rem;
-		font-weight: 700;
+		font-weight: var(--font-weight-bold);
 	}
 
-	.tier-range {
-		font-size: 0.875rem;
-		margin-bottom: 0.5rem;
-		opacity: 0.8;
-	}
-
-	.tier-affiliates {
-		font-size: 0.8125rem;
-		opacity: 0.7;
-	}
-
-	.table-container {
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
-		overflow: hidden;
-		margin-bottom: 2rem;
-	}
-
-	.campaigns-table {
-		width: 100%;
-		border-collapse: collapse;
-	}
-
-	.campaigns-table th {
-		background: #f9fafb;
-		padding: 0.75rem;
-		text-align: left;
-		font-size: 0.8125rem;
-		font-weight: 600;
-		color: #374151;
-		border-bottom: 1px solid #e5e7eb;
-	}
-
-	.campaigns-table td {
-		padding: 0.75rem;
-		border-bottom: 1px solid #f3f4f6;
-		font-size: 0.875rem;
-		color: #1a1a1a;
-	}
-
-	.campaign-name {
-		font-weight: 500;
-	}
-
-	.status-badge {
-		padding: 0.25rem 0.5rem;
-		border-radius: 4px;
-		font-size: 0.75rem;
-		font-weight: 500;
-	}
-
-	.status-badge.active {
-		background: #dcfce7;
-		color: #166534;
-	}
-
-	.status-badge.draft {
-		background: #f3f4f6;
-		color: #374151;
-	}
-
-	.action-button {
-		background: #f3f4f6;
-		color: #374151;
-		border: 1px solid #d1d5db;
-		padding: 0.25rem 0.75rem;
-		border-radius: 4px;
-		font-size: 0.8125rem;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.action-button:hover {
-		background: #e5e7eb;
-	}
-
-	.affiliates-list {
-		display: grid;
-		gap: 1rem;
-	}
-
-	.affiliate-card {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-		padding: 1rem;
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
-		background: white;
-	}
-
+	/* Affiliate avatar */
 	.affiliate-avatar {
 		width: 40px;
 		height: 40px;
-		background: #10b981;
+		background: linear-gradient(135deg, #10b981, #059669);
 		color: white;
-		border-radius: 50%;
+		border-radius: var(--radius-full);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 0.875rem;
-		font-weight: 600;
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
+		flex-shrink: 0;
 	}
 
-	.affiliate-info {
-		flex: 1;
-	}
-
-	.affiliate-info h4 {
-		margin: 0 0 0.25rem 0;
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: #1a1a1a;
-	}
-
-	.affiliate-info p {
-		margin: 0;
-		font-size: 0.8125rem;
-		color: #6b7280;
-	}
-
-	.affiliate-stats {
-		display: flex;
-		gap: 1rem;
-	}
-
-	.stat-item {
-		text-align: center;
-	}
-
-	.stat-item .stat-value {
-		display: block;
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: #1a1a1a;
-	}
-
-	.stat-item .stat-label {
-		font-size: 0.75rem;
-		color: #6b7280;
-	}
-
-	.affiliate-commission {
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: #10b981;
-		margin-right: 1rem;
-	}
-
-	.affiliate-status {
-		padding: 0.25rem 0.5rem;
-		border-radius: 4px;
-		font-size: 0.75rem;
-		font-weight: 500;
-	}
-
-	.affiliate-status.active {
-		background: #dcfce7;
-		color: #166534;
-	}
-
-	.affiliate-status.pending {
-		background: #fef3c7;
-		color: #92400e;
-	}
-
-	.settings-grid {
-		display: grid;
-		gap: 1rem;
-	}
-
-	.setting-item {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 1rem;
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
-		background: white;
-	}
-
-	.setting-label {
-		flex: 1;
-	}
-
-	.setting-label h4 {
-		margin: 0 0 0.25rem 0;
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: #1a1a1a;
-	}
-
-	.setting-label p {
-		margin: 0;
-		font-size: 0.8125rem;
-		color: #6b7280;
-	}
-
+	/* Toggle switch component (keep custom as design system doesn't have it) */
 	.toggle-switch {
 		position: relative;
 		display: inline-block;
@@ -863,9 +423,9 @@
 		left: 0;
 		right: 0;
 		bottom: 0;
-		background-color: #ccc;
-		transition: .4s;
-		border-radius: 24px;
+		background-color: var(--color-border-dark);
+		transition: var(--transition-normal);
+		border-radius: var(--radius-full);
 	}
 
 	.toggle-slider:before {
@@ -875,73 +435,37 @@
 		width: 18px;
 		left: 3px;
 		bottom: 3px;
-		background-color: white;
-		transition: .4s;
+		background-color: var(--color-surface);
+		transition: var(--transition-normal);
 		border-radius: 50%;
 	}
 
 	input:checked + .toggle-slider {
-		background-color: #10b981;
+		background: linear-gradient(135deg, #10b981, #059669);
 	}
 
 	input:checked + .toggle-slider:before {
 		transform: translateX(20px);
 	}
 
-	.setting-select {
-		padding: 0.5rem;
-		border: 1px solid #d1d5db;
-		border-radius: 6px;
-		font-size: 0.875rem;
-		color: #374151;
-		background: white;
-	}
-
+	/* Responsive design */
 	@media (max-width: 768px) {
-		.page-content {
-			padding: 1rem;
+		.grid-cols-2 {
+			grid-template-columns: 1fr !important;
 		}
-
-		.plugin-content {
-			padding: 1rem;
+		
+		.grid-cols-4 {
+			grid-template-columns: repeat(2, 1fr) !important;
 		}
-
-		.connection-features {
-			grid-template-columns: 1fr;
-		}
-
-		.stats-grid {
-			grid-template-columns: 1fr 1fr;
-		}
-
-		.tiers-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.campaigns-table {
-			font-size: 0.75rem;
-		}
-
-		.campaigns-table th,
-		.campaigns-table td {
-			padding: 0.5rem 0.25rem;
-		}
-
-		.affiliate-card {
+		
+		.flex-between {
 			flex-direction: column;
-			align-items: flex-start;
-			gap: 0.5rem;
+			align-items: flex-start !important;
+			gap: var(--space-3);
 		}
-
-		.affiliate-stats {
-			width: 100%;
-			justify-content: space-around;
-		}
-
-		.setting-item {
-			flex-direction: column;
-			align-items: flex-start;
-			gap: 1rem;
+		
+		.toggle-switch, .select {
+			align-self: flex-end;
 		}
 	}
 </style>

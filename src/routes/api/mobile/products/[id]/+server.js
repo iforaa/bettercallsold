@@ -1,4 +1,4 @@
-import { query } from '$lib/database.js';
+import { query, getCached, setCache } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, notFoundResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
 
@@ -6,6 +6,18 @@ export async function GET({ params }) {
   try {
     const productId = params.id;
     console.log('🔍 BetterCallSold API: Product details requested for ID:', productId, 'Type:', typeof productId);
+
+    // Create cache key for mobile product details
+    const cacheKey = `mobile_product_details_${productId}_${DEFAULT_TENANT_ID}`;
+    
+    // Try to get from cache first
+    const cachedProduct = await getCached(cacheKey);
+    if (cachedProduct) {
+      console.log(`🚀 Cache hit for mobile product details ${productId}`);
+      return jsonResponse(cachedProduct);
+    }
+    
+    console.log(`🔍 Cache miss for mobile product details ${productId}, fetching from database`);
 
     // Search by product ID (UUID) and include inventory
     const productQuery = `
@@ -54,7 +66,12 @@ export async function GET({ params }) {
     console.log('✅ BetterCallSold API: Transformed product for mobile');
 
     // Return as array (matching CommentSold format)
-    return jsonResponse([mobileProduct]);
+    const response = [mobileProduct];
+    
+    // Cache the product details for 5 minutes (300 seconds)
+    await setCache(cacheKey, response, 300);
+
+    return jsonResponse(response);
 
   } catch (error) {
     console.error('❌ BetterCallSold API: Product details error:', error);

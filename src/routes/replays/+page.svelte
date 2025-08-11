@@ -1,104 +1,90 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import { 
+		replaysState, 
+		replaysActions, 
+		getFilteredReplays, 
+		getReplayAnalytics,
+		hasSelection,
+		getSelectionCount,
+		isAllSelected
+	} from '$lib/state/replays.svelte.js';
+	
+	// Components
+	import LoadingState from '$lib/components/states/LoadingState.svelte';
+	import ErrorState from '$lib/components/states/ErrorState.svelte';
+	import EmptyState from '$lib/components/states/EmptyState.svelte';
+	import ReplayCard from '$lib/components/replays/ReplayCard.svelte';
+	import ReplayMetrics from '$lib/components/replays/ReplayMetrics.svelte';
 
 	let { data }: { data: PageData } = $props();
 	
-	// State management
-	let replays: any[] = $state([]);
-	let loading = $state(true);
-	let error = $state('');
-	let pagination = $state(null);
-	let selectedReplays: string[] = $state([]);
-	let selectAll = $state(false);
+	// Reactive state from global store
+	let loading = $derived(replaysState.loading);
+	let error = $derived(replaysState.error);
+	let replays = $derived(getFilteredReplays());
+	let analytics = $derived(getReplayAnalytics());
+	let pagination = $derived(replaysState.pagination);
+	let selectedReplays = $derived(replaysState.selectedReplays);
+	let selectAll = $derived(replaysState.selectAll);
+	let viewMode = $derived(replaysState.viewMode);
 	
-	// Get URL params from load function
-	let urlParams = $derived(data.urlParams || { page: '1', limit: '20', status: 'active' });
+	// Selection state
+	let hasSelectionDerived = $derived(hasSelection());
+	let selectionCount = $derived(getSelectionCount());
+	let allSelected = $derived(isAllSelected());
 	
-	// Client-side data fetching
-	async function loadReplays() {
-		if (!browser) return;
-		
-		try {
-			loading = true;
-			error = '';
+	// Initialize with URL params
+	$effect(() => {
+		if (browser && data.urlParams) {
+			const { page, limit, status } = data.urlParams;
 			
-			const { page, limit, status } = urlParams;
-			const response = await fetch(`/api/replays?page=${page}&limit=${limit}&status=${status}`);
+			// Update state with URL params
+			if (page) replaysState.pagination.page = parseInt(page);
+			if (limit) replaysState.pagination.limit = parseInt(limit);
+			if (status) replaysState.filters.status = status as any;
 			
-			if (!response.ok) {
-				throw new Error('Failed to fetch replays');
+			// Load replays if not already loaded
+			if (!replaysState.lastFetch) {
+				replaysActions.loadReplays();
 			}
-
-			const result = await response.json();
-			replays = result.replays || [];
-			pagination = result.pagination || null;
-		} catch (err) {
-			console.error('Load replays error:', err);
-			error = 'Failed to load replays from backend';
-			replays = [];
-			pagination = null;
-		} finally {
-			loading = false;
 		}
+	});
+	
+	// Event handlers
+	function handleReplayClick(replay: any) {
+		goto(`/replays/${replay.id}`);
 	}
 	
-	// Load replays when component mounts
-	onMount(() => {
-		loadReplays();
-	});
-
-	function toggleSelectAll() {
-		if (selectAll) {
-			selectedReplays = replays?.map(r => r.id) || [];
-		} else {
-			selectedReplays = [];
-		}
+	function handleSelectReplay(id: string) {
+		replaysActions.selectReplay(id);
 	}
-
-	function toggleReplay(replayId: string) {
-		if (selectedReplays.includes(replayId)) {
-			selectedReplays = selectedReplays.filter(id => id !== replayId);
-		} else {
-			selectedReplays = [...selectedReplays, replayId];
-		}
-		selectAll = selectedReplays.length === replays?.length;
+	
+	function handleSelectAll() {
+		replaysState.selectAll = !replaysState.selectAll;
+		replaysActions.selectAllReplays();
 	}
-
-	function goToReplay(replayId: string) {
-		goto(`/replays/${replayId}`);
+	
+	function handleRetry() {
+		replaysActions.retry();
 	}
-
-	function handleReplayClick(event: Event, replayId: string) {
-		// Don't navigate if clicking on checkbox
-		const target = event.target as HTMLElement;
-		if (target.type === 'checkbox' || target.closest('input[type="checkbox"]')) {
-			return;
-		}
-		goToReplay(replayId);
+	
+	function handleClearError() {
+		replaysState.error = '';
 	}
-
-	function formatDuration(minutes: number | null): string {
-		if (!minutes) return 'Unknown';
-		if (minutes < 60) return `${minutes}m`;
-		const hours = Math.floor(minutes / 60);
-		const mins = minutes % 60;
-		return `${hours}h ${mins}m`;
+	
+	function handleViewModeChange(mode: 'table' | 'grid') {
+		replaysActions.setViewMode(mode);
 	}
-
-	function formatViewers(viewers: number): string {
-		if (viewers >= 1000) {
-			return `${(viewers / 1000).toFixed(1)}k`;
-		}
-		return viewers.toString();
+	
+	function handleSyncReplays() {
+		replaysActions.syncReplays();
 	}
-
-	function getStatusBadge(isLive: boolean): { text: string, class: string } {
-		return isLive 
-			? { text: 'Live', class: 'status-live' }
-			: { text: 'Replay', class: 'status-replay' };
+	
+	async function handlePageChange(page: number) {
+		await replaysActions.goToPage(page);
 	}
 </script>
 
@@ -108,13 +94,31 @@
 
 <div class="page">
 	<div class="page-header">
-		<div class="header-main">
-			<h1>
-				<span class="page-icon">🎬</span>
-				Replays
-			</h1>
-			<div class="header-actions">
-				<a href="/replays/sync" class="btn-primary">Sync Replays</a>
+		<div class="page-header-content">
+			<div class="page-header-nav">
+				<div class="breadcrumb" style="margin-bottom: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold);">
+					<span class="breadcrumb-item current">🎬 Replays</span>
+				</div>
+			</div>
+			<div class="page-actions">
+				<!-- View Mode Toggle -->
+				<div class="view-mode-toggle">
+					<button 
+						class="btn btn-ghost btn-sm" 
+						class:active={viewMode === 'table'}
+						onclick={() => handleViewModeChange('table')}
+					>
+						📋 Table
+					</button>
+					<button 
+						class="btn btn-ghost btn-sm" 
+						class:active={viewMode === 'grid'}
+						onclick={() => handleViewModeChange('grid')}
+					>
+						⊞ Grid
+					</button>
+				</div>
+				<button class="btn btn-primary" onclick={handleSyncReplays}>Sync Replays</button>
 			</div>
 		</div>
 		<p class="page-description">
@@ -123,499 +127,366 @@
 	</div>
 
 	<div class="page-content">
+		<!-- Global Error State -->
+		{#if error}
+			<ErrorState 
+				message="Error Loading Replays"
+				errorText={error}
+				onRetry={handleRetry}
+				onBack={handleClearError}
+				backLabel="Clear Error"
+				showBackButton={true}
+			/>
+		{:else if loading}
+			<!-- Global Loading State -->
+			<LoadingState 
+				message="Loading replays..."
+				subMessage="Fetching your CommentSold replay data"
+			/>
+		{:else}
+			<!-- Analytics Overview -->
+			{#if replays.length > 0}
+				<ReplayMetrics 
+					analytics={analytics}
+					showDetailed={false}
+				/>
+			{/if}
 
-{#if error}
-		<div class="error-state">
-			<p>{error}</p>
-			<button class="btn-secondary" onclick={() => loadReplays()}>
-				Retry
-			</button>
-		</div>
-	{:else if loading}
-		<!-- Loading state -->
-		<div class="loading-state">
-			<div class="loading-content">
-				<div class="loading-spinner-large"></div>
-				<h3>Loading replays...</h3>
-				<p>This may take a moment</p>
-			</div>
-		</div>
-	{:else}
-		<!-- Tabs -->
-		<div class="tabs">
-			<button class="tab active">All</button>
-		</div>
-
-		{#if replays && replays.length > 0}
-			<!-- Table -->
-			<div class="table-container">
-				<table class="replays-table">
-					<thead>
-						<tr>
-							<th class="checkbox-col">
-								<input 
-									type="checkbox" 
-									bind:checked={selectAll}
-									onchange={toggleSelectAll}
-								/>
-							</th>
-							<th class="title-col">Title</th>
-							<th>Status</th>
-							<th>Started</th>
-							<th>Duration</th>
-							<th>Products</th>
-							<th>Peak Viewers</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each replays as replay}
-							<tr class="replay-row" onclick={(e) => handleReplayClick(e, replay.id)}>
-								<td class="checkbox-col" onclick={(e) => e.stopPropagation()}>
-									<input 
-										type="checkbox" 
-										checked={selectedReplays.includes(replay.id)}
-										onchange={() => toggleReplay(replay.id)}
-									/>
-								</td>
-								<td class="title-col">
-									<div class="replay-info">
-										<div class="replay-thumbnail">
-											{#if replay.source_thumb}
-												<img src={replay.source_thumb} alt={replay.name || replay.title} />
-											{:else if replay.animated_thumb}
-												<img src={replay.animated_thumb} alt={replay.name || replay.title} />
-											{:else}
-												🎬
-											{/if}
-										</div>
-										<div class="replay-details">
-											<div class="replay-title">{replay.name || replay.title}</div>
-											<div class="replay-subtitle">ID: {replay.external_id}</div>
-										</div>
-									</div>
-								</td>
-								<td>
-									<span class="status-badge {getStatusBadge(replay.is_live).class}">
-										{getStatusBadge(replay.is_live).text}
-									</span>
-								</td>
-								<td>
-									<span class="date-text">{replay.started_at_formatted || 'Unknown'}</span>
-								</td>
-								<td>
-									<span class="duration-text">{formatDuration(replay.duration)}</span>
-								</td>
-								<td>
-									<span class="count-text">{replay.products_count || 0}</span>
-								</td>
-								<td>
-									<span class="viewers-text">{formatViewers(replay.peak_viewers || 0)}</span>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-
-			<!-- Pagination -->
-			{#if pagination}
-				<div class="pagination">
-					<div class="pagination-info">
-						{((pagination.page - 1) * pagination.limit) + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
+			<!-- Selection Actions -->
+			{#if hasSelectionDerived}
+				<div class="selection-banner">
+					<div class="selection-info">
+						<strong>{selectionCount}</strong> replay{selectionCount === 1 ? '' : 's'} selected
 					</div>
-					<div class="pagination-controls">
-						{#if pagination.hasPrev}
-							<a href="?page={pagination.page - 1}" class="pagination-btn">Previous</a>
-						{/if}
-						{#if pagination.hasNext}
-							<a href="?page={pagination.page + 1}" class="pagination-btn">Next</a>
-						{/if}
+					<div class="selection-actions">
+						<button class="btn btn-ghost btn-sm" onclick={() => replaysActions.clearSelection()}>
+							Clear Selection
+						</button>
+						<button class="btn btn-secondary btn-sm" onclick={() => replaysActions.performBulkAction('export')}>
+							Export Selected
+						</button>
 					</div>
 				</div>
 			{/if}
-		{:else}
-			<div class="empty-state">
-				<div class="empty-content">
-					<div class="empty-icon">🎬</div>
-					<h3>No replays found</h3>
-					<p>Sync your CommentSold live sales to see them here as replays</p>
-					<a href="/replays/sync" class="btn-primary">Sync Replays</a>
-				</div>
-			</div>
+
+			<!-- Content based on view mode -->
+			{#if replays.length > 0}
+				{#if viewMode === 'grid'}
+					<!-- Grid View -->
+					<div class="replays-grid">
+						<div class="replays-grid-header">
+							<div class="grid-controls">
+								<label class="select-all-control">
+									<input 
+										type="checkbox" 
+										class="table-checkbox"
+										checked={allSelected}
+										onchange={handleSelectAll}
+									/>
+									<span>Select All</span>
+								</label>
+							</div>
+						</div>
+						
+						<div class="replays-grid-container">
+							{#each replays as replay (replay.id)}
+								<ReplayCard
+									{replay}
+									selected={selectedReplays.includes(replay.id)}
+									onSelect={handleSelectReplay}
+									onClick={handleReplayClick}
+									showThumbnail={true}
+									showMetrics={true}
+								/>
+							{/each}
+						</div>
+					</div>
+				{:else}
+					<!-- Table View -->
+					<div class="table-container">
+						<table class="table">
+							<thead>
+								<tr>
+									<th class="table-cell-checkbox">
+										<input 
+											type="checkbox" 
+											class="table-checkbox"
+											checked={allSelected}
+											onchange={handleSelectAll}
+										/>
+									</th>
+									<th class="table-cell-main">Title</th>
+									<th>Status</th>
+									<th>Started</th>
+									<th>Duration</th>
+									<th>Products</th>
+									<th>Peak Viewers</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each replays as replay (replay.id)}
+									<tr class="table-row table-row-clickable" onclick={() => handleReplayClick(replay)}>
+										<td class="table-cell-checkbox" onclick={(e) => e.stopPropagation()}>
+											<input 
+												type="checkbox" 
+												class="table-checkbox"
+												checked={selectedReplays.includes(replay.id)}
+												onchange={() => handleSelectReplay(replay.id)}
+											/>
+										</td>
+										<td class="table-cell-main">
+											<div class="table-cell-content">
+												<div class="table-cell-media">
+													{#if replay.displayThumbnail}
+														<img src={replay.displayThumbnail} alt={replay.displayName} />
+													{:else}
+														<div class="table-cell-placeholder">🎬</div>
+													{/if}
+												</div>
+												<div class="table-cell-details">
+													<span class="table-cell-title">{replay.displayName}</span>
+													<span class="table-cell-subtitle">ID: {replay.external_id}</span>
+												</div>
+											</div>
+										</td>
+										<td>
+											<span class="badge badge-{replay.statusInfo.color}">
+												{replay.statusInfo.text}
+											</span>
+										</td>
+										<td>
+											<span class="table-cell-text">{replay.started_at_formatted || 'Unknown'}</span>
+										</td>
+										<td>
+											<span class="table-cell-text">{replay.formattedDuration}</span>
+										</td>
+										<td>
+											<span class="table-cell-text">{replay.productsCount}</span>
+										</td>
+										<td>
+											<span class="table-cell-text">{replay.formattedViewers}</span>
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+
+				<!-- Pagination -->
+				{#if pagination.total > pagination.limit}
+					<div class="content-footer">
+						<div class="table-summary">
+							{((pagination.page - 1) * pagination.limit) + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} replays
+						</div>
+						<div class="pagination-controls">
+							{#if pagination.hasPrev}
+								<button 
+									class="btn btn-secondary btn-sm" 
+									onclick={() => handlePageChange(pagination.page - 1)}
+									disabled={loading}
+								>
+									Previous
+								</button>
+							{/if}
+							{#if pagination.hasNext}
+								<button 
+									class="btn btn-secondary btn-sm" 
+									onclick={() => handlePageChange(pagination.page + 1)}
+									disabled={loading}
+								>
+									Next
+								</button>
+							{/if}
+						</div>
+					</div>
+				{/if}
+			{:else}
+				<!-- Empty State -->
+				<EmptyState
+					icon="🎬"
+					title="No replays found"
+					description="Sync your CommentSold live sales to see them here as replays"
+					actionLabel="Sync Replays"
+					onAction={handleSyncReplays}
+				/>
+			{/if}
 		{/if}
-	{/if}
 	</div>
 </div>
 
 <style>
-	.page {
-		min-height: 100vh;
-		background: #f6f6f7;
-	}
-
-	.page-header {
-		background: white;
-		border-bottom: 1px solid #e1e1e1;
-		padding: 1rem 2rem;
-	}
-
-	.header-main {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 0.5rem;
-	}
-
-	.header-main h1 {
-		margin: 0;
-		font-size: 1.25rem;
-		font-weight: 600;
-		color: #202223;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.page-icon {
-		font-size: 1rem;
-	}
-
-	.header-actions {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-	}
-
+	/* Custom page description styling */
 	.page-description {
-		margin: 0;
-		color: #6d7175;
-		font-size: 0.875rem;
+		margin: var(--space-2) 0 0 0;
+		color: var(--color-text-muted);
+		font-size: var(--font-size-sm);
+		padding: 0 var(--space-8);
 	}
-
-	.btn-primary {
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
-		font-size: 0.875rem;
-		font-weight: 500;
-		cursor: pointer;
-		text-decoration: none;
-		display: inline-flex;
-		align-items: center;
-		transition: all 0.15s ease;
-		background: #202223;
+	
+	/* View mode toggle */
+	.view-mode-toggle {
+		display: flex;
+		gap: var(--space-1);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		padding: var(--space-1);
+	}
+	
+	.view-mode-toggle .btn {
+		border: none;
+		background: transparent;
+		padding: var(--space-2) var(--space-3);
+	}
+	
+	.view-mode-toggle .btn.active {
+		background: var(--color-primary);
 		color: white;
-		border: none;
 	}
-
-	.btn-primary:hover {
-		background: #1a1a1a;
-	}
-
-	.btn-secondary {
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
-		font-size: 0.875rem;
-		font-weight: 500;
-		cursor: pointer;
-		text-decoration: none;
-		display: inline-flex;
-		align-items: center;
-		transition: all 0.15s ease;
-		background: white;
-		color: #6d7175;
-		border: 1px solid #c9cccf;
-	}
-
-	.btn-secondary:hover {
-		background: #f6f6f7;
-	}
-
-	.page-content {
-		padding: 0;
-	}
-
-	.tabs {
-		background: white;
-		border-bottom: 1px solid #e1e1e1;
+	
+	/* Selection banner */
+	.selection-banner {
 		display: flex;
 		align-items: center;
-		padding: 0 2rem;
+		justify-content: space-between;
+		padding: var(--space-4);
+		background: var(--color-info-bg);
+		border: 1px solid var(--color-info);
+		border-radius: var(--radius-md);
+		margin-bottom: var(--space-6);
 	}
-
-	.tab {
-		background: none;
-		border: none;
-		padding: 0.75rem 1rem;
-		cursor: pointer;
-		color: #6d7175;
-		font-size: 0.875rem;
-		border-bottom: 2px solid transparent;
-		transition: all 0.15s ease;
+	
+	.selection-info {
+		color: var(--color-info-text);
+		font-size: var(--font-size-sm);
 	}
-
-	.tab.active {
-		color: #202223;
-		border-bottom-color: #202223;
+	
+	.selection-actions {
+		display: flex;
+		gap: var(--space-2);
 	}
-
-	.table-container {
-		background: white;
-		overflow-x: auto;
-	}
-
-	.replays-table {
+	
+	/* Grid view styles */
+	.replays-grid {
 		width: 100%;
-		border-collapse: collapse;
 	}
-
-	.replays-table th {
-		background: #fafbfb;
-		padding: 0.75rem 1rem;
-		text-align: left;
-		font-weight: 500;
-		font-size: 0.75rem;
-		color: #6d7175;
-		text-transform: uppercase;
-		letter-spacing: 0.025em;
-		border-bottom: 1px solid #e1e1e1;
-	}
-
-	.replays-table td {
-		padding: 1rem;
-		border-bottom: 1px solid #e1e1e1;
-		vertical-align: middle;
-	}
-
-	.checkbox-col {
-		width: 40px;
-		padding: 1rem 0.5rem 1rem 1rem;
-	}
-
-	.title-col {
-		min-width: 400px;
-	}
-
-	.replay-info {
+	
+	.replays-grid-header {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		justify-content: space-between;
+		margin-bottom: var(--space-6);
+		padding: var(--space-4);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
 	}
-
-	.replay-thumbnail {
+	
+	.select-all-control {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		cursor: pointer;
+		font-size: var(--font-size-sm);
+		color: var(--color-text);
+	}
+	
+	.replays-grid-container {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+		gap: var(--space-6);
+	}
+	
+	/* Table view styles */
+	.table-cell-media {
 		width: 60px;
 		height: 40px;
-		background: #f6f6f7;
-		border-radius: 6px;
+		border-radius: var(--radius-md);
+		overflow: hidden;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 1.25rem;
-		opacity: 0.6;
-		overflow: hidden;
+		background: var(--color-surface-hover);
 	}
-
-	.replay-thumbnail img {
+	
+	.table-cell-media img {
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
+		display: block;
 	}
-
-	.replay-details {
-		flex: 1;
+	
+	.table-cell-placeholder {
+		font-size: var(--font-size-lg);
+		opacity: 0.6;
 	}
-
-	.replay-title {
-		font-weight: 500;
-		color: #202223;
-		font-size: 0.875rem;
-		margin-bottom: 0.25rem;
-	}
-
-	.replay-subtitle {
-		color: #6d7175;
-		font-size: 0.8125rem;
-		line-height: 1.3;
-	}
-
-	.status-badge {
-		display: inline-flex;
-		align-items: center;
-		padding: 0.25rem 0.5rem;
-		border-radius: 4px;
-		font-size: 0.75rem;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.025em;
-	}
-
-	.status-live {
-		background: #fef2f2;
-		color: #991b1b;
-	}
-
-	.status-replay {
-		background: #f0fdf4;
-		color: #166534;
-	}
-
-	.date-text, .duration-text, .count-text, .viewers-text {
-		font-size: 0.875rem;
-		color: #202223;
-	}
-
-	.pagination {
-		padding: 1rem 2rem;
-		background: white;
-		border-top: 1px solid #e1e1e1;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.pagination-info {
-		font-size: 0.875rem;
-		color: #6d7175;
-	}
-
+	
+	/* Pagination controls styling */
 	.pagination-controls {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-2);
 	}
 
-	.pagination-btn {
-		padding: 0.5rem 1rem;
-		background: white;
-		color: #6d7175;
-		border: 1px solid #c9cccf;
-		border-radius: 6px;
-		text-decoration: none;
-		font-size: 0.875rem;
-		transition: all 0.15s ease;
-	}
-
-	.pagination-btn:hover {
-		background: #f6f6f7;
-	}
-
-	.empty-state {
-		background: white;
-		padding: 4rem 2rem;
-		text-align: center;
-	}
-
-	.empty-content {
-		max-width: 400px;
-		margin: 0 auto;
-	}
-
-	.empty-icon {
-		font-size: 3rem;
-		margin-bottom: 1rem;
-		opacity: 0.4;
-	}
-
-	.empty-state h3 {
-		color: #202223;
-		font-size: 1.25rem;
-		margin-bottom: 0.5rem;
-		font-weight: 600;
-	}
-
-	.empty-state p {
-		color: #6d7175;
-		margin-bottom: 2rem;
-		line-height: 1.5;
-	}
-
-	.loading-state {
-		background: white;
-		padding: 4rem 2rem;
-		text-align: center;
-		min-height: 400px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.loading-content {
-		max-width: 400px;
-		margin: 0 auto;
-	}
-
-	.loading-spinner-large {
-		display: inline-block;
-		width: 40px;
-		height: 40px;
-		border: 4px solid #f3f4f6;
-		border-radius: 50%;
-		border-top-color: #202223;
-		animation: spin 1s ease-in-out infinite;
-		margin-bottom: 1.5rem;
-	}
-
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-
-	.loading-state h3 {
-		color: #202223;
-		font-size: 1.25rem;
-		margin-bottom: 0.5rem;
-		font-weight: 600;
-	}
-
-	.loading-state p {
-		color: #6d7175;
-		margin-bottom: 0;
-		line-height: 1.5;
-	}
-
-	.error-state {
-		background: #fef2f2;
-		border: 1px solid #fecaca;
-		color: #991b1b;
-		padding: 1rem 2rem;
-		margin: 1rem 2rem;
-		border-radius: 6px;
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-		align-items: flex-start;
-	}
-
-	.error-state button {
-		align-self: flex-start;
-	}
-
-	input[type="checkbox"] {
-		width: 16px;
-		height: 16px;
-		cursor: pointer;
-	}
-
-	.replay-row {
-		cursor: pointer;
-	}
-
-	.replay-row:hover {
-		background: #fafbfb;
-	}
-
+	/* Responsive adjustments */
 	@media (max-width: 768px) {
-		.header-main {
+		.page-header-content {
 			flex-direction: column;
-			gap: 1rem;
+			gap: var(--space-3);
 			align-items: stretch;
 		}
 		
-		.header-actions {
-			justify-content: flex-end;
+		.page-actions {
+			justify-content: space-between;
+			flex-wrap: wrap;
+			gap: var(--space-3);
 		}
 		
-		.replays-table {
+		.view-mode-toggle {
+			order: -1;
+		}
+		
+		.table {
 			min-width: 900px;
+		}
+		
+		.page-description {
+			padding: 0;
+		}
+		
+		.selection-banner {
+			flex-direction: column;
+			gap: var(--space-3);
+			align-items: stretch;
+		}
+		
+		.selection-actions {
+			justify-content: center;
+		}
+		
+		.replays-grid-container {
+			grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+			gap: var(--space-4);
+		}
+		
+		.replays-grid-header {
+			flex-direction: column;
+			gap: var(--space-3);
+			align-items: flex-start;
+		}
+	}
+	
+	@media (max-width: 480px) {
+		.replays-grid-container {
+			grid-template-columns: 1fr;
+		}
+		
+		.page-actions {
+			flex-direction: column;
+		}
+		
+		.view-mode-toggle {
+			order: 0;
 		}
 	}
 </style>

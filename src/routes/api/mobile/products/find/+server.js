@@ -1,4 +1,4 @@
-import { query } from '$lib/database.js';
+import { query, getCached, setCache } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
 
@@ -15,6 +15,18 @@ export async function GET({ url }) {
     const status = url.searchParams.get('status') || 'active';
     const sortBy = url.searchParams.get('sort_by') || 'created_at';
     const sortOrder = url.searchParams.get('sort_order') || 'desc';
+
+    // Create cache key based on query parameters
+    const cacheKey = `mobile_products_find_${DEFAULT_TENANT_ID}_${lastPostId || ''}_${collectionIds || ''}_${colors || ''}_${sizes || ''}_${limit}_${page}_${search || ''}_${status}_${sortBy}_${sortOrder}`;
+    
+    // Try to get from cache first
+    const cachedProducts = await getCached(cacheKey);
+    if (cachedProducts) {
+      console.log(`🚀 Cache hit for mobile products find`);
+      return jsonResponse(cachedProducts);
+    }
+    
+    console.log(`🔍 Cache miss for mobile products find, fetching from database`);
 
     // Build the base query
     let queryText = `
@@ -186,6 +198,9 @@ export async function GET({ url }) {
         status: status
       }
     };
+    
+    // Cache the products for 3 minutes (180 seconds) - shorter TTL for search results
+    await setCache(cacheKey, response, 180);
 
     return jsonResponse(response);
 

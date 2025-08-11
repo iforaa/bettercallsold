@@ -1,10 +1,10 @@
 export async function load({ fetch }) {
 	try {
-		// Use internal SvelteKit API route
-		const response = await fetch('/api/live-streams');
+		// Use unified live-selling API route
+		const response = await fetch('/api/live-selling');
 		
 		if (!response.ok) {
-			throw new Error('Failed to fetch live streams');
+			throw new Error('Failed to fetch live selling sessions');
 		}
 
 		const liveStreams = await response.json();
@@ -14,7 +14,7 @@ export async function load({ fetch }) {
 		};
 	} catch (error) {
 		return {
-			error: 'Failed to load live streams from backend',
+			error: 'Failed to load live selling sessions from backend',
 			liveStreams: []
 		};
 	}

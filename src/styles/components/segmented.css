@@ -1,0 +1,237 @@
+/* Segmented Control Components - BetterCallSold Design System */
+/* Tab-like controls for filtering and navigation */
+
+/* Segmented Control Container */
+.segmented-control {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  padding: 0 var(--space-8);
+  overflow-x: auto;
+}
+
+.segmented-control-compact {
+  padding: 0 var(--space-4);
+}
+
+.segmented-control-centered {
+  justify-content: center;
+}
+
+/* Individual Segment/Tab */
+.segment {
+  background: none;
+  border: none;
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.segment:hover:not(:disabled):not(.active) {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.segment.active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-primary);
+}
+
+.segment:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Segment with badge/count */
+.segment-badge {
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  min-width: 20px;
+  text-align: center;
+}
+
+.segment.active .segment-badge {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+/* Segment with icon */
+.segment-icon {
+  font-size: var(--font-size-sm);
+  opacity: 0.8;
+}
+
+.segment.active .segment-icon {
+  opacity: 1;
+}
+
+/* Alternative: Pill-style segmented control */
+.segmented-pills {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-8);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pill-segment {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.pill-segment:hover:not(.active) {
+  border-color: var(--color-border-dark);
+  color: var(--color-text);
+}
+
+.pill-segment.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.pill-segment:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Alternative: Button group style */
+.button-group {
+  display: inline-flex;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.button-group-segment {
+  background: none;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.button-group-segment:last-child {
+  border-right: none;
+}
+
+.button-group-segment:hover:not(.active) {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.button-group-segment.active {
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.button-group-segment:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Size variants */
+.segmented-control-sm .segment {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-xs);
+}
+
+.segmented-control-lg .segment {
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--font-size-base);
+}
+
+/* Color variants */
+.segmented-control-accent .segment.active {
+  border-bottom-color: var(--color-accent);
+}
+
+.segmented-control-success .segment.active {
+  border-bottom-color: var(--color-success);
+}
+
+.segmented-control-warning .segment.active {
+  border-bottom-color: var(--color-warning);
+}
+
+.segmented-control-error .segment.active {
+  border-bottom-color: var(--color-error);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .segmented-control {
+    padding: 0 var(--space-4);
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .segmented-pills {
+    padding: var(--space-3) var(--space-4);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .segment {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-xs);
+  }
+  
+  .pill-segment {
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--font-size-xs);
+  }
+  
+  .button-group {
+    width: 100%;
+  }
+  
+  .button-group-segment {
+    flex: 1;
+    justify-content: center;
+    padding: var(--space-2) var(--space-2);
+    font-size: var(--font-size-xs);
+  }
+}
+
+/* Focus states for accessibility */
+.segment:focus-visible,
+.pill-segment:focus-visible,
+.button-group-segment:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

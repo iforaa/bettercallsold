@@ -1,0 +1,458 @@
+/* Utility Components - BetterCallSold Design System */
+/* Common utility classes for layout and styling */
+
+/* Text Utilities */
+.text-mono {
+  font-family: monospace;
+}
+
+.text-caps {
+  text-transform: capitalize;
+}
+
+.text-upper {
+  text-transform: uppercase;
+}
+
+.text-lower {
+  text-transform: lowercase;
+}
+
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Layout Utilities */
+.flex-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.flex-header-sm {
+  gap: var(--space-2);
+}
+
+.flex-header-lg {
+  gap: var(--space-6);
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.flex-end {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.flex-start {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.flex-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.flex-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
+}
+
+/* Content Containers */
+.content-max-width {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.content-centered {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.content-narrow {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Interactive Elements */
+.clickable {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.clickable:hover {
+  transform: translateY(-1px);
+}
+
+.clickable-subtle {
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.clickable-subtle:hover {
+  background-color: var(--color-surface-hover);
+}
+
+/* Hover Effects */
+.hover-lift {
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.hover-glow {
+  transition: box-shadow var(--transition-fast);
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+
+/* Visual Separators */
+.divider {
+  height: 1px;
+  background: var(--color-border-light);
+  border: none;
+  margin: var(--space-4) 0;
+}
+
+.divider-thick {
+  height: 2px;
+  background: var(--color-border);
+}
+
+.divider-space-lg {
+  margin: var(--space-8) 0;
+}
+
+.divider-space-sm {
+  margin: var(--space-2) 0;
+}
+
+/* Image Utilities */
+.image-circle {
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.image-rounded {
+  border-radius: var(--radius-md);
+  object-fit: cover;
+}
+
+.image-contain {
+  object-fit: contain;
+}
+
+.image-cover {
+  object-fit: cover;
+}
+
+/* Aspect Ratios */
+.aspect-square {
+  aspect-ratio: 1 / 1;
+}
+
+.aspect-video {
+  aspect-ratio: 16 / 9;
+}
+
+.aspect-photo {
+  aspect-ratio: 4 / 3;
+}
+
+/* Spacing Utilities */
+.space-y-2 > * + * {
+  margin-top: var(--space-2);
+}
+
+.space-y-3 > * + * {
+  margin-top: var(--space-3);
+}
+
+.space-y-4 > * + * {
+  margin-top: var(--space-4);
+}
+
+.space-y-6 > * + * {
+  margin-top: var(--space-6);
+}
+
+.space-x-2 > * + * {
+  margin-left: var(--space-2);
+}
+
+.space-x-3 > * + * {
+  margin-left: var(--space-3);
+}
+
+.space-x-4 > * + * {
+  margin-left: var(--space-4);
+}
+
+/* Visibility Utilities */
+.visible {
+  visibility: visible;
+}
+
+.invisible {
+  visibility: hidden;
+}
+
+.opacity-0 {
+  opacity: 0;
+}
+
+.opacity-50 {
+  opacity: 0.5;
+}
+
+.opacity-75 {
+  opacity: 0.75;
+}
+
+/* Position Utilities */
+.relative {
+  position: relative;
+}
+
+.absolute {
+  position: absolute;
+}
+
+.sticky {
+  position: sticky;
+}
+
+.fixed {
+  position: fixed;
+}
+
+/* Z-Index Utilities */
+.z-dropdown {
+  z-index: var(--z-dropdown);
+}
+
+.z-modal {
+  z-index: var(--z-modal);
+}
+
+.z-tooltip {
+  z-index: var(--z-tooltip);
+}
+
+/* Border Utilities */
+.border-none {
+  border: none;
+}
+
+.border-light {
+  border: 1px solid var(--color-border-light);
+}
+
+.border-default {
+  border: 1px solid var(--color-border);
+}
+
+.border-dark {
+  border: 1px solid var(--color-border-dark);
+}
+
+.border-dashed {
+  border-style: dashed;
+}
+
+.border-dotted {
+  border-style: dotted;
+}
+
+/* Border Radius Utilities */
+.rounded-none {
+  border-radius: 0;
+}
+
+.rounded-sm {
+  border-radius: var(--radius-sm);
+}
+
+.rounded-md {
+  border-radius: var(--radius-md);
+}
+
+.rounded-lg {
+  border-radius: var(--radius-lg);
+}
+
+.rounded-xl {
+  border-radius: var(--radius-xl);
+}
+
+.rounded-full {
+  border-radius: var(--radius-full);
+}
+
+/* Background Utilities */
+.bg-surface {
+  background-color: var(--color-surface);
+}
+
+.bg-surface-alt {
+  background-color: var(--color-surface-alt);
+}
+
+.bg-surface-hover {
+  background-color: var(--color-surface-hover);
+}
+
+.bg-primary {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.bg-accent {
+  background-color: var(--color-accent);
+  color: var(--color-text-inverse);
+}
+
+.bg-success {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.bg-warning {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+.bg-error {
+  background-color: var(--color-error-bg);
+  color: var(--color-error-text);
+}
+
+/* Shadow Utilities */
+.shadow-none {
+  box-shadow: none;
+}
+
+.shadow-sm {
+  box-shadow: var(--shadow-sm);
+}
+
+.shadow-md {
+  box-shadow: var(--shadow-md);
+}
+
+.shadow-lg {
+  box-shadow: var(--shadow-lg);
+}
+
+.shadow-xl {
+  box-shadow: var(--shadow-xl);
+}
+
+/* Animation Utilities */
+.transition-all {
+  transition: all var(--transition-normal);
+}
+
+.transition-fast {
+  transition: all var(--transition-fast);
+}
+
+.transition-slow {
+  transition: all var(--transition-slow);
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(-25%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: none;
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+/* Print Utilities */
+@media print {
+  .print-hidden {
+    display: none !important;
+  }
+  
+  .print-visible {
+    display: block !important;
+  }
+}
+
+/* Focus Utilities */
+.focus-ring {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.focus-ring-inset {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* Screen Reader */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.not-sr-only {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}

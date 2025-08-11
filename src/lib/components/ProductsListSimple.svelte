@@ -106,26 +106,28 @@
     }
     
     async function sendProductMessage(product) {
-        if (!pusherService || !pusherService.connected) {
-            console.log('Pusher not connected, skipping product message');
-            return;
-        }
-        
         try {
-            // Create special product message
-            await pusherService.sendProductMessage({
-                type: 'product-highlight',
-                product: {
-                    id: product.id,
-                    name: product.name,
-                    price: product.price,
-                    image: getFirstImage(product),
-                    description: product.description
+            // Single API call that handles both database save AND pusher message
+            const response = await fetch('/api/live-selling/products', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
-                message: `🛍️ Now featuring: ${product.name} - $${product.price}`
+                body: JSON.stringify({
+                    product_id: product.id,
+                    external_product_id: product.external_id || product.id
+                })
             });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('✅ Product featured successfully:', result.message);
+            } else {
+                const error = await response.json();
+                console.error('❌ Failed to feature product:', error.error || 'Unknown error');
+            }
         } catch (error) {
-            console.error('Failed to send product message:', error);
+            console.error('❌ Failed to feature product:', error);
         }
     }
     

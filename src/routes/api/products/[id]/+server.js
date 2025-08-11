@@ -1,4 +1,4 @@
-import { query } from '$lib/database.js';
+import { query, getCached, setCache } from '$lib/database.js';
 import { getProductWithInventory } from '$lib/inventory-db.js';
 import { jsonResponse, internalServerErrorResponse, notFoundResponse, badRequestResponse, successResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID, QUERIES } from '$lib/constants.js';
@@ -6,6 +6,18 @@ import { DEFAULT_TENANT_ID, QUERIES } from '$lib/constants.js';
 export async function GET({ params }) {
   try {
     const productId = params.id;
+    
+    // Create cache key for individual product
+    const cacheKey = `product_${productId}_${DEFAULT_TENANT_ID}`;
+    
+    // Try to get from cache first
+    const cachedProduct = await getCached(cacheKey);
+    if (cachedProduct) {
+      console.log(`🚀 Cache hit for ${cacheKey}`);
+      return jsonResponse(cachedProduct);
+    }
+    
+    console.log(`🔍 Cache miss for ${cacheKey}, fetching from database`);
     
     // Use new inventory-aware query
     const product = await getProductWithInventory(productId, DEFAULT_TENANT_ID);
@@ -23,6 +35,9 @@ export async function GET({ params }) {
     `, [productId]);
     
     product.product_collections = collectionsResult.rows;
+    
+    // Cache the result for 5 minutes (300 seconds)
+    await setCache(cacheKey, product, 300);
     
     return jsonResponse(product);
   } catch (error) {

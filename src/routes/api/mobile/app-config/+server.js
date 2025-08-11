@@ -1,9 +1,20 @@
-import { query } from '$lib/database.js';
+import { query, getCached, setCache } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
 
 export async function GET() {
 	try {
+		// Create cache key for app config
+		const cacheKey = `mobile_app_config_${DEFAULT_TENANT_ID}`;
+		
+		// Try to get from cache first
+		const cachedConfig = await getCached(cacheKey);
+		if (cachedConfig) {
+			console.log(`🚀 Cache hit for ${cacheKey}`);
+			return jsonResponse(cachedConfig);
+		}
+		
+		console.log(`🔍 Cache miss for ${cacheKey}, fetching from database`);
 		console.log('🔗 Fetching app config for mobile app');
 
 		// Get app configuration
@@ -28,7 +39,7 @@ export async function GET() {
 		
 		if (result.rows.length === 0) {
 			// Return default configuration if none exists
-			return jsonResponse({
+			const defaultConfig = {
 				colors: {
 					primary: '#FF69B4',
 					secondary: '#FF1493',
@@ -50,7 +61,12 @@ export async function GET() {
 				],
 				appName: 'Discount Divas',
 				lastUpdated: null
-			});
+			};
+			
+			// Cache default config for 10 minutes (600 seconds)
+			await setCache(cacheKey, defaultConfig, 600);
+			
+			return jsonResponse(defaultConfig);
 		}
 
 		const config = result.rows[0];
@@ -68,7 +84,7 @@ export async function GET() {
 
 		console.log('✅ App config fetched successfully');
 
-		return jsonResponse({
+		const configResponse = {
 			colors: {
 				primary: config.primary_color,
 				secondary: config.secondary_color,
@@ -83,7 +99,12 @@ export async function GET() {
 			tabs: enabledTabs,
 			appName: config.app_name,
 			lastUpdated: config.updated_at
-		});
+		};
+		
+		// Cache the config for 10 minutes (600 seconds) 
+		await setCache(cacheKey, configResponse, 600);
+		
+		return jsonResponse(configResponse);
 
 	} catch (error) {
 		console.error('❌ Error fetching app config:', error);

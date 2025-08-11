@@ -1,4 +1,4 @@
-import { query } from '$lib/database.js';
+import { query, getCached, setCache } from '$lib/database.js';
 import { getProductsWithInventory } from '$lib/inventory-db.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID, QUERIES } from '$lib/constants.js';
@@ -10,8 +10,23 @@ export async function GET({ url }) {
     const offset = parseInt(searchParams.get('offset')) || 0;
     const status = searchParams.get('status'); // Get status filter
     
+    // Create cache key based on query parameters
+    const cacheKey = `products_${DEFAULT_TENANT_ID}_${limit}_${offset}_${status || 'all'}`;
+    
+    // Try to get from cache first
+    const cachedProducts = await getCached(cacheKey);
+    if (cachedProducts) {
+      console.log(`🚀 Cache hit for ${cacheKey}`);
+      return jsonResponse(cachedProducts);
+    }
+    
+    console.log(`🔍 Cache miss for ${cacheKey}, fetching from database`);
+    
     // Use new inventory-aware query with status filtering
     const products = await getProductsWithInventory(DEFAULT_TENANT_ID, limit, offset, status);
+    
+    // Cache the results for 5 minutes (300 seconds)
+    await setCache(cacheKey, products, 300);
     
     return jsonResponse(products);
   } catch (error) {

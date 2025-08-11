@@ -7,10 +7,29 @@
 
 ### Frontend
 - **Framework**: SvelteKit 5 with TypeScript
-- **Styling**: Component-scoped CSS with global styles
-- **State Management**: Svelte 5 reactive state (`$state`, `$derived`, `$effect`)
+- **Styling**: Custom CSS design system (NO Tailwind CSS)
+- **State Management**: Svelte 5 runes (`$state`, `$derived`, `$effect`) with Services + Global State + Context pattern
 - **Routing**: SvelteKit file-based routing
 - **UI Design**: Shopify-inspired admin interface
+
+#### **Svelte 5 Development Rules**
+⚠️ **CRITICAL**: Follow these patterns to avoid breaking reactivity:
+
+1. **Never destructure reactive state**: `const { loading } = state` ❌ breaks reactivity
+2. **Access state properties directly**: `state.loading` ✅ maintains reactivity  
+3. **Cannot export $derived from modules**: Export functions instead
+4. **$derived must be top-level declarations**: Cannot be used in object properties
+
+### CSS Architecture
+**IMPORTANT**: This project uses a **custom CSS design system**, NOT Tailwind CSS.
+
+- **Design Tokens**: CSS custom properties for consistent colors, spacing, typography
+- **Component Classes**: Semantic class names (`.btn-primary`, `.status-badge`, `.metric-card`)
+- **Scoped Styles**: Component-level CSS with Svelte's scoped styling
+- **Global Styles**: Shared design tokens and base styles in layout files
+- **No CSS Frameworks**: Pure CSS approach for maximum control and performance
+
+**Do NOT install**: `tailwind-merge`, `clsx`, or any Tailwind-related utilities - they are unnecessary and conflict with the design system approach.
 
 ### Backend/API
 - **Runtime**: Node.js with SvelteKit server-side functions

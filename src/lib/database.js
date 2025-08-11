@@ -15,12 +15,23 @@ const dbConfig = {
   ssl: process.env.DB_SSLMODE === 'require' ? { rejectUnauthorized: false } : false
 };
 
-// Redis configuration
-const redisConfig = {
+// Redis configuration - try URL first, fall back to individual config
+const redisConfig = process.env.REDIS_URL ? {
+  url: process.env.REDIS_URL,
+  socket: {
+    tls: true,
+    connectTimeout: 3000,
+    commandTimeout: 2000
+  }
+} : {
   socket: {
     host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379')
+    port: parseInt(process.env.REDIS_PORT || '6379'),
+    tls: process.env.REDIS_TLS === 'true',
+    connectTimeout: 3000, // 3 seconds timeout for connection
+    commandTimeout: 2000  // 2 seconds timeout for commands
   },
+  username: process.env.REDIS_USERNAME || undefined,
   password: process.env.REDIS_PASSWORD || undefined,
   database: parseInt(process.env.REDIS_DB || '0')
 };
@@ -50,13 +61,57 @@ function getDbPool() {
   return pgPool;
 }
 
-// Redis completely disabled on Vercel - set to false by default
-const REDIS_ENABLED = false;
+// Simple Redis caching - easily toggleable
+const CACHE_ENABLED = process.env.CACHE_ENABLED === 'true';
 let redisClient = null;
 
 async function getRedisClient() {
-  console.log('Redis is completely disabled');
-  return null;
+  if (!CACHE_ENABLED) {
+    return null;
+  }
+  
+  if (!redisClient) {
+    try {
+      redisClient = createClient(redisConfig);
+      
+      // Set up error handler to prevent crashes
+      redisClient.on('error', (error) => {
+        console.error('❌ Redis client error:', error.message);
+        redisClient = null;
+      });
+      
+      // Connect with timeout
+      const connectPromise = redisClient.connect();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connection timeout after 3s')), 3000)
+      );
+      
+      await Promise.race([connectPromise, timeoutPromise]);
+      console.log('✅ Redis connected successfully');
+    } catch (error) {
+      console.error('❌ Redis connection failed:', error.message);
+      if (redisClient) {
+        try { await redisClient.disconnect(); } catch {} // Cleanup
+      }
+      redisClient = null;
+      return null;
+    }
+  }
+  
+  // Check if connection is still alive
+  try {
+    if (redisClient && !redisClient.isOpen) {
+      console.log('🔄 Redis connection closed, resetting...');
+      redisClient = null;
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ Redis connection check failed:', error.message);
+    redisClient = null;
+    return null;
+  }
+  
+  return redisClient;
 }
 
 // Database query helper
@@ -71,15 +126,71 @@ export async function query(text, params = []) {
   }
 }
 
-// Redis helpers (completely disabled)
-export async function redisGet(key) {
-  console.log('Redis disabled - redisGet returning null for key:', key);
+// Simple cache helpers - only for products data
+export async function getCached(key) {
+  if (!CACHE_ENABLED) {
+    return null;
+  }
+  
+  try {
+    const client = await getRedisClient();
+    if (!client) return null;
+    
+    // Add timeout to cache operations
+    const getPromise = client.get(`bcs:${key}`);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Cache get timeout')), 1000)
+    );
+    
+    const cached = await Promise.race([getPromise, timeoutPromise]);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (error) {
+    console.error('Cache get error:', error.message);
+    if (error.message.includes('timeout')) {
+      // Reset connection on timeout
+      redisClient = null;
+    }
+  }
+  
   return null;
 }
 
-export async function redisSet(key, value, ttl = null) {
-  console.log('Redis disabled - redisSet skipped for key:', key);
-  return true; // Pretend success
+export async function setCache(key, data, ttlSeconds = 300) {
+  if (!CACHE_ENABLED || !data) {
+    return false;
+  }
+  
+  try {
+    const client = await getRedisClient();
+    if (!client) return false;
+    
+    // Add timeout to cache operations
+    const setPromise = client.setEx(`bcs:${key}`, ttlSeconds, JSON.stringify(data));
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Cache set timeout')), 1000)
+    );
+    
+    await Promise.race([setPromise, timeoutPromise]);
+    return true;
+  } catch (error) {
+    console.error('Cache set error:', error.message);
+    if (error.message.includes('timeout')) {
+      // Reset connection on timeout
+      redisClient = null;
+    }
+    return false;
+  }
+}
+
+// Legacy Redis helpers (kept for compatibility)
+export async function redisGet(key) {
+  return getCached(key);
+}
+
+export async function redisSet(key, value, ttl = 300) {
+  return setCache(key, value, ttl);
 }
 
 // Health check functions

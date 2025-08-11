@@ -265,57 +265,43 @@
 
 <div class="page">
 	<div class="page-header">
-		<div class="header-main">
-			<h1>
-				<span class="page-icon">📄</span>
-				Purchase Orders
-			</h1>
-			<div class="header-actions">
-				<button class="btn-secondary" onclick={() => goto('/suppliers')}>
+		<div class="page-header-content">
+			<div class="page-header-nav">
+				<div class="breadcrumb" style="margin-bottom: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold);">
+					<span class="breadcrumb-item current">📄 Purchase Orders</span>
+				</div>
+			</div>
+			<div class="page-actions">
+				<button class="btn btn-secondary" onclick={() => goto('/suppliers')}>
 					Manage Suppliers
 				</button>
-				<button class="btn-primary" onclick={openCreateModal}>
+				<button class="btn btn-primary" onclick={openCreateModal}>
 					Create Purchase Order
 				</button>
 			</div>
 		</div>
 		
 		<!-- Stats Cards -->
-		<div class="stats-grid">
-			<div class="stat-card">
-				<div class="stat-icon">📋</div>
-				<div class="stat-content">
-					<div class="stat-value">{stats.total}</div>
-					<div class="stat-label">Total Orders</div>
-				</div>
+		<div class="metrics-grid">
+			<div class="metric-card">
+				<div class="metric-card-value">{stats.total}</div>
+				<div class="metric-card-label">Total Orders</div>
 			</div>
-			<div class="stat-card">
-				<div class="stat-icon">⏳</div>
-				<div class="stat-content">
-					<div class="stat-value">{stats.pending}</div>
-					<div class="stat-label">Pending</div>
-				</div>
+			<div class="metric-card metric-card-warning">
+				<div class="metric-card-value">{stats.pending}</div>
+				<div class="metric-card-label">Pending</div>
 			</div>
-			<div class="stat-card">
-				<div class="stat-icon">🚚</div>
-				<div class="stat-content">
-					<div class="stat-value">{stats.shipped}</div>
-					<div class="stat-label">Shipped</div>
-				</div>
+			<div class="metric-card metric-card-accent">
+				<div class="metric-card-value">{stats.shipped}</div>
+				<div class="metric-card-label">Shipped</div>
 			</div>
-			<div class="stat-card">
-				<div class="stat-icon">✅</div>
-				<div class="stat-content">
-					<div class="stat-value">{stats.delivered}</div>
-					<div class="stat-label">Delivered</div>
-				</div>
+			<div class="metric-card metric-card-success">
+				<div class="metric-card-value">{stats.delivered}</div>
+				<div class="metric-card-label">Delivered</div>
 			</div>
-			<div class="stat-card">
-				<div class="stat-icon">💰</div>
-				<div class="stat-content">
-					<div class="stat-value">{formatCurrency(stats.totalValue)}</div>
-					<div class="stat-label">Total Value</div>
-				</div>
+			<div class="metric-card">
+				<div class="metric-card-value">{formatCurrency(stats.totalValue)}</div>
+				<div class="metric-card-label">Total Value</div>
 			</div>
 		</div>
 	</div>

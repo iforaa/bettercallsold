@@ -1,0 +1,298 @@
+/* Table Component - BetterCallSold Design System */
+/* Extracted from orders page for consistent table styling */
+
+/* Table Container */
+.table-container {
+	background: white;
+	border-radius: 8px;
+	border: 1px solid #e1e1e1;
+	overflow: hidden;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Base Table */
+.data-table,
+.table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+/* Table Headers */
+.data-table th,
+.table th {
+	background: #fafbfb;
+	padding: 0.75rem 1rem;
+	text-align: left;
+	font-weight: 500;
+	font-size: 0.75rem;
+	color: #6d7175;
+	text-transform: uppercase;
+	letter-spacing: 0.025em;
+	border-bottom: 1px solid #e1e1e1;
+}
+
+/* Table Data Cells */
+.data-table td,
+.table td {
+	padding: 0.75rem 1rem;
+	border-bottom: 1px solid #e1e1e1;
+	vertical-align: middle;
+}
+
+/* Row Hover Effects */
+.data-table tbody tr,
+.table tbody tr {
+	transition: background-color 0.15s ease;
+}
+
+.data-table tbody tr:hover,
+.table tbody tr:hover {
+	background: #fafbfb;
+}
+
+.data-table tbody tr:last-child td,
+.table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+/* Table Cell Content Styles */
+.table-id {
+	color: #202223;
+	font-family: monospace;
+	font-size: 0.875rem;
+	font-weight: 600;
+}
+
+.table-customer-info {
+	/* Container for customer name and email */
+}
+
+.table-customer-name {
+	color: #202223;
+	display: block;
+	margin-bottom: 0.25rem;
+	font-size: 0.875rem;
+	font-weight: 500;
+}
+
+.table-customer-email {
+	color: #6d7175;
+	font-size: 0.75rem;
+}
+
+.table-amount {
+	font-weight: 600;
+	color: #202223;
+	font-size: 0.875rem;
+}
+
+.table-status {
+	text-transform: capitalize;
+	color: #202223;
+	font-size: 0.875rem;
+}
+
+.table-payment {
+	color: #202223;
+	font-weight: 500;
+	text-transform: capitalize;
+	font-size: 0.875rem;
+}
+
+.table-payment-id {
+	color: #6d7175;
+	font-size: 0.75rem;
+	font-family: monospace;
+	margin-top: 0.25rem;
+}
+
+/* Status Badges (Optional - can be used when needed) */
+.status-badge {
+	padding: 0.25rem 0.5rem;
+	border-radius: 4px;
+	font-size: 0.75rem;
+	font-weight: 500;
+	text-transform: capitalize;
+}
+
+.status-badge.completed,
+.status-badge.paid {
+	background: #d1fae5;
+	color: #047857;
+}
+
+.status-badge.pending {
+	background: #fef3c7;
+	color: #d97706;
+}
+
+.status-badge.cancelled {
+	background: #fee2e2;
+	color: #dc2626;
+}
+
+.status-badge.processing {
+	background: #dbeafe;
+	color: #2563eb;
+}
+
+/* Empty State */
+.table-empty {
+	text-align: center;
+	color: #6d7175;
+	font-style: italic;
+	padding: 2rem 1rem;
+}
+
+/* Loading State */
+.table-loading {
+	text-align: center;
+	padding: 2rem 1rem;
+}
+
+.table-skeleton {
+	background: #f3f4f6;
+	border-radius: 4px;
+	animation: pulse 1.5s ease-in-out infinite;
+}
+
+.table-skeleton-text {
+	height: 0.875rem;
+	width: 80%;
+	max-width: 120px;
+}
+
+.table-skeleton-badge {
+	height: 1.25rem;
+	width: 60px;
+}
+
+@keyframes pulse {
+	0%, 100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.5;
+	}
+}
+
+/* Table Cell Styles for Generic Tables */
+.table-cell-checkbox {
+	width: 40px;
+	min-width: 40px;
+}
+
+.table-cell-main {
+	min-width: 250px;
+}
+
+.table-cell-numeric {
+	text-align: right;
+	width: 120px;
+	min-width: 120px;
+}
+
+.table-checkbox {
+	margin: 0;
+}
+
+/* Table Row Styles */
+.table-row-clickable {
+	cursor: pointer;
+}
+
+.table-row-clickable:hover {
+	background: #fafbfb !important;
+}
+
+/* Table Cell Content */
+.table-cell-content {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+}
+
+.table-cell-media {
+	width: 40px;
+	height: 40px;
+	background: var(--color-surface-hover);
+	border-radius: var(--radius-md);
+	overflow: hidden;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.table-cell-media img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.table-cell-placeholder {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: var(--font-size-lg);
+	color: var(--color-text-muted);
+}
+
+.table-cell-details {
+	flex: 1;
+	min-width: 0;
+}
+
+.table-cell-title {
+	font-weight: var(--font-weight-medium);
+	color: var(--color-text);
+	font-size: var(--font-size-sm);
+	display: block;
+	line-height: 1.3;
+}
+
+.table-cell-subtitle {
+	font-size: var(--font-size-xs);
+	color: var(--color-text-muted);
+	display: block;
+	margin-top: var(--space-1);
+}
+
+.table-cell-text {
+	font-size: var(--font-size-sm);
+	color: var(--color-text);
+}
+
+.table-cell-muted {
+	color: var(--color-text-muted);
+}
+
+/* Table Summary */
+.table-summary {
+	font-size: var(--font-size-sm);
+	color: var(--color-text-muted);
+	padding: var(--space-3) var(--space-4);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+	.data-table,
+	.table {
+		min-width: 800px;
+	}
+	
+	.data-table th,
+	.data-table td,
+	.table th,
+	.table td {
+		padding: 0.5rem 0.75rem;
+	}
+	
+	.table-cell-media {
+		width: 32px;
+		height: 32px;
+	}
+}

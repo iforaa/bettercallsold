@@ -1,4 +1,4 @@
-import { query } from '$lib/database.js';
+import { query, getCached, setCache } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
 
@@ -9,6 +9,18 @@ export async function GET({ url }) {
     const status = url.searchParams.get('status') || 'active';
     const limit = parseInt(url.searchParams.get('limit')) || 50;
     const search = url.searchParams.get('search');
+
+    // Create cache key based on query parameters
+    const cacheKey = `mobile_collections_${DEFAULT_TENANT_ID}_${includeProductCount}_${status}_${limit}_${search || 'all'}`;
+    
+    // Try to get from cache first
+    const cachedCollections = await getCached(cacheKey);
+    if (cachedCollections) {
+      console.log(`🚀 Cache hit for ${cacheKey}`);
+      return jsonResponse(cachedCollections);
+    }
+    
+    console.log(`🔍 Cache miss for ${cacheKey}, fetching from database`);
 
     // Build the query
     let queryText = `
@@ -75,6 +87,9 @@ export async function GET({ url }) {
       total: collections.length,
       has_more: collections.length === limit
     };
+    
+    // Cache the collections for 5 minutes (300 seconds)
+    await setCache(cacheKey, response, 300);
 
     return jsonResponse(response);
 

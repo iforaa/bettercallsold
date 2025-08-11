@@ -168,15 +168,15 @@
 <div class="page">
 	{#if error}
 		<div class="error-state">
-			<div class="error-content">
-				<div class="error-icon">⚠️</div>
-				<h3>Error</h3>
-				<p>{error}</p>
-				<div class="error-actions">
-					<button class="btn-secondary" onclick={() => loadCustomer()}>
+			<div class="error-state-content">
+				<div class="error-state-icon">⚠</div>
+				<h1 class="error-state-title">Error Loading Customer</h1>
+				<p class="error-state-message">{error}</p>
+				<div class="error-state-actions">
+					<button class="btn btn-primary" onclick={() => loadCustomer()}>
 						Retry
 					</button>
-					<button class="btn-primary" onclick={goBackToCustomers}>
+					<button class="btn btn-secondary" onclick={goBackToCustomers}>
 						Back to Customers
 					</button>
 				</div>
@@ -184,37 +184,42 @@
 		</div>
 	{:else if loading}
 		<div class="loading-state">
-			<div class="loading-content">
-				<div class="loading-spinner-large"></div>
-				<h3>Loading customer details...</h3>
-				<p>Please wait while we fetch the customer information</p>
-			</div>
+			<div class="loading-spinner loading-spinner-lg"></div>
+			<p class="loading-text">Loading customer details...</p>
 		</div>
 	{:else if customer}
 		<div class="page-header">
-			<div class="header-main">
-				<div class="breadcrumb">
-					<button class="breadcrumb-link" onclick={goBackToCustomers}>
-						<span class="breadcrumb-icon">👥</span>
-						Customers
+			<div class="page-header-content">
+				<div class="page-header-nav">
+					<button class="btn-icon" onclick={goBackToCustomers}>
+						←
 					</button>
-					<span class="breadcrumb-separator">›</span>
-					<span class="breadcrumb-current">{customer.name}</span>
+					<div class="breadcrumb">
+						<button class="breadcrumb-item" onclick={goBackToCustomers}>
+							👥 Customers
+						</button>
+						<span class="breadcrumb-separator">›</span>
+						<span class="breadcrumb-item current">{customer.name}</span>
+					</div>
 				</div>
-				<div class="header-right">
-					<button class="btn-secondary">More actions</button>
+				<div class="page-actions">
+					<button class="btn btn-secondary">More actions</button>
 				</div>
 			</div>
 			
 			<!-- Customer Header Info -->
-			<div class="customer-header">
-				<div class="customer-avatar">
-					{getInitials(customer.name)}
+			<div class="header-summary">
+				<div class="header-summary-media">
+					<div class="table-cell-media">
+						<div class="table-cell-placeholder">
+							{getInitials(customer.name)}
+						</div>
+					</div>
 				</div>
-				<div class="customer-info">
-					<h1 class="customer-name">{customer.name}</h1>
-					<div class="customer-meta">
-						<span class="customer-id">ID: {customer.id.slice(0, 8)}...</span>
+				<div class="header-summary-content">
+					<h1 class="header-summary-title">{customer.name}</h1>
+					<div class="header-summary-meta">
+						<span class="header-summary-subtitle">ID: {customer.id.slice(0, 8)}...</span>
 					</div>
 				</div>
 			</div>
@@ -222,215 +227,218 @@
 
 		<div class="page-content">
 		<!-- Stats Overview -->
-		<div class="stats-grid">
-			<div class="stat-card">
-				<div class="stat-label">Amount spent</div>
-				<div class="stat-value">{formatCurrency(customer.stats.total_spent)}</div>
+		<div class="metrics-grid">
+			<div class="metric-card">
+				<div class="metric-card-value">{formatCurrency(customer.stats.total_spent)}</div>
+				<div class="metric-card-label">Amount spent</div>
 			</div>
-			<div class="stat-card">
-				<div class="stat-label">Orders</div>
-				<div class="stat-value">{customer.stats.order_count}</div>
+			<div class="metric-card">
+				<div class="metric-card-value">{customer.stats.order_count}</div>
+				<div class="metric-card-label">Orders</div>
 			</div>
-			<div class="stat-card">
-				<div class="stat-label">Customer since</div>
-				<div class="stat-value">{getCustomerSince(customer.stats.customer_since)}</div>
+			<div class="metric-card">
+				<div class="metric-card-value">{getCustomerSince(customer.stats.customer_since)}</div>
+				<div class="metric-card-label">Customer since</div>
 			</div>
-			<div class="stat-card">
-				<div class="stat-label">Cart items</div>
-				<div class="stat-value">{customer.stats.cart_items_count}</div>
+			<div class="metric-card">
+				<div class="metric-card-value">{customer.stats.cart_items_count}</div>
+				<div class="metric-card-label">Cart items</div>
 			</div>
 		</div>
 
 		<!-- Content Layout -->
 		<div class="content-layout">
 			<!-- Main Content Area -->
-			<div class="main-content">
+			<div class="content-main">
 				<!-- Last Order Section -->
-				<div class="section-card">
-					<div class="section-header">
-						<h3>Last order placed</h3>
+				<div class="content-section">
+					<div class="content-header">
+						<h3 class="content-title">Last order placed</h3>
 					</div>
-					<div class="section-content">
+					<div class="content-body">
 						{#if customer.stats.order_count === 0}
 							<div class="empty-state">
-								<div class="empty-icon">📋</div>
-								<p>This customer hasn't placed any orders yet</p>
-								<button class="btn-secondary">Create order</button>
+								<div class="empty-state-content">
+									<div class="empty-state-icon">📋</div>
+									<p class="empty-state-message">This customer hasn't placed any orders yet</p>
+									<div class="empty-state-actions">
+										<button class="btn btn-secondary">Create order</button>
+									</div>
+								</div>
 							</div>
 						{:else if orders.length > 0}
-							<div class="last-order-preview">
-								<div class="last-order-card" onclick={() => goto(`/orders/${orders[0].id}`)}>
-									<div class="last-order-info">
-										<div class="last-order-id">Order #{orders[0].id.slice(0, 8)}...</div>
-										<div class="last-order-amount">{formatCurrency(orders[0].total_amount)}</div>
-										<div class="last-order-date">{new Date(orders[0].created_at).toLocaleDateString()}</div>
+							<div class="content-flow">
+								<div class="card card-interactive" onclick={() => goto(`/orders/${orders[0].id}`)}>
+									<div class="card-content">
+										<div class="card-details">
+											<div class="card-title">Order #{orders[0].id.slice(0, 8)}...</div>
+											<div class="card-subtitle">{formatCurrency(orders[0].total_amount)} • {new Date(orders[0].created_at).toLocaleDateString()}</div>
+										</div>
+										<div class="card-action">
+											<span class="badge badge-{orders[0].status === 'completed' ? 'success' : orders[0].status === 'pending' ? 'warning' : 'neutral'}">{orders[0].status}</span>
+										</div>
 									</div>
-									<div class="last-order-status status-{orders[0].status}">{orders[0].status}</div>
 								</div>
-								<button class="btn-secondary" onclick={() => activeTab = 'orders'}>View all orders</button>
+								<button class="btn btn-secondary" onclick={() => activeTab = 'orders'}>View all orders</button>
 							</div>
 						{:else}
-							<div class="order-preview">
-								<p>Customer has {customer.stats.order_count} order{customer.stats.order_count !== 1 ? 's' : ''}</p>
-								<button class="btn-secondary" onclick={() => activeTab = 'orders'}>View orders</button>
+							<div class="empty-state">
+								<div class="empty-state-content">
+									<p class="empty-state-message">Customer has {customer.stats.order_count} order{customer.stats.order_count !== 1 ? 's' : ''}</p>
+									<div class="empty-state-actions">
+										<button class="btn btn-secondary" onclick={() => activeTab = 'orders'}>View orders</button>
+									</div>
+								</div>
 							</div>
 						{/if}
 					</div>
 				</div>
 
 				<!-- Tabs Section -->
-				<div class="tabs-section">
-					<div class="tabs-header">
+				<div class="content-section">
+					<div class="nav-tabs">
 						<button 
-							class="tab {activeTab === 'overview' ? 'active' : ''}"
+							class="nav-tab {activeTab === 'overview' ? 'active' : ''}"
 							onclick={() => activeTab = 'overview'}
 						>
 							Overview
 						</button>
 						<button 
-							class="tab {activeTab === 'orders' ? 'active' : ''}"
+							class="nav-tab {activeTab === 'orders' ? 'active' : ''}"
 							onclick={() => activeTab = 'orders'}
 						>
 							Orders ({customer.stats.order_count})
 						</button>
 						<button 
-							class="tab {activeTab === 'cart' ? 'active' : ''}"
+							class="nav-tab {activeTab === 'cart' ? 'active' : ''}"
 							onclick={() => activeTab = 'cart'}
 						>
 							Cart items ({customer.stats.cart_items_count})
 						</button>
 						<button 
-							class="tab {activeTab === 'posts' ? 'active' : ''}"
+							class="nav-tab {activeTab === 'posts' ? 'active' : ''}"
 							onclick={() => activeTab = 'posts'}
 						>
 							Posts ({customer.stats.posts_count})
 						</button>
 						<button 
-							class="tab {activeTab === 'waitlists' ? 'active' : ''}"
+							class="nav-tab {activeTab === 'waitlists' ? 'active' : ''}"
 							onclick={() => activeTab = 'waitlists'}
 						>
 							Waitlists ({waitlists.length})
 						</button>
 					</div>
 					
-					<div class="tab-content">
+					<div class="content-body">
 						{#if activeTab === 'overview'}
-							<div class="overview-content">
-								<div class="timeline-section">
-									<h4>Timeline</h4>
-									<div class="timeline-item">
-										<div class="timeline-dot"></div>
-										<div class="timeline-content">
-											<div class="timeline-title">Customer created</div>
-											<div class="timeline-date">{new Date(customer.created_at).toLocaleDateString()}</div>
+							<div class="content-flow">
+								<div class="card">
+									<div class="card-content">
+										<div class="card-details">
+											<div class="card-title">Timeline</div>
+											<div class="card-subtitle">Customer activity</div>
 										</div>
+									</div>
+								</div>
+								<div class="timeline-item">
+									<div class="timeline-dot"></div>
+									<div class="timeline-content">
+										<div class="card-title">Customer created</div>
+										<div class="card-subtitle">{new Date(customer.created_at).toLocaleDateString()}</div>
 									</div>
 								</div>
 							</div>
 						{:else if activeTab === 'orders'}
 							{#if loadingOrders}
 								<div class="loading-state">
-									<div class="loading-spinner-large"></div>
-									<p>Loading orders...</p>
+									<div class="loading-spinner loading-spinner-lg"></div>
+									<p class="loading-text">Loading orders...</p>
 								</div>
 							{:else if orders.length > 0}
-								<div class="orders-list">
+								<div class="content-flow">
 									{#each orders as order}
-										<div class="order-card" onclick={() => goto(`/orders/${order.id}`)}>
-											<div class="order-header">
-												<div class="order-id">#{order.id.slice(0, 8)}...</div>
-												<div class="order-status status-{order.status}">{order.status}</div>
-											</div>
-											<div class="order-details">
-												<div class="order-amount">{formatCurrency(order.total_amount)}</div>
-												<div class="order-meta">
-													<span class="order-items">{order.items_count} item{order.items_count !== 1 ? 's' : ''}</span>
-													<span class="order-payment">{order.payment_method}</span>
+										<div class="card card-interactive" onclick={() => goto(`/orders/${order.id}`)}>
+											<div class="card-content">
+												<div class="card-meta">#{order.id.slice(0, 8)}...</div>
+												<div class="card-details">
+													<div class="card-title">{formatCurrency(order.total_amount)}</div>
+													<div class="card-subtitle">{order.items_count} item{order.items_count !== 1 ? 's' : ''} • {order.payment_method} • {new Date(order.created_at).toLocaleDateString()}</div>
 												</div>
-												<div class="order-date">{new Date(order.created_at).toLocaleDateString()}</div>
+												<div class="card-action">
+													<span class="badge badge-{order.status === 'completed' ? 'success' : order.status === 'pending' ? 'warning' : order.status === 'cancelled' ? 'error' : 'info'}">{order.status}</span>
+												</div>
 											</div>
-											<div class="order-arrow">→</div>
 										</div>
 									{/each}
 								</div>
 							{:else}
 								<div class="empty-state">
-									<div class="empty-icon">📦</div>
-									<p>No orders found</p>
-									<p class="empty-hint">Orders will appear here when the customer places them</p>
+									<div class="empty-state-content">
+										<div class="empty-state-icon">📦</div>
+										<p class="empty-state-message">No orders found</p>
+										<p class="empty-state-description">Orders will appear here when the customer places them</p>
+									</div>
 								</div>
 							{/if}
 						{:else if activeTab === 'cart'}
 							<div class="empty-state">
-								<div class="empty-icon">🛒</div>
-								<p>No cart items found</p>
-								<p class="empty-hint">Cart items will appear here when the customer adds products</p>
+								<div class="empty-state-content">
+									<div class="empty-state-icon">🛒</div>
+									<p class="empty-state-message">No cart items found</p>
+									<p class="empty-state-description">Cart items will appear here when the customer adds products</p>
+								</div>
 							</div>
 						{:else if activeTab === 'posts'}
 							<div class="empty-state">
-								<div class="empty-icon">📝</div>
-								<p>No posts found</p>
-								<p class="empty-hint">Customer posts and activity will appear here</p>
+								<div class="empty-state-content">
+									<div class="empty-state-icon">📝</div>
+									<p class="empty-state-message">No posts found</p>
+									<p class="empty-state-description">Customer posts and activity will appear here</p>
+								</div>
 							</div>
 						{:else if activeTab === 'waitlists'}
 							{#if loadingWaitlists}
 								<div class="loading-state">
-									<div class="loading-spinner-large"></div>
-									<p>Loading waitlists...</p>
+									<div class="loading-spinner loading-spinner-lg"></div>
+									<p class="loading-text">Loading waitlists...</p>
 								</div>
 							{:else if waitlists.length > 0}
-								<div class="waitlists-list">
+								<div class="content-flow">
 									{#each waitlists as waitlist}
-										<div class="waitlist-card" onclick={() => goto(`/waitlists/${waitlist.id}`)}>
-											<div class="waitlist-header">
-												<div class="position">
-													<strong>#{waitlist.position || 'N/A'}</strong>
+										<div class="card card-interactive" onclick={() => goto(`/waitlists/${waitlist.id}`)}>
+											<div class="card-content">
+												<div class="card-meta">#{waitlist.position || 'N/A'}</div>
+												<div class="card-details">
+													<div class="card-title">{waitlist.product_name || 'No Product'}</div>
+													<div class="card-subtitle">
+														{#if waitlist.product_price}{formatCurrency(waitlist.product_price)}{/if}
+														{#if waitlist.color || waitlist.size}
+															• {waitlist.color || ''} {waitlist.size || ''}
+														{/if}
+														{#if waitlist.inventory_quantity !== null}
+															• Qty: {waitlist.inventory_quantity}
+														{/if}
+														• {new Date(waitlist.created_at).toLocaleDateString()}
+													</div>
 												</div>
-												<div class="status">
+												<div class="card-action">
 													{#if waitlist.authorized_at}
-														<span class="status-badge green">Authorized</span>
+														<span class="badge badge-success">Authorized</span>
 													{:else}
-														<span class="status-badge orange">Pending</span>
+														<span class="badge badge-warning">Pending</span>
 													{/if}
 												</div>
 											</div>
-											<div class="waitlist-content">
-												<div class="waitlist-main">
-													<div class="product-info">
-														<strong>{waitlist.product_name || 'No Product'}</strong>
-														{#if waitlist.product_price}
-															<div class="product-price">{formatCurrency(waitlist.product_price)}</div>
-														{/if}
-													</div>
-												</div>
-												<div class="waitlist-meta">
-													<div class="inventory-info">
-														{#if waitlist.color || waitlist.size}
-															<div class="inventory-details">
-																{#if waitlist.color}<span class="detail-badge">{waitlist.color}</span>{/if}
-																{#if waitlist.size}<span class="detail-badge">{waitlist.size}</span>{/if}
-															</div>
-														{/if}
-														{#if waitlist.inventory_quantity !== null}
-															<div class="inventory-quantity">
-																Qty: {waitlist.inventory_quantity}
-															</div>
-														{/if}
-													</div>
-													<div class="waitlist-details">
-														<div class="created-date">{new Date(waitlist.created_at).toLocaleDateString()}</div>
-													</div>
-												</div>
-											</div>
-											<div class="waitlist-arrow">→</div>
 										</div>
 									{/each}
 								</div>
 							{:else}
 								<div class="empty-state">
-									<div class="empty-icon">⏱️</div>
-									<p>No waitlist entries found</p>
-									<p class="empty-hint">Waitlist entries will appear here when the customer joins product waitlists</p>
+									<div class="empty-state-content">
+										<div class="empty-state-icon">⏱️</div>
+										<p class="empty-state-message">No waitlist entries found</p>
+										<p class="empty-state-description">Waitlist entries will appear here when the customer joins product waitlists</p>
+									</div>
 								</div>
 							{/if}
 						{/if}
@@ -439,15 +447,16 @@
 			</div>
 
 			<!-- Sidebar -->
-			<div class="sidebar">
+			<div class="content-sidebar">
 				<!-- Customer Details Card -->
-				<div class="sidebar-card">
+				<div class="sidebar-section">
 					<div class="sidebar-header">
-						<h3>Customer</h3>
+						<h3 class="sidebar-title">Customer</h3>
 					</div>
-					<div class="sidebar-content">
-						<div class="detail-section">
-							<h4>Contact information</h4>
+					
+					<div class="sidebar-subsection">
+						<h4 class="sidebar-subtitle">Contact information</h4>
+						<div class="detail-list">
 							<div class="detail-item">
 								<span class="detail-label">Email</span>
 								<span class="detail-value">{customer.email}</span>
@@ -465,10 +474,12 @@
 								</div>
 							{/if}
 						</div>
+					</div>
 
-						{#if customer.facebook_id || customer.instagram_id}
-							<div class="detail-section">
-								<h4>Social media</h4>
+					{#if customer.facebook_id || customer.instagram_id}
+						<div class="sidebar-subsection">
+							<h4 class="sidebar-subtitle">Social media</h4>
+							<div class="detail-list">
 								{#if customer.facebook_id}
 									<div class="detail-item">
 										<span class="detail-label">Facebook ID</span>
@@ -482,10 +493,12 @@
 									</div>
 								{/if}
 							</div>
-						{/if}
+						</div>
+					{/if}
 
-						<div class="detail-section">
-							<h4>Account details</h4>
+					<div class="sidebar-subsection">
+						<h4 class="sidebar-subtitle">Account details</h4>
+						<div class="detail-list">
 							<div class="detail-item">
 								<span class="detail-label">Customer since</span>
 								<span class="detail-value">{new Date(customer.created_at).toLocaleDateString()}</span>
@@ -523,379 +536,58 @@
 {/if}
 
 <style>
-	.page {
-		min-height: 100vh;
-		background: #f6f6f7;
-	}
-
-	.error-state {
-		background: white;
-		border-radius: 8px;
-		padding: 4rem 2rem;
-		text-align: center;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-		border: 1px solid #e1e1e1;
-		margin: 2rem;
-	}
-
-	.error-content {
-		max-width: 400px;
-		margin: 0 auto;
-	}
-
-	.error-icon {
-		font-size: 3rem;
-		margin-bottom: 1rem;
-		opacity: 0.6;
-	}
-
-	.error-state h3 {
-		color: #dc2626;
-		font-size: 1.25rem;
-		margin-bottom: 0.5rem;
-		font-weight: 600;
-	}
-
-	.error-state p {
-		color: #6d7175;
-		margin-bottom: 2rem;
-		line-height: 1.5;
-	}
-
-	.error-actions {
-		display: flex;
-		gap: 1rem;
-		justify-content: center;
-	}
-
-	.loading-state {
-		background: white;
-		border-radius: 8px;
-		padding: 4rem 2rem;
-		text-align: center;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-		border: 1px solid #e1e1e1;
-		margin: 2rem;
-		min-height: 400px;
+	/* Minimal custom styles - most styling now handled by design system */
+	
+	/* Custom header summary styling */
+	.header-summary {
 		display: flex;
 		align-items: center;
-		justify-content: center;
+		gap: var(--space-4);
+		padding: var(--space-6) 0;
 	}
-
-	.loading-content {
-		max-width: 400px;
-		margin: 0 auto;
-	}
-
-	.loading-spinner-large {
-		display: inline-block;
-		width: 40px;
-		height: 40px;
-		border: 4px solid #f3f4f6;
-		border-radius: 50%;
-		border-top-color: #202223;
-		animation: spin 1s ease-in-out infinite;
-		margin-bottom: 1.5rem;
-	}
-
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-
-	.loading-state h3 {
-		color: #202223;
-		font-size: 1.25rem;
-		margin-bottom: 0.5rem;
-		font-weight: 600;
-	}
-
-	.loading-state p {
-		color: #6d7175;
-		line-height: 1.5;
-	}
-
-	.btn-primary {
-		background: #202223;
-		color: white;
-		border: none;
-		padding: 0.75rem 1.5rem;
-		border-radius: 6px;
-		font-size: 0.875rem;
-		font-weight: 500;
-		cursor: pointer;
-		text-decoration: none;
-		display: inline-flex;
-		align-items: center;
-		transition: all 0.15s ease;
-	}
-
-	.btn-primary:hover {
-		background: #1a1a1a;
-	}
-
-	.page-header {
-		background: white;
-		border-bottom: 1px solid #e1e1e1;
-		padding: 1rem 2rem 0;
-	}
-
-	.header-main {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 2rem;
-	}
-
-	.breadcrumb {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.875rem;
-		color: #6d7175;
-	}
-
-	.breadcrumb-link {
-		background: none;
-		border: none;
-		color: #005bd3;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		gap: 0.25rem;
-		text-decoration: none;
-		font-size: 0.875rem;
-	}
-
-	.breadcrumb-link:hover {
-		text-decoration: underline;
-	}
-
-	.breadcrumb-icon {
-		font-size: 0.875rem;
-	}
-
-	.breadcrumb-separator {
-		color: #c9cccf;
-	}
-
-	.breadcrumb-current {
-		color: #202223;
-		font-weight: 500;
-	}
-
-	.header-right {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-	}
-
-	.customer-header {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-		padding-bottom: 2rem;
-	}
-
-	.customer-avatar {
+	
+	.header-summary-media .table-cell-media {
 		width: 64px;
 		height: 64px;
-		background: #005bd3;
-		color: white;
 		border-radius: 50%;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-weight: 600;
-		font-size: 1.25rem;
+		font-size: var(--font-size-lg);
 	}
-
-	.customer-info {
+	
+	.header-summary-content {
 		flex: 1;
 	}
-
-	.customer-name {
-		margin: 0 0 0.5rem 0;
-		font-size: 1.5rem;
-		font-weight: 600;
-		color: #202223;
+	
+	.header-summary-title {
+		margin: 0 0 var(--space-2) 0;
+		font-size: var(--font-size-xl);
+		font-weight: var(--font-weight-semibold);
+		color: var(--color-text);
 	}
-
-	.customer-meta {
+	
+	.header-summary-meta {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
-		font-size: 0.875rem;
-		color: #6d7175;
+		gap: var(--space-4);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-muted);
 	}
-
-	.customer-id {
+	
+	.header-summary-subtitle {
 		font-family: monospace;
 	}
-
-	.page-content {
-		padding: 2rem;
-		max-width: 1400px;
-		margin: 0 auto;
-	}
-
-	.stats-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-		gap: 1rem;
-		margin-bottom: 2rem;
-	}
-
-	.stat-card {
-		background: white;
-		border: 1px solid #e1e1e1;
-		border-radius: 8px;
-		padding: 1.5rem;
-	}
-
-	.stat-label {
-		font-size: 0.875rem;
-		color: #6d7175;
-		margin-bottom: 0.5rem;
-	}
-
-	.stat-value {
-		font-size: 1.5rem;
-		font-weight: 600;
-		color: #202223;
-	}
-
-	.content-layout {
-		display: grid;
-		grid-template-columns: 1fr 320px;
-		gap: 2rem;
-	}
-
-	.main-content {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-	}
-
-	.section-card {
-		background: white;
-		border: 1px solid #e1e1e1;
-		border-radius: 12px;
-		overflow: hidden;
-	}
-
-	.section-header {
-		padding: 1.5rem;
-		border-bottom: 1px solid #f0f0f0;
-	}
-
-	.section-header h3 {
-		margin: 0;
-		font-size: 1.125rem;
-		font-weight: 600;
-		color: #202223;
-	}
-
-	.section-content {
-		padding: 1.5rem;
-	}
-
-	.empty-state {
-		text-align: center;
-		padding: 2rem;
-	}
-
-	.empty-icon {
-		font-size: 3rem;
-		margin-bottom: 1rem;
-		opacity: 0.6;
-	}
-
-	.empty-state p {
-		margin: 0.5rem 0;
-		color: #6d7175;
-	}
-
-	.empty-hint {
-		font-size: 0.875rem;
-		opacity: 0.8;
-	}
-
-	.order-preview {
-		text-align: center;
-		padding: 1rem;
-	}
-
-	.order-preview p {
-		margin: 0 0 1rem 0;
-		color: #6d7175;
-	}
-
-	.tabs-section {
-		background: white;
-		border: 1px solid #e1e1e1;
-		border-radius: 12px;
-		overflow: hidden;
-	}
-
-	.tabs-header {
-		display: flex;
-		border-bottom: 1px solid #e1e1e1;
-		background: #fafbfb;
-	}
-
-	.tab {
-		background: none;
-		border: none;
-		padding: 1rem 1.5rem;
-		cursor: pointer;
-		color: #6d7175;
-		font-size: 0.875rem;
-		border-bottom: 2px solid transparent;
-		transition: all 0.15s ease;
-	}
-
-	.tab.active {
-		color: #202223;
-		background: white;
-		border-bottom-color: #005bd3;
-	}
-
-	.tab:hover:not(.active) {
-		color: #202223;
-		background: rgba(0, 91, 211, 0.05);
-	}
-
-	.tab-content {
-		padding: 2rem;
-		min-height: 300px;
-	}
-
-	.overview-content {
-		display: flex;
-		flex-direction: column;
-		gap: 2rem;
-	}
-
-	.timeline-section h4 {
-		margin: 0 0 1rem 0;
-		font-size: 1rem;
-		font-weight: 600;
-		color: #202223;
-	}
-
+	
+	/* Timeline styling */
 	.timeline-item {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
-		padding: 0.75rem 0;
+		gap: var(--space-3);
+		padding: var(--space-3) 0;
 	}
 
 	.timeline-dot {
 		width: 12px;
 		height: 12px;
-		background: #005bd3;
+		background: var(--color-accent);
 		border-radius: 50%;
 		flex-shrink: 0;
 	}
@@ -903,551 +595,60 @@
 	.timeline-content {
 		flex: 1;
 	}
-
-	.timeline-title {
-		font-weight: 500;
-		color: #202223;
-		margin-bottom: 0.25rem;
-	}
-
-	.timeline-date {
-		font-size: 0.875rem;
-		color: #6d7175;
-	}
-
-	.sidebar {
+	
+	/* Detail list styling for sidebar */
+	.detail-list {
 		display: flex;
 		flex-direction: column;
-		gap: 1.5rem;
+		gap: var(--space-3);
 	}
-
-	.sidebar-card {
-		background: white;
-		border: 1px solid #e1e1e1;
-		border-radius: 12px;
-		overflow: hidden;
-	}
-
-	.sidebar-header {
-		padding: 1.5rem;
-		border-bottom: 1px solid #f0f0f0;
-	}
-
-	.sidebar-header h3 {
-		margin: 0;
-		font-size: 1.125rem;
-		font-weight: 600;
-		color: #202223;
-	}
-
-	.sidebar-content {
-		padding: 1.5rem;
-	}
-
-	.detail-section {
-		margin-bottom: 2rem;
-	}
-
-	.detail-section:last-child {
-		margin-bottom: 0;
-	}
-
-	.detail-section h4 {
-		margin: 0 0 1rem 0;
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: #202223;
-	}
-
+	
 	.detail-item {
 		display: flex;
 		flex-direction: column;
-		margin-bottom: 1rem;
-	}
-
-	.detail-item:last-child {
-		margin-bottom: 0;
 	}
 
 	.detail-label {
-		font-size: 0.75rem;
-		color: #6d7175;
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.025em;
-		margin-bottom: 0.25rem;
+		margin-bottom: var(--space-1);
+		font-weight: var(--font-weight-medium);
 	}
 
 	.detail-value {
-		font-size: 0.875rem;
-		color: #202223;
+		font-size: var(--font-size-sm);
+		color: var(--color-text);
 		word-break: break-word;
 	}
 
-	.btn-secondary {
-		background: white;
-		color: #6d7175;
-		border: 1px solid #c9cccf;
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
-		font-size: 0.875rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.15s ease;
-	}
-
-	.btn-secondary:hover {
-		background: #f6f6f7;
-		border-color: #b3b7bb;
-	}
-
-	/* Toast Notifications */
-	.toast-container {
-		position: fixed;
-		top: 5rem;
-		right: 2rem;
-		z-index: 1000;
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-		pointer-events: none;
-	}
-
-	.toast {
-		background: white;
-		border-radius: 8px;
-		box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
-		border: 1px solid #e1e3e5;
-		padding: 1rem 1.25rem;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		min-width: 320px;
-		max-width: 480px;
-		pointer-events: auto;
-		animation: slideIn 0.3s ease-out;
-	}
-
-	.toast-success {
-		border-left: 4px solid #00a96e;
-	}
-
-	.toast-error {
-		border-left: 4px solid #d72c0d;
-	}
-
-	.toast-content {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		flex: 1;
-	}
-
-	.toast-icon {
-		width: 20px;
-		height: 20px;
-		border-radius: 50%;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 0.875rem;
-		font-weight: 600;
-	}
-
-	.toast-success .toast-icon {
-		background: #00a96e;
-		color: white;
-	}
-
-	.toast-error .toast-icon {
-		background: #d72c0d;
-		color: white;
-	}
-
-	.toast-message {
-		font-size: 0.875rem;
-		color: #202223;
-		font-weight: 500;
-	}
-
-	.toast-close {
-		background: none;
-		border: none;
-		color: #6d7175;
-		cursor: pointer;
-		font-size: 1.25rem;
-		padding: 0;
-		margin-left: 1rem;
-		transition: color 0.15s ease;
-	}
-
-	.toast-close:hover {
-		color: #202223;
-	}
-
-	@keyframes slideIn {
-		from {
-			transform: translateX(100%);
-			opacity: 0;
-		}
-		to {
-			transform: translateX(0);
-			opacity: 1;
-		}
-	}
-
+	/* Responsive adjustments not covered by design system */
 	@media (max-width: 1024px) {
 		.content-layout {
 			grid-template-columns: 1fr;
-			gap: 1rem;
+			gap: var(--space-4);
 		}
 
-		.stats-grid {
-			grid-template-columns: repeat(2, 1fr);
+		.content-sidebar {
+			order: -1;
 		}
-	}
-
-	/* Orders styling */
-	.orders-list {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
-	.order-card {
-		display: flex;
-		align-items: center;
-		padding: 1rem;
-		border: 1px solid #e1e1e1;
-		border-radius: 8px;
-		background: white;
-		cursor: pointer;
-		transition: all 0.15s ease;
-		gap: 1rem;
-	}
-
-	.order-card:hover {
-		border-color: #005bd3;
-		box-shadow: 0 2px 8px rgba(0, 91, 211, 0.1);
-	}
-
-	.order-header {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-		min-width: 120px;
-	}
-
-	.order-id {
-		font-family: monospace;
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: #202223;
-	}
-
-	.order-status {
-		padding: 0.125rem 0.375rem;
-		border-radius: 4px;
-		font-size: 0.75rem;
-		font-weight: 500;
-		text-transform: capitalize;
-		width: fit-content;
-	}
-
-	.order-status.status-completed {
-		background: #d1fae5;
-		color: #047857;
-	}
-
-	.order-status.status-pending {
-		background: #fef3c7;
-		color: #92400e;
-	}
-
-	.order-status.status-cancelled {
-		background: #fee2e2;
-		color: #991b1b;
-	}
-
-	.order-status.status-processing {
-		background: #dbeafe;
-		color: #1e40af;
-	}
-
-	.order-details {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.order-amount {
-		font-size: 1.125rem;
-		font-weight: 600;
-		color: #202223;
-	}
-
-	.order-meta {
-		display: flex;
-		gap: 0.75rem;
-		font-size: 0.875rem;
-		color: #6d7175;
-	}
-
-	.order-date {
-		font-size: 0.75rem;
-		color: #8c9196;
-	}
-
-	.order-arrow {
-		color: #c9cccf;
-		font-size: 1.25rem;
-	}
-
-	.last-order-preview {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
-	.last-order-card {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 1rem;
-		border: 1px solid #e1e1e1;
-		border-radius: 8px;
-		background: #fafbfb;
-		cursor: pointer;
-		transition: all 0.15s ease;
-	}
-
-	.last-order-card:hover {
-		border-color: #005bd3;
-		background: white;
-		box-shadow: 0 2px 4px rgba(0, 91, 211, 0.1);
-	}
-
-	.last-order-info {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.last-order-id {
-		font-family: monospace;
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: #202223;
-	}
-
-	.last-order-amount {
-		font-size: 1rem;
-		font-weight: 600;
-		color: #202223;
-	}
-
-	.last-order-date {
-		font-size: 0.75rem;
-		color: #8c9196;
-	}
-
-	.last-order-status {
-		padding: 0.25rem 0.5rem;
-		border-radius: 4px;
-		font-size: 0.75rem;
-		font-weight: 500;
-		text-transform: capitalize;
-	}
-
-	/* Waitlist styling */
-	.waitlists-list {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
-	.waitlist-card {
-		display: flex;
-		align-items: center;
-		padding: 1rem;
-		border: 1px solid #e1e1e1;
-		border-radius: 8px;
-		background: #fafbfb;
-		cursor: pointer;
-		transition: all 0.15s ease;
-		gap: 1rem;
-	}
-
-	.waitlist-card:hover {
-		border-color: #005bd3;
-		background: white;
-		box-shadow: 0 2px 8px rgba(0, 91, 211, 0.1);
-		transform: translateY(-1px);
-	}
-
-	.waitlist-header {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-		min-width: 100px;
-		align-items: center;
-		text-align: center;
-	}
-
-	.waitlist-content {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-	}
-
-	.waitlist-main {
-		display: flex;
-		gap: 2rem;
-		align-items: flex-start;
-	}
-
-	.waitlist-meta {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 1rem;
-	}
-
-	.waitlist-details {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-	}
-
-	.waitlist-arrow {
-		color: #c9cccf;
-		font-size: 1.25rem;
-		flex-shrink: 0;
-	}
-
-	.position strong {
-		color: #202223;
-		font-family: monospace;
-		font-size: 0.875rem;
-	}
-
-	.product-info strong {
-		color: #202223;
-		display: block;
-		margin-bottom: 0.25rem;
-		font-size: 0.875rem;
-	}
-
-	.product-price {
-		color: #6d7175;
-		font-size: 0.8125rem;
-		font-weight: 500;
-	}
-
-	.inventory-info {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.inventory-details {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.25rem;
-	}
-
-	.detail-badge {
-		background: #f3f4f6;
-		color: #374151;
-		padding: 0.125rem 0.375rem;
-		border-radius: 4px;
-		font-size: 0.75rem;
-		font-weight: 500;
-	}
-
-	.inventory-quantity {
-		color: #6d7175;
-		font-size: 0.75rem;
-	}
-
-	.status-badge {
-		padding: 0.25rem 0.5rem;
-		border-radius: 4px;
-		font-size: 0.75rem;
-		font-weight: 500;
-		text-transform: capitalize;
-	}
-
-	.status-badge.green {
-		background: #d1fae5;
-		color: #047857;
-	}
-
-	.status-badge.orange {
-		background: #fef3c7;
-		color: #92400e;
-	}
-
-	.created-date {
-		font-size: 0.75rem;
-		color: #8c9196;
 	}
 
 	@media (max-width: 768px) {
-		.page-content {
-			padding: 1rem;
-		}
-
-		.customer-header {
+		.header-summary {
 			flex-direction: column;
 			align-items: flex-start;
-			gap: 1rem;
+			gap: var(--space-3);
 		}
-
-		.stats-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.tabs-header {
+		
+		.nav-tabs {
 			flex-wrap: wrap;
 		}
 
-		.tab {
+		.nav-tab {
 			flex: 1;
 			min-width: 120px;
-		}
-
-		.order-card, .waitlist-card {
-			flex-direction: column;
-			align-items: stretch;
-			gap: 0.75rem;
-		}
-
-		.order-header, .waitlist-header {
-			flex-direction: row;
-			justify-content: space-between;
-			align-items: center;
-			min-width: auto;
-		}
-
-		.waitlist-main {
-			flex-direction: column;
-			gap: 1rem;
-		}
-
-		.waitlist-meta {
-			flex-direction: column;
-			align-items: stretch;
-			gap: 0.75rem;
-		}
-
-		.waitlist-details {
-			justify-content: space-between;
-		}
-
-		.order-arrow, .waitlist-arrow {
-			display: none;
 		}
 	}
 </style>
