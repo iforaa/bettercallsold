@@ -287,121 +287,126 @@
     }
 </script>
 
-<!-- {#if isStorefront} -->
-<!-- Storefront - No admin UI, accessible to everyone -->
-<!-- {@render children()} -->
-<!-- {:else if $authLoaded && $isAuthenticated} -->
-<!-- Admin Interface -->
-<div class="app-layout">
-    <!-- Top Header -->
-    <header class="top-header">
-        <div class="header-left">
-            <div class="logo">
-                <div class="logo-icon">🛒</div>
-                <span class="logo-text">BetterCallSold</span>
-            </div>
-        </div>
-        <div class="header-center">
-            <div class="search-container">
-                <div class="search-icon">🔍</div>
-                <input type="text" placeholder="Search" class="search-input" />
-            </div>
-        </div>
-        <div class="header-right">
-            <div class="header-actions">
-                <button class="header-btn">📧</button>
-                <button class="header-btn">🔔</button>
-                <button
-                    class="header-btn logout-btn"
-                    onclick={handleLogout}
-                    title="Logout">🚪</button
-                >
-                <div class="user-menu">
-                    <span class="store-name">BetterCallSold</span>
-                    <div class="user-avatar">CS</div>
+{#if isStorefront}
+    <!-- Storefront - No admin UI, accessible to everyone -->
+    {@render children()}
+{:else if $authLoaded && $isAuthenticated}
+    <!-- Admin Interface -->
+    <div class="app-layout">
+        <!-- Top Header -->
+        <header class="top-header">
+            <div class="header-left">
+                <div class="logo">
+                    <div class="logo-icon">🛒</div>
+                    <span class="logo-text">BetterCallSold</span>
                 </div>
             </div>
-        </div>
-    </header>
-
-    <div class="main-container">
-        <!-- Left Sidebar -->
-        <aside class="sidebar">
-            <nav class="sidebar-nav">
-                {#each menuSections as section}
-                    <div class="nav-section">
-                        {#if section.title}
-                            <div class="section-title">{section.title}</div>
-                        {/if}
-                        {#each section.items as item}
-                            <a
-                                href={item.path}
-                                class="nav-item"
-                                class:active={isActiveRoute(item.path)}
-                                class:functional={item.functional !== false}
-                                class:demo={item.functional === false}
-                            >
-                                <span class="nav-icon">{item.icon}</span>
-                                <span class="nav-label"
-                                    >{item.functional === false
-                                        ? `${item.label} (demo)`
-                                        : item.label}</span
-                                >
-                                {#if item.subItems}
-                                    <span
-                                        class="nav-arrow"
-                                        class:expanded={shouldShowSubItems(
-                                            item,
-                                        )}>▶</span
-                                    >
-                                {/if}
-                            </a>
-                            {#if shouldShowSubItems(item)}
-                                <div class="sub-items">
-                                    {#each item.subItems as subItem}
-                                        <a
-                                            href={subItem.path}
-                                            class="nav-sub-item"
-                                            class:active={isActiveRoute(
-                                                subItem.path,
-                                            )}
-                                            class:functional={subItem.functional !==
-                                                false}
-                                            class:demo={subItem.functional ===
-                                                false}
-                                        >
-                                            <span class="nav-sub-icon"
-                                                >{subItem.icon}</span
-                                            >
-                                            <span class="nav-sub-label"
-                                                >{subItem.functional === false
-                                                    ? `${subItem.label} (demo)`
-                                                    : subItem.label}</span
-                                            >
-                                        </a>
-                                    {/each}
-                                </div>
-                            {/if}
-                        {/each}
+            <div class="header-center">
+                <div class="search-container">
+                    <div class="search-icon">🔍</div>
+                    <input
+                        type="text"
+                        placeholder="Search"
+                        class="search-input"
+                    />
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="header-actions">
+                    <button class="header-btn">📧</button>
+                    <button class="header-btn">🔔</button>
+                    <button
+                        class="header-btn logout-btn"
+                        onclick={handleLogout}
+                        title="Logout">🚪</button
+                    >
+                    <div class="user-menu">
+                        <span class="store-name">BetterCallSold</span>
+                        <div class="user-avatar">CS</div>
                     </div>
-                {/each}
-            </nav>
-        </aside>
+                </div>
+            </div>
+        </header>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            {@render children()}
-        </main>
+        <div class="main-container">
+            <!-- Left Sidebar -->
+            <aside class="sidebar">
+                <nav class="sidebar-nav">
+                    {#each menuSections as section}
+                        <div class="nav-section">
+                            {#if section.title}
+                                <div class="section-title">{section.title}</div>
+                            {/if}
+                            {#each section.items as item}
+                                <a
+                                    href={item.path}
+                                    class="nav-item"
+                                    class:active={isActiveRoute(item.path)}
+                                    class:functional={item.functional !== false}
+                                    class:demo={item.functional === false}
+                                >
+                                    <span class="nav-icon">{item.icon}</span>
+                                    <span class="nav-label"
+                                        >{item.functional === false
+                                            ? `${item.label} (demo)`
+                                            : item.label}</span
+                                    >
+                                    {#if item.subItems}
+                                        <span
+                                            class="nav-arrow"
+                                            class:expanded={shouldShowSubItems(
+                                                item,
+                                            )}>▶</span
+                                        >
+                                    {/if}
+                                </a>
+                                {#if shouldShowSubItems(item)}
+                                    <div class="sub-items">
+                                        {#each item.subItems as subItem}
+                                            <a
+                                                href={subItem.path}
+                                                class="nav-sub-item"
+                                                class:active={isActiveRoute(
+                                                    subItem.path,
+                                                )}
+                                                class:functional={subItem.functional !==
+                                                    false}
+                                                class:demo={subItem.functional ===
+                                                    false}
+                                            >
+                                                <span class="nav-sub-icon"
+                                                    >{subItem.icon}</span
+                                                >
+                                                <span class="nav-sub-label"
+                                                    >{subItem.functional ===
+                                                    false
+                                                        ? `${subItem.label} (demo)`
+                                                        : subItem.label}</span
+                                                >
+                                            </a>
+                                        {/each}
+                                    </div>
+                                {/if}
+                            {/each}
+                        </div>
+                    {/each}
+                </nav>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="main-content">
+                {@render children()}
+            </main>
+        </div>
     </div>
-</div>
-<!-- {:else if $authLoaded}
-	<AuthWall />
+{:else if $authLoaded}
+    <AuthWall />
 {:else}
-	<!-- Loading state - prevent flash -->
-<!-- <div
-    style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #2c1810;"
-></div> -->
-<!-- {/if} --> -->
+    <!-- Loading state - prevent flash -->
+    <div
+        style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #2c1810;"
+    ></div>
+{/if}
 
 <style>
     /* Component-specific styles only - Global styles imported via app.css */
