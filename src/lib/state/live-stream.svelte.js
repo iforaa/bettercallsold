@@ -5,7 +5,7 @@
 
 import { browser } from '$app/environment';
 import { LiveStreamService } from '../services/LiveStreamService.js';
-import { toastService } from '../services/toastService.js';
+import { toastService } from '../services/ToastService.js';
 
 // IMPORTANT: Use objects for automatic proxy reactivity
 export const liveStreamState = $state({
