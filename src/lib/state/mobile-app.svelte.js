@@ -4,7 +4,7 @@
  */
 
 import { MobileAppService } from '../services/MobileAppService.js';
-import { toastService } from '../services/toastService.js';
+import { toastService } from '../services/ToastService.js';
 
 // IMPORTANT: Use objects for automatic proxy reactivity
 export const mobileAppState = $state({
