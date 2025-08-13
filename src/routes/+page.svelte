@@ -1,11 +1,18 @@
 <script>
-    import { dashboardState, dashboardActions, getDashboardMetrics, getRecentOrdersDisplay, hasCriticalErrors, isAnyLoading } from '$lib/state/dashboard.svelte.js';
-    import DashboardMetrics from '$lib/components/dashboard/DashboardMetrics.svelte';
-    import RecentOrdersTable from '$lib/components/dashboard/RecentOrdersTable.svelte';
-    import SalesComparisonTable from '$lib/components/dashboard/SalesComparisonTable.svelte';
-    import SystemStatus from '$lib/components/dashboard/SystemStatus.svelte';
-    import LoadingState from '$lib/components/states/LoadingState.svelte';
-    import ErrorState from '$lib/components/states/ErrorState.svelte';
+    import {
+        dashboardState,
+        dashboardActions,
+        getDashboardMetrics,
+        getRecentOrdersDisplay,
+        hasCriticalErrors,
+        isAnyLoading,
+    } from "$lib/state/dashboard.svelte.js";
+    import DashboardMetrics from "$lib/components/dashboard/DashboardMetrics.svelte";
+    import RecentOrdersTable from "$lib/components/dashboard/RecentOrdersTable.svelte";
+    import SalesComparisonTable from "$lib/components/dashboard/SalesComparisonTable.svelte";
+    import SystemStatus from "$lib/components/dashboard/SystemStatus.svelte";
+    import LoadingState from "$lib/components/states/LoadingState.svelte";
+    import ErrorState from "$lib/components/states/ErrorState.svelte";
 
     // Load data on mount using $effect.once - runs only once
     $effect(() => {
@@ -48,8 +55,10 @@
     <div class="page-content-padded">
         <!-- Global Error State -->
         {#if hasErrors}
-            <ErrorState 
-                error={dashboardState.errors.dashboard || dashboardState.errors.stats || dashboardState.errors.orders}
+            <ErrorState
+                error={dashboardState.errors.dashboard ||
+                    dashboardState.errors.stats ||
+                    dashboardState.errors.orders}
                 title="Dashboard Error"
                 onRetry={handleRetry}
                 onBack={refreshDashboard}
@@ -65,9 +74,9 @@
         <!-- Dashboard Content -->
         {#if !loading && !hasErrors}
             <!-- Stats Cards -->
-            <DashboardMetrics 
-                {metrics} 
-                loading={dashboardState.loading.stats} 
+            <DashboardMetrics
+                {metrics}
+                loading={dashboardState.loading.stats}
             />
         {/if}
 
@@ -75,14 +84,14 @@
         {#if !loading && !hasErrors}
             <div class="content-grid">
                 <!-- Latest Orders Section -->
-                <RecentOrdersTable 
+                <RecentOrdersTable
                     orders={recentOrders}
                     loading={dashboardState.loading.orders}
                     error={dashboardState.errors.orders}
                 />
 
                 <!-- Sales Comparison Section -->
-                <SalesComparisonTable 
+                <SalesComparisonTable
                     salesData={dashboardState.salesComparison}
                     loading={dashboardState.loading.sales}
                 />
@@ -104,7 +113,9 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="5" class="table-empty">There are no comments yet.</td>
+                            <td colspan="5" class="table-empty"
+                                >There are no comments yet.</td
+                            >
                         </tr>
                     </tbody>
                 </table>
@@ -112,8 +123,8 @@
         {/if}
 
         <!-- System Status -->
-        <SystemStatus 
-            healthData={dashboardState.healthData} 
+        <SystemStatus
+            healthData={dashboardState.healthData}
             show={!loading && !hasErrors}
         />
     </div>

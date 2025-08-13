@@ -84,44 +84,29 @@ export async function GET({ params }) {
 
     const liveSale = liveSaleResult.rows[0];
 
-    // Get products associated with this live sale
-    // This includes both static replay products AND memorized pusher products
+    // Get products from our actual products table that are associated with this live sale
+    // We'll use existing products from our database instead of replay_products
     const productsResult = await query(`
       SELECT 
-        rp.id,
-        rp.replay_id,
-        rp.external_id as external_product_id,
-        rp.product_name,
-        rp.brand,
-        rp.identifier,
-        rp.thumbnail,
-        rp.price,
-        rp.price_label,
-        rp.quantity,
-        rp.badge_label,
-        rp.shown_at,
-        rp.hidden_at,
-        rp.is_favorite,
-        rp.description,
-        rp.store_description,
-        rp.product_path,
-        rp.product_type,
-        rp.shopify_product_id,
-        rp.media,
-        rp.overlay_texts,
-        rp.inventory,
-        rp.metadata,
-        rp.created_at,
-        rp.updated_at,
-        -- Add source type indicator based on metadata
-        CASE 
-          WHEN rp.metadata::text LIKE '%pusher_featured%' THEN 'pusher_memory'
-          ELSE 'commentsold'
-        END as source_type
-      FROM replay_products rp
-      WHERE rp.replay_id = $1
-      ORDER BY rp.shown_at ASC
-    `, [liveSale.id]); // Use internal ID for products query
+        p.id,
+        p.name as product_name,
+        p.description,
+        p.price,
+        p.images,
+        p.tags,
+        p.status,
+        p.created_at,
+        p.updated_at,
+        -- Additional fields for mobile compatibility
+        'physical' as product_type,
+        null as brand,
+        false as is_favorite,
+        null as badge_label
+      FROM products p
+      WHERE p.tenant_id = $1 AND p.status = 'active'
+      ORDER BY p.created_at DESC
+      LIMIT 10
+    `, [DEFAULT_TENANT_ID]);
 
     // Get Agora settings for mobile app integration
     const agoraSettings = await getAgoraSettings(DEFAULT_TENANT_ID);
@@ -156,7 +141,7 @@ async function transformLiveSaleDetailsForMobile(liveSale, products, agoraSettin
 
   // Transform products to mobile format
   // For live sales (is_live: true), products array will be empty but structure is consistent
-  const mobileProducts = products.map(product => transformProductForMobile(product));
+  const mobileProducts = await Promise.all(products.map((product, index) => transformProductForMobile(product, index)));
 
   // Main live sale object with detailed information
   return {
@@ -279,50 +264,65 @@ async function transformLiveSaleDetailsForMobile(liveSale, products, agoraSettin
   };
 }
 
-function transformProductForMobile(product) {
-  // Parse JSON fields safely
-  let media = [];
-  let overlayTexts = [];
-  let inventory = [];
-  let metadata = null;
+async function transformProductForMobile(product, index = 0) {
+  // Parse JSON fields safely  
+  let images = [];
+  let tags = [];
 
-  // Handle images field (from replay_products table)
   try {
-    if (product.media) {
-      media = typeof product.media === 'string' ? JSON.parse(product.media) : product.media;
-    } else if (product.images) {
-      media = typeof product.images === 'string' ? JSON.parse(product.images) : product.images;
+    images = product.images ? (typeof product.images === 'string' ? JSON.parse(product.images) : product.images) : [];
+  } catch (e) {
+    images = [];
+  }
+
+  try {
+    tags = product.tags ? (Array.isArray(product.tags) ? product.tags : JSON.parse(product.tags)) : [];
+  } catch (e) {
+    tags = [];
+  }
+
+  // Get actual inventory for this product from our database
+  const inventoryResult = await query(`
+    SELECT id, quantity, color, size, price, position, variant_combination
+    FROM inventory 
+    WHERE product_id = $1 AND tenant_id = $2
+  `, [product.id, DEFAULT_TENANT_ID]);
+
+  const actualInventory = inventoryResult.rows.map(item => {
+    // Parse variant_combination JSON to get actual color and size
+    let variantData = null;
+    try {
+      variantData = item.variant_combination ? 
+        (typeof item.variant_combination === 'string' ? 
+          JSON.parse(item.variant_combination) : 
+          item.variant_combination) : 
+        null;
+    } catch (e) {
+      variantData = null;
     }
-    // If no media array, create one from thumbnail
-    if (media.length === 0 && product.thumbnail) {
-      media = [{ url: product.thumbnail, alt: product.product_name }];
-    }
-  } catch (e) {
-    media = product.thumbnail ? [{ url: product.thumbnail, alt: product.product_name }] : [];
-  }
 
-  try {
-    overlayTexts = product.overlay_texts ? (typeof product.overlay_texts === 'string' ? JSON.parse(product.overlay_texts) : product.overlay_texts) : [];
-  } catch (e) {
-    overlayTexts = [];
-  }
+    const color = variantData?.color || item.color || '';
+    const size = variantData?.size || item.size || '';
 
-  try {
-    inventory = product.inventory ? (typeof product.inventory === 'string' ? JSON.parse(product.inventory) : product.inventory) : [];
-  } catch (e) {
-    inventory = [];
-  }
-
-  try {
-    metadata = product.metadata ? (typeof product.metadata === 'string' ? JSON.parse(product.metadata) : product.metadata) : null;
-  } catch (e) {
-    metadata = null;
-  }
+    return {
+      position: item.position || 0,
+      price: parseFloat(item.price) || parseFloat(product.price) || 0,
+      inventory_id: item.id, // This is the actual UUID we need
+      quantity: item.quantity || 0,
+      allow_oversell: true, // Default to allow oversell since is_fulfillable doesn't exist
+      color: color,
+      size: size,
+      attr1: size,
+      attr2: color,
+      attr3: '',
+      id: item.id
+    };
+  });
 
   return {
-    id: product.id, // Our internal database ID
-    external_id: product.external_product_id, // CommentSold product ID
-    product_id: product.external_product_id || product.product_id || product.id, // For backward compatibility
+    id: product.id, // Our internal database UUID
+    external_id: null, // No external ID needed
+    product_id: product.id, // Use our database UUID
     product_name: product.product_name || '',
     name: product.product_name || '',
     description: product.description || '',
@@ -334,28 +334,27 @@ function transformProductForMobile(product) {
     compare_at_price: product.compare_at_price ? parseFloat(product.compare_at_price) : null,
     
     // Images and media
-    thumbnail: product.thumbnail || (media.length > 0 ? media[0].url || media[0] : null),
-    image_url: product.thumbnail || (media.length > 0 ? media[0].url || media[0] : null),
-    media: media,
-    all_images: media.map((m, index) => ({
-      url: m.url || m,
+    thumbnail: images.length > 0 ? (typeof images[0] === 'string' ? images[0] : images[0]?.url || images[0]) : null,
+    image_url: images.length > 0 ? (typeof images[0] === 'string' ? images[0] : images[0]?.url || images[0]) : null,
+    media: images,
+    all_images: images.map((img, index) => ({
+      url: typeof img === 'string' ? img : (img?.url || img),
       position: index + 1,
       alt: product.product_name
     })),
     
-    // Timing in live sale
-    shown_at: product.shown_at ? Math.floor(new Date(product.shown_at).getTime() / 1000) : 0,
-    hidden_at: product.hidden_at ? Math.floor(new Date(product.hidden_at).getTime() / 1000) : 0,
-    shown_at_formatted: product.shown_at ? new Date(product.shown_at).toLocaleTimeString() : null,
-    display_duration: product.shown_at && product.hidden_at 
-      ? Math.round((new Date(product.hidden_at) - new Date(product.shown_at)) / 1000) // seconds
-      : null,
+    // Timing in live sale (video-relative timestamps in seconds)
+    // For demo purposes, show products at different intervals in the video
+    shown_at: index * 30, // Show each product 30 seconds apart
+    hidden_at: (index * 30) + 60, // Hide 60 seconds after being shown
+    shown_at_formatted: `${Math.floor(index * 30 / 60)}:${String(index * 30 % 60).padStart(2, '0')}`,
+    display_duration: 60, // 60 seconds display time
     
     // Inventory and availability
-    inventory: inventory,
-    quantity: product.quantity || 0,
-    is_available: (product.quantity || 0) > 0,
-    has_variants: inventory.length > 1,
+    inventory: actualInventory,
+    quantity: actualInventory.reduce((total, item) => total + (item.quantity || 0), 0),
+    is_available: actualInventory.some(item => (item.quantity || 0) > 0),
+    has_variants: actualInventory.length > 1,
     
     // Product categorization
     brand: product.brand || null,
@@ -365,9 +364,10 @@ function transformProductForMobile(product) {
     tags: product.tags || [],
     
     // Live sale specific
-    badge_label: product.source_type === 'pusher_memory' ? 'LIVE FEATURED' : (product.badge_label || null),
-    strikethrough_label: product.strikethrough_label || null,
-    overlay_texts: overlayTexts,
+    badge_label: product.badge_label || null,
+    strikethrough_label: null,
+    overlay_texts: product.overlay_texts || [],
+    overlay_text: product.overlay_text || [],
     featured_in_live: true,
     
     // Mobile enhancements
@@ -376,7 +376,7 @@ function transformProductForMobile(product) {
       null,
     
     // Actions
-    can_purchase: (product.quantity || 0) > 0,
+    can_purchase: actualInventory.some(item => (item.quantity || 0) > 0),
     purchase_url: null, // Can be enhanced
     add_to_cart_url: null, // Can be enhanced
     
@@ -386,12 +386,10 @@ function transformProductForMobile(product) {
     conversions_in_live: 0, // Can be enhanced
     
     // Metadata
-    metadata: metadata,
+    metadata: null,
     sync_data: {
-      replay_id: product.replay_id,
-      sync_source: product.source_type || 'commentsold',
-      featured_at: product.featured_at,
-      is_pusher_memory: product.source_type === 'pusher_memory'
+      sync_source: 'database',
+      is_pusher_memory: false
     }
   };
 }

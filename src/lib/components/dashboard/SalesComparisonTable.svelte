@@ -3,10 +3,16 @@
     
     let { salesData = [], loading = false } = $props();
     
-    function formatChange(change) {
+    function formatAbsoluteChange(change) {
         if (change === 0) return '-';
         const formatted = currency(Math.abs(change));
         return change > 0 ? `+${formatted}` : `-${formatted}`;
+    }
+    
+    function formatPercentageChange(change) {
+        if (change === 0) return '-';
+        const formatted = Math.abs(change).toFixed(1);
+        return change > 0 ? `+${formatted}%` : `-${formatted}%`;
     }
     
     function getChangeClass(change) {
@@ -45,9 +51,14 @@
                         </td>
                         <td class="table-amount">{currency(item.revenue || 0)}</td>
                         <td>
-                            <span class="change {getChangeClass(item.change)}">
-                                {formatChange(item.change || 0)}
-                            </span>
+                            <div class="change-container">
+                                <span class="change change-absolute {getChangeClass(item.changeAbsolute || item.change)}">
+                                    {formatAbsoluteChange(item.changeAbsolute || 0)}
+                                </span>
+                                <span class="change change-percentage {getChangeClass(item.changePercentage || item.change)}">
+                                    {formatPercentageChange(item.changePercentage || item.change || 0)}
+                                </span>
+                            </div>
                         </td>
                     </tr>
                 {/each}
@@ -84,6 +95,13 @@
         opacity: 0.6;
     }
 
+    .change-container {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        align-items: flex-start;
+    }
+    
     .change {
         font-size: var(--font-size-xs);
         font-weight: var(--font-weight-medium);
@@ -92,6 +110,17 @@
         text-align: center;
         min-width: 60px;
         display: inline-block;
+    }
+    
+    .change-absolute {
+        font-weight: var(--font-weight-semibold);
+        min-width: 70px;
+    }
+    
+    .change-percentage {
+        font-size: 10px;
+        opacity: 0.8;
+        min-width: 50px;
     }
 
     .change.positive {

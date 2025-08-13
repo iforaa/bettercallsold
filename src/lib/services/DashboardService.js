@@ -62,36 +62,26 @@ export class DashboardService {
 
   /**
    * Get sales comparison data (weekly/monthly trends)
-   * Returns mock data if endpoint doesn't exist (non-critical)
+   * Now implemented with real data from orders table
    */
   static async getSalesComparison() {
     try {
       const response = await fetch('/api/sales-comparison');
       
       if (!response.ok) {
-        // Don't log 404s as warnings since this is expected for now
-        if (response.status === 404) {
-          console.info('Sales comparison endpoint not implemented yet, using default data');
-        }
-        
-        // Return default data for now if endpoint doesn't exist
-        return [
-          { period: 'Last Week', revenue: 0, change: 0 },
-          { period: 'Week-to-date', revenue: 0, change: 0 },
-          { period: 'Week-to-date Last Year', revenue: 0, change: 0 },
-          { period: 'This week Last year', revenue: 0, change: 0 }
-        ];
+        throw new Error(`Failed to fetch sales comparison: HTTP ${response.status}`);
       }
       
       return await response.json();
     } catch (error) {
-      // Only log actual errors, not expected 404s
-      console.info('Sales comparison not available, using default data:', error.message);
+      console.error('Sales comparison endpoint error:', error.message);
+      
+      // Return fallback data on error (maintains dashboard stability)
       return [
-        { period: 'Last Week', revenue: 0, change: 0 },
-        { period: 'Week-to-date', revenue: 0, change: 0 },
-        { period: 'Week-to-date Last Year', revenue: 0, change: 0 },
-        { period: 'This week Last year', revenue: 0, change: 0 }
+        { period: 'Last Week', revenue: 0, change: 0, changeAbsolute: 0, changePercentage: 0 },
+        { period: 'Week-to-date', revenue: 0, change: 0, changeAbsolute: 0, changePercentage: 0 },
+        { period: 'Week-to-date Last Year', revenue: 0, change: 0, changeAbsolute: 0, changePercentage: 0 },
+        { period: 'This week Last year', revenue: 0, change: 0, changeAbsolute: 0, changePercentage: 0 }
       ];
     }
   }
@@ -151,10 +141,10 @@ export class DashboardService {
     } else {
       // Use default empty data
       result.salesComparison = [
-        { period: 'Last Week', revenue: 0, change: 0 },
-        { period: 'Week-to-date', revenue: 0, change: 0 },
-        { period: 'Week-to-date Last Year', revenue: 0, change: 0 },
-        { period: 'This week Last year', revenue: 0, change: 0 }
+        { period: 'Last Week', revenue: 0, change: 0, changeAbsolute: 0, changePercentage: 0 },
+        { period: 'Week-to-date', revenue: 0, change: 0, changeAbsolute: 0, changePercentage: 0 },
+        { period: 'Week-to-date Last Year', revenue: 0, change: 0, changeAbsolute: 0, changePercentage: 0 },
+        { period: 'This week Last year', revenue: 0, change: 0, changeAbsolute: 0, changePercentage: 0 }
       ];
     }
 

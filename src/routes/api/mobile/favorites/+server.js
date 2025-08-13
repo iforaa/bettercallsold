@@ -6,14 +6,15 @@ export async function GET() {
 	try {
 		console.log('🔗 Fetching favorites for user:', DEFAULT_MOBILE_USER_ID);
 
-		// Get favorites with product details
+		// Get favorites with product details including images
 		const favoritesQuery = `
 			SELECT 
 				f.id as favorite_id,
 				f.product_id,
 				f.created_at,
 				p.name as product_name,
-				p.price
+				p.price,
+				p.images
 			FROM favorites f
 			LEFT JOIN products p ON f.product_id = p.id AND f.tenant_id = p.tenant_id
 			WHERE f.tenant_id = $1 AND f.user_id = $2
@@ -23,17 +24,44 @@ export async function GET() {
 		const result = await query(favoritesQuery, [DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID]);
 		
 		// Convert rows to match expected mobile app format
-		const favorites = result.rows.map(row => ({
-			favorite_id: row.favorite_id,
-			product_id: row.product_id,
-			product_name: row.product_name || 'Unknown Product',
-			price: parseFloat(row.price) || 0,
-			price_label: row.price ? `$${parseFloat(row.price).toFixed(2)}` : '$0.00',
-			thumbnail: '', // Default empty string until we have image support
-			image_width: null, // Default null until we have image support
-			image_height: null, // Default null until we have image support
-			created_at: row.created_at
-		}));
+		const favorites = result.rows.map(row => {
+			// Parse images JSONB field safely (similar to other mobile APIs)
+			let images = [];
+			try {
+				images = row.images ? (typeof row.images === 'string' ? JSON.parse(row.images) : row.images) : [];
+			} catch (e) {
+				images = [];
+			}
+			
+			// Extract thumbnail using same logic as other mobile APIs
+			let thumbnail = '';
+			let image_width = null;
+			let image_height = null;
+			
+			if (images.length > 0) {
+				const firstImage = images[0];
+				// Handle both string URLs and object format
+				thumbnail = typeof firstImage === 'string' ? firstImage : (firstImage?.url || firstImage);
+				
+				// Try to extract dimensions if available (objects only)
+				if (typeof firstImage === 'object' && firstImage) {
+					image_width = firstImage.width || null;
+					image_height = firstImage.height || null;
+				}
+			}
+			
+			return {
+				favorite_id: row.favorite_id,
+				product_id: row.product_id,
+				product_name: row.product_name || 'Unknown Product',
+				price: parseFloat(row.price) || 0,
+				price_label: row.price ? `$${parseFloat(row.price).toFixed(2)}` : '$0.00',
+				thumbnail: thumbnail,
+				image_width: image_width,
+				image_height: image_height,
+				created_at: row.created_at
+			};
+		});
 
 		console.log('✅ Favorites fetched successfully:', favorites.length, 'items');
 

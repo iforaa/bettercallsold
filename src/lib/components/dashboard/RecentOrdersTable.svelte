@@ -13,12 +13,10 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th>ORDER ID</th>
                 <th>CUSTOMER</th>
                 <th>DATE</th>
                 <th>AMOUNT</th>
                 <th>STATUS</th>
-                <th>PAYMENT</th>
             </tr>
         </thead>
         <tbody>
@@ -29,13 +27,11 @@
                         <td><div class="skeleton skeleton-text"></div></td>
                         <td><div class="skeleton skeleton-text"></div></td>
                         <td><div class="skeleton skeleton-text"></div></td>
-                        <td><div class="skeleton skeleton-text"></div></td>
-                        <td><div class="skeleton skeleton-text"></div></td>
                     </tr>
                 {/each}
             {:else if error}
                 <tr>
-                    <td colspan="6" class="table-error">
+                    <td colspan="4" class="table-error">
                         <div class="error-message">
                             <span class="error-icon">⚠️</span>
                             Failed to load recent orders: {error}
@@ -45,7 +41,6 @@
             {:else if orders && orders.length > 0}
                 {#each orders as order}
                     <tr class="table-row-clickable" onclick={() => goToOrder(order.id)}>
-                        <td class="table-id">{order.id.slice(0, 8)}...</td>
                         <td>
                             <div class="table-cell-content">
                                 <div class="table-cell-details">
@@ -61,12 +56,11 @@
                                 {order.status}
                             </span>
                         </td>
-                        <td class="table-cell-text">{order.payment_method || 'Apple_pay'}</td>
                     </tr>
                 {/each}
             {:else}
                 <tr>
-                    <td colspan="6" class="table-empty">No recent orders found.</td>
+                    <td colspan="4" class="table-empty">No recent orders found.</td>
                 </tr>
             {/if}
         </tbody>

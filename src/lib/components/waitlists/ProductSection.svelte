@@ -2,11 +2,11 @@
     import { currency } from '$lib/utils/index';
     import { goto } from '$app/navigation';
     
-    let { waitlist, loading = false } = $props();
+    let { waitlist, loading = false, waitlistId } = $props();
     
     function navigateToProduct() {
         if (waitlist?.product_id) {
-            goto(`/products/${waitlist.product_id}`);
+            goto(`/products/${waitlist.product_id}?from=waitlist&waitlistId=${waitlistId}`);
         }
     }
 </script>

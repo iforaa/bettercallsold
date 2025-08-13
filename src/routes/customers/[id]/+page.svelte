@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -155,9 +156,24 @@
 		toasts = toasts.filter(t => t.id !== id);
 	}
 
-	// Navigate back to customers list
+	// Navigate back to customers list or order details if came from there
 	function goBackToCustomers() {
-		goto('/customers');
+		navigateBack();
+	}
+
+	function navigateBack() {
+		// Check if we came from an order or waitlist details page
+		const from = $page.url.searchParams.get('from');
+		const orderId = $page.url.searchParams.get('orderId');
+		const waitlistId = $page.url.searchParams.get('waitlistId');
+		
+		if (from === 'order' && orderId) {
+			goto(`/orders/${orderId}`);
+		} else if (from === 'waitlist' && waitlistId) {
+			goto(`/waitlists/${waitlistId}`);
+		} else {
+			goto('/customers');
+		}
 	}
 </script>
 

@@ -1,4 +1,4 @@
-import { query, getCached, setCache } from '$lib/database.js';
+import { query, getCached, setCache, deleteCache } from '$lib/database.js';
 import { getProductWithInventory } from '$lib/inventory-db.js';
 import { jsonResponse, internalServerErrorResponse, notFoundResponse, badRequestResponse, successResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID, QUERIES } from '$lib/constants.js';
@@ -47,6 +47,14 @@ export async function GET({ params }) {
 }
 
 export async function PUT({ params, request }) {
+  return handleProductUpdate({ params, request });
+}
+
+export async function PATCH({ params, request }) {
+  return handleProductUpdate({ params, request });
+}
+
+async function handleProductUpdate({ params, request }) {
   try {
     const productId = params.id;
     const productData = await request.json();
@@ -58,6 +66,8 @@ export async function PUT({ params, request }) {
     // Convert arrays for database storage
     const imagesJson = JSON.stringify(productData.images || []);
     const tagsArray = productData.tags || [];
+    
+    console.log(`Updating product ${productId} with images:`, productData.images);
     
     // Update product details
     const result = await query(QUERIES.UPDATE_PRODUCT, [
@@ -78,6 +88,15 @@ export async function PUT({ params, request }) {
     // Update product-collection relationships if collections are provided
     if (productData.collections && Array.isArray(productData.collections)) {
       await updateProductCollections(productId, productData.collections);
+    }
+    
+    // Clear cache for this product
+    const productCacheKey = `product_${productId}_${DEFAULT_TENANT_ID}`;
+    try {
+      const cacheDeleted = await deleteCache(productCacheKey);
+      console.log(`Cache ${cacheDeleted ? 'cleared' : 'not found'} for ${productCacheKey}`);
+    } catch (error) {
+      console.error('Failed to clear cache:', error);
     }
     
     return successResponse('Product updated successfully');

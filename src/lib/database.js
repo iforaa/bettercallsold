@@ -184,6 +184,33 @@ export async function setCache(key, data, ttlSeconds = 300) {
   }
 }
 
+export async function deleteCache(key) {
+  if (!CACHE_ENABLED) {
+    return false;
+  }
+  
+  try {
+    const client = await getRedisClient();
+    if (!client) return false;
+    
+    // Add timeout to cache operations
+    const deletePromise = client.del(`bcs:${key}`);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Cache delete timeout')), 1000)
+    );
+    
+    const result = await Promise.race([deletePromise, timeoutPromise]);
+    return result > 0; // Redis DEL returns number of keys deleted
+  } catch (error) {
+    console.error('Cache delete error:', error.message);
+    if (error.message.includes('timeout')) {
+      // Reset connection on timeout
+      redisClient = null;
+    }
+    return false;
+  }
+}
+
 // Legacy Redis helpers (kept for compatibility)
 export async function redisGet(key) {
   return getCached(key);

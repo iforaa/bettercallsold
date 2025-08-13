@@ -17,7 +17,8 @@ export const TABLES = {
   INVENTORY: 'inventory',
   LIVE_STREAMS: 'live_streams',
   POSTS: 'posts',
-  CART_ITEMS: 'cart_items'
+  CART_ITEMS: 'cart_items',
+  LOCATIONS: 'locations'
 };
 
 // SQL queries for reuse
@@ -121,5 +122,58 @@ export const QUERIES = {
     ) pc ON c.id = pc.collection_id
     WHERE c.tenant_id = $1
     ORDER BY c.sort_order, c.created_at
+  `,
+  
+  // Locations
+  GET_LOCATIONS: `
+    SELECT id, tenant_id, name, description, location_type,
+           address_line_1, address_line_2, city, state_province, 
+           postal_code, country, phone, email, status,
+           is_default, is_pickup_location, is_fulfillment_center,
+           business_hours, metadata, created_at, updated_at
+    FROM locations 
+    WHERE tenant_id = $1
+    ORDER BY is_default DESC, name ASC
+  `,
+  GET_LOCATION_BY_ID: `
+    SELECT id, tenant_id, name, description, location_type,
+           address_line_1, address_line_2, city, state_province, 
+           postal_code, country, phone, email, status,
+           is_default, is_pickup_location, is_fulfillment_center,
+           business_hours, metadata, created_at, updated_at
+    FROM locations 
+    WHERE id = $1 AND tenant_id = $2
+  `,
+  CREATE_LOCATION: `
+    INSERT INTO locations (
+      tenant_id, name, description, location_type,
+      address_line_1, address_line_2, city, state_province,
+      postal_code, country, phone, email, status,
+      is_default, is_pickup_location, is_fulfillment_center,
+      business_hours, metadata
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+    RETURNING id
+  `,
+  UPDATE_LOCATION: `
+    UPDATE locations 
+    SET name = $3, description = $4, location_type = $5,
+        address_line_1 = $6, address_line_2 = $7, city = $8, 
+        state_province = $9, postal_code = $10, country = $11,
+        phone = $12, email = $13, status = $14,
+        is_default = $15, is_pickup_location = $16, 
+        is_fulfillment_center = $17, business_hours = $18::jsonb,
+        metadata = $19::jsonb, updated_at = NOW()
+    WHERE id = $1 AND tenant_id = $2
+  `,
+  DELETE_LOCATION: 'DELETE FROM locations WHERE id = $1 AND tenant_id = $2',
+  
+  // Sales Analysis
+  SALES_BY_DATE_RANGE: `
+    SELECT COALESCE(SUM(total_amount), 0) as revenue
+    FROM orders 
+    WHERE tenant_id = $1 
+      AND status = 'paid'
+      AND created_at >= $2 
+      AND created_at <= $3
   `
 };

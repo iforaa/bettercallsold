@@ -253,11 +253,39 @@ export const productsActions = {
     }
   },
 
-  async updateProduct(id, updates) {
+  async updateProduct(id, formData, images = []) {
     productsState.loading.updating = true;
     productsState.errors.updating = '';
     
     try {
+      // Upload images first if any
+      let imageUrls = [];
+      if (images.length > 0) {
+        productsState.form.uploading = true;
+        imageUrls = await ProductService.uploadImages(images);
+      }
+      
+      // Prepare product data (if formData is provided, otherwise use it as updates directly)
+      let updates;
+      if (formData && typeof formData === 'object' && formData.title !== undefined) {
+        // This is form data from the component
+        // Get existing images from current product
+        const existingImages = productsState.currentProduct?.images || [];
+        const currentImagesArray = Array.isArray(existingImages) ? existingImages : JSON.parse(existingImages || '[]');
+        
+        // Merge existing images with new uploaded images
+        const allImages = [...currentImagesArray, ...imageUrls];
+        
+        updates = ProductService.prepareProductData(formData, allImages);
+      } else {
+        // This is already prepared updates object
+        updates = formData;
+        if (imageUrls.length > 0) {
+          // Append new images to existing ones or create new array
+          updates.images = [...(updates.images || []), ...imageUrls];
+        }
+      }
+      
       const updatedProduct = await ProductService.updateProduct(id, updates);
       
       // Update current product if it's the one being edited
@@ -280,6 +308,7 @@ export const productsActions = {
       throw error;
     } finally {
       productsState.loading.updating = false;
+      productsState.form.uploading = false;
     }
   },
 

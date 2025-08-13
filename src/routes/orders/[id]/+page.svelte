@@ -1,7 +1,7 @@
 <script>
 	import { goto } from '$app/navigation';
 	import { ordersState, ordersActions } from '$lib/state/orders.svelte.js';
-	import { currency, dateTime, getStatusColor } from '$lib/utils/index';
+	import { currency, dateTime, getStatusColor, formatPaymentMethod } from '$lib/utils/index';
 	import LoadingState from '$lib/components/states/LoadingState.svelte';
 	import ErrorState from '$lib/components/states/ErrorState.svelte';
 
@@ -24,9 +24,21 @@
 		goto('/orders');
 	}
 
-	function editOrder() {
-		alert('Edit order functionality coming soon!');
+	function goToProduct(productId) {
+		if (productId) {
+			// Pass order context so product page can navigate back to this order
+			goto(`/products/${productId}?from=order&orderId=${data.orderId}`);
+		}
 	}
+
+	function goToCustomer(customerId) {
+		if (customerId) {
+			// Pass order context so customer page can navigate back to this order
+			goto(`/customers/${customerId}?from=order&orderId=${data.orderId}`);
+		}
+	}
+
+	// Edit function removed per requirements
 </script>
 
 <svelte:head>
@@ -46,9 +58,7 @@
 				</h1>
 			</div>
 			<div class="page-actions">
-				<button class="btn btn-primary" onclick={editOrder}>
-					Edit Order
-				</button>
+				<!-- Edit button removed per requirements -->
 			</div>
 		</div>
 	</div>
@@ -70,7 +80,7 @@
 			<div class="content-max-width">
 				<div class="header-card">
 					<div class="header-card-content">
-						<h2 class="header-card-title">Order #{ordersState.currentOrder.id.slice(0, 8)}...</h2>
+						<h2 class="header-card-title">Order #{ordersState.currentOrder.id}</h2>
 						<div class="header-card-meta">
 							<span class="header-card-date">{dateTime(ordersState.currentOrder.created_at)}</span>
 							<span class="status-badge {getStatusColor(ordersState.currentOrder.status)}">
@@ -92,7 +102,7 @@
 							<h3 class="card-title">Customer Information</h3>
 						</div>
 						<div class="card-body">
-							<div class="info-section info-section-clickable" onclick={() => goto(`/customers/${ordersState.currentOrder.customer_id}`)}>
+							<div class="info-section info-section-clickable" onclick={() => goToCustomer(ordersState.currentOrder.customer_id)}>
 								<div class="info-title">{ordersState.currentOrder.customer_name}</div>
 								<div class="info-subtitle">{ordersState.currentOrder.customer_email}</div>
 								<div class="info-meta">ID: {ordersState.currentOrder.customer_id}</div>
@@ -118,7 +128,7 @@
 								</div>
 								<div class="detail-row">
 									<span class="detail-label">Payment Method:</span>
-									<span class="detail-value detail-value-caps">{ordersState.currentOrder.payment_method}</span>
+									<span class="detail-value">{formatPaymentMethod(ordersState.currentOrder.payment_method)}</span>
 								</div>
 								{#if ordersState.currentOrder.payment_id && ordersState.currentOrder.payment_id.Valid && ordersState.currentOrder.payment_id.String}
 									<div class="detail-row">
@@ -151,7 +161,7 @@
 						{#if ordersState.currentOrder.items && ordersState.currentOrder.items.length > 0}
 							<div class="item-grid">
 								{#each ordersState.currentOrder.items as item}
-									<div class="product-card">
+									<div class="product-card product-card-clickable" onclick={() => goToProduct(item.product_id)}>
 										<div class="product-card-image">
 											{#if item.product_images && item.product_images.length > 0}
 												<img src="{item.product_images[0].url}" alt="{item.product_name}" />
@@ -193,6 +203,35 @@
 </div>
 
 <style>
+	/* Product card clickable styling */
+	.product-card-clickable {
+		cursor: pointer;
+		transition: all var(--transition-fast);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+	}
+
+	.product-card-clickable:hover {
+		transform: translateY(-2px);
+		box-shadow: var(--shadow-md);
+		border-color: var(--color-accent);
+	}
+
+	.product-card-clickable:active {
+		transform: translateY(0);
+		box-shadow: var(--shadow-sm);
+	}
+
+	/* Add subtle indication that cards are clickable */
+	.product-card-clickable .product-card-title {
+		color: var(--color-accent);
+		transition: color var(--transition-fast);
+	}
+
+	.product-card-clickable:hover .product-card-title {
+		color: var(--color-accent-hover);
+	}
+
 	/* Responsive adjustments for mobile */
 	@media (max-width: 768px) {
 		.flex-header {
@@ -204,6 +243,11 @@
 		.page-actions {
 			justify-content: flex-end;
 			width: 100%;
+		}
+
+		/* Less aggressive hover effects on mobile */
+		.product-card-clickable:hover {
+			transform: none;
 		}
 	}
 </style>

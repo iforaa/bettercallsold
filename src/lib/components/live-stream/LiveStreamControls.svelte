@@ -62,44 +62,6 @@
 		</div>
 		
 		<div class="content-body">
-			<!-- Live Selling Form -->
-			<div class="form-section">
-				<h4 class="form-section-title">Session Details</h4>
-				
-				<div class="form-field-group">
-					<div class={getFormFieldClass(hasFieldError('name'))}>
-						<label class="form-label" for="liveSellingName">Session Name</label>
-						<input
-							id="liveSellingName"
-							type="text"
-							class="form-input"
-							value={formData.name}
-							oninput={handleNameChange}
-							placeholder="Enter session name"
-							disabled={isStarting || isStopping}
-						/>
-						{#if hasFieldError('name')}
-							<div class="form-error">Session name is required</div>
-						{/if}
-					</div>
-					
-					<div class={getFormFieldClass(hasFieldError('description'))}>
-						<label class="form-label" for="liveSellingDescription">Description</label>
-						<input
-							id="liveSellingDescription"
-							type="text"
-							class="form-input"
-							value={formData.description}
-							oninput={handleDescriptionChange}
-							placeholder="Describe what you're selling"
-							disabled={isStarting || isStopping}
-						/>
-						{#if hasFieldError('description')}
-							<div class="form-error">Description is required</div>
-						{/if}
-					</div>
-				</div>
-			</div>
 			
 			<!-- Validation Errors -->
 			{#if !validation.valid && validation.errors.length > 0}

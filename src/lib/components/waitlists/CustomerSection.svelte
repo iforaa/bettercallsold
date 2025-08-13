@@ -1,11 +1,11 @@
 <script>
     import { goto } from '$app/navigation';
     
-    let { waitlist, loading = false } = $props();
+    let { waitlist, loading = false, waitlistId } = $props();
     
     function navigateToCustomer() {
         if (waitlist?.user_id) {
-            goto(`/customers/${waitlist.user_id}`);
+            goto(`/customers/${waitlist.user_id}?from=waitlist&waitlistId=${waitlistId}`);
         }
     }
 </script>

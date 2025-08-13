@@ -2,7 +2,7 @@
     import { goto } from '$app/navigation';
     import { ordersState, ordersActions, getFilteredOrders, getOrderMetrics } from '$lib/state/orders.svelte.js';
     import { createOrdersContext } from '$lib/contexts/orders.svelte.js';
-    import { currency, date, getStatusColor } from '$lib/utils/index';
+    import { currency, date, orderId, fullOrderId, getStatusColor, formatPaymentMethod } from '$lib/utils/index';
     import LoadingState from '$lib/components/states/LoadingState.svelte';
     import ErrorState from '$lib/components/states/ErrorState.svelte';
     import EmptyState from '$lib/components/states/EmptyState.svelte';
@@ -52,8 +52,7 @@
                 Orders
             </h1>
             <div class="page-actions">
-                <button class="btn-secondary">Export</button>
-                <a href="/orders/new" class="btn-primary">Create order</a>
+                <!-- Actions removed per requirements -->
             </div>
         </div>
     </div>
@@ -70,25 +69,6 @@
             <LoadingState message="Loading orders..." size="lg" />
         {:else if orders && orders.length > 0}
             <div class="content-section">
-                <!-- Order metrics using reactive derived values -->
-                <div class="metrics-grid">
-                    <div class="metric-card metric-card-bordered metric-card-accent">
-                        <div class="metric-card-value">{metrics.total}</div>
-                        <div class="metric-card-label">Total Orders</div>
-                    </div>
-                    <div class="metric-card metric-card-bordered metric-card-success">
-                        <div class="metric-card-value">{metrics.statusCounts.paid || 0}</div>
-                        <div class="metric-card-label">Paid Orders</div>
-                    </div>
-                    <div class="metric-card metric-card-bordered metric-card-warning">
-                        <div class="metric-card-value">{metrics.statusCounts.pending || 0}</div>
-                        <div class="metric-card-label">Pending Orders</div>
-                    </div>
-                    <div class="metric-card metric-card-bordered metric-card-error">
-                        <div class="metric-card-value">{currency(metrics.revenue)}</div>
-                        <div class="metric-card-label">Total Revenue</div>
-                    </div>
-                </div>
 
                 <div class="table-container">
                     <table class="data-table">
@@ -105,7 +85,9 @@
                         <tbody>
                             {#each orders as order}
                                 <tr class="table-row-clickable" onclick={() => goToOrder(order.id)}>
-                                    <td class="table-id">{order.id.slice(0, 8)}...</td>
+                                    <td class="table-id" title={fullOrderId(order.id)}>
+                                        <span class="order-id-display">{orderId(order.id)}</span>
+                                    </td>
                                     <td>
                                         <div class="table-cell-content">
                                             <div class="table-cell-details">
@@ -122,7 +104,9 @@
                                         </span>
                                     </td>
                                     <td>
-                                        <div class="table-cell-text">{order.payment_method}</div>
+                                        <div class="payment-method">
+                                            {formatPaymentMethod(order.payment_method)}
+                                        </div>
                                         {#if order.payment_id && order.payment_id.Valid && order.payment_id.String}
                                             <div class="table-cell-subtitle">{order.payment_id.String.slice(0, 12)}...</div>
                                         {/if}
@@ -146,4 +130,43 @@
     </div>
 </div>
 
-<!-- No additional styles needed - using design system components -->
+<style>
+    .order-id-display {
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: var(--font-size-xs);
+        background: var(--color-border-light);
+        padding: var(--space-1) var(--space-2);
+        border-radius: var(--radius-sm);
+        color: var(--color-text-muted);
+        cursor: help;
+    }
+    
+    .payment-method {
+        font-size: var(--font-size-sm);
+        color: var(--color-text);
+        display: flex;
+        align-items: center;
+        gap: var(--space-1);
+    }
+    
+    /* Ensure order ID column doesn't take too much space */
+    .table-id {
+        width: 120px;
+        min-width: 120px;
+        max-width: 120px;
+    }
+    
+    /* Make payment method column responsive */
+    @media (max-width: 768px) {
+        .table-id {
+            width: 100px;
+            min-width: 100px;
+            max-width: 100px;
+        }
+        
+        .order-id-display {
+            font-size: 10px;
+            padding: 2px var(--space-1);
+        }
+    }
+</style>

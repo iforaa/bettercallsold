@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import type { PageData } from './$types';
 	import { productsState, productsActions } from '$lib/state/products.svelte.js';
 	import { ToastService } from '$lib/services/ToastService.js';
@@ -79,6 +80,21 @@
 	// Initialize form when product loads
 	$effect(() => {
 		if (currentProduct && currentProduct.id === productId) {
+			console.log('Product Detail - Current product loaded:', currentProduct);
+			console.log('Product Detail - Raw images field:', currentProduct.images);
+			console.log('Product Detail - Images type:', typeof currentProduct.images);
+			
+			// Parse images for logging
+			let parsedImages = [];
+			if (currentProduct.images) {
+				try {
+					parsedImages = Array.isArray(currentProduct.images) ? currentProduct.images : JSON.parse(currentProduct.images);
+					console.log('Product Detail - Parsed images:', parsedImages);
+				} catch (error) {
+					console.log('Product Detail - Failed to parse images:', error);
+				}
+			}
+			
 			initializeFormData(currentProduct);
 		}
 	});
@@ -124,8 +140,23 @@
 	function discardChanges() {
 		if (unsavedChanges && confirm('You have unsaved changes. Are you sure you want to discard them?')) {
 			productsActions.clearForm();
-			goto('/products');
+			navigateBack();
 		} else if (!unsavedChanges) {
+			navigateBack();
+		}
+	}
+
+	function navigateBack() {
+		// Check if we came from an order or waitlist details page
+		const from = $page.url.searchParams.get('from');
+		const orderId = $page.url.searchParams.get('orderId');
+		const waitlistId = $page.url.searchParams.get('waitlistId');
+		
+		if (from === 'order' && orderId) {
+			goto(`/orders/${orderId}`);
+		} else if (from === 'waitlist' && waitlistId) {
+			goto(`/waitlists/${waitlistId}`);
+		} else {
 			goto('/products');
 		}
 	}
@@ -144,7 +175,7 @@
 		message="Loading product details..."
 		subMessage="Please wait while we fetch the product information"
 		showBackButton={true}
-		onBack={() => goto('/products')}
+		onBack={navigateBack}
 	/>
 {:else if hasErrors}
 	<ErrorState 
@@ -152,7 +183,7 @@
 		errorText={productsState.errors.current || 'Unable to load product details'}
 		onRetry={handleRetry}
 		showBackButton={true}
-		onBack={() => goto('/products')}
+		onBack={navigateBack}
 	/>
 {:else if currentProduct}
 	<div class="page">
@@ -185,55 +216,16 @@
 			</div>
 		</div>
 
-		<div class="page-content">
+		<div class="page-content-padded">
 			<ProductForm 
 				formData={formData}
 				collections={collections}
 				uploading={uploading}
+				currentProduct={currentProduct}
+				existingImages={currentProduct?.images ? (Array.isArray(currentProduct.images) ? currentProduct.images : JSON.parse(currentProduct.images || '[]')) : []}
 				onSubmit={handleSubmit}
 				onFormChange={handleFormChange}
 			/>
-
-			<!-- Additional Product Info Sidebar -->
-			<div class="content-sidebar">
-				<div class="sidebar-section">
-					<h3 class="sidebar-title">Product Info</h3>
-					<div class="details">
-						<div class="detail-item">
-							<span class="detail-label">Created:</span>
-							<span class="detail-value">{new Date(currentProduct.created_at).toLocaleDateString()}</span>
-						</div>
-						<div class="detail-item">
-							<span class="detail-label">Updated:</span>
-							<span class="detail-value">{new Date(currentProduct.updated_at).toLocaleDateString()}</span>
-						</div>
-						<div class="detail-item">
-							<span class="detail-label">ID:</span>
-							<span class="detail-value">{currentProduct.id}</span>
-						</div>
-						{#if currentProduct.inventory_items && currentProduct.inventory_items.length > 0}
-							<div class="detail-item">
-								<span class="detail-label">Total Inventory:</span>
-								<span class="detail-value">
-									{currentProduct.inventory_items.reduce((total, item) => total + (item.quantity || 0), 0)} available
-								</span>
-							</div>
-						{/if}
-					</div>
-				</div>
-
-				<!-- Quick Variant Access -->
-				{#if currentProduct.inventory_items && currentProduct.inventory_items.length > 0}
-					<div class="sidebar-section">
-						<h3 class="sidebar-title">Quick Actions</h3>
-						<div class="sidebar-actions">
-							<button class="btn btn-secondary btn-sm" onclick={() => goto(`/products/${productId}/variants`)}>
-								Manage Variants
-							</button>
-						</div>
-					</div>
-				{/if}
-			</div>
 		</div>
 	</div>
 {:else}
@@ -247,35 +239,3 @@
 	/>
 {/if}
 
-<style>
-	/* Sidebar specific styles for product details */
-	.sidebar-actions {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-
-	.detail-item {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: var(--space-2) 0;
-		border-bottom: 1px solid var(--color-border-light);
-	}
-
-	.detail-item:last-child {
-		border-bottom: none;
-	}
-
-	.detail-label {
-		font-size: var(--font-size-sm);
-		color: var(--color-text-muted);
-		font-weight: var(--font-weight-medium);
-	}
-
-	.detail-value {
-		font-size: var(--font-size-sm);
-		color: var(--color-text);
-		font-weight: var(--font-weight-medium);
-	}
-</style>

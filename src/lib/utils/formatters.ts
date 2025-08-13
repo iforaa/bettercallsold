@@ -28,3 +28,25 @@ export const number = (value: number): string =>
 
 export const percentage = (value: number): string =>
   new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 1 }).format(value / 100);
+
+/**
+ * Format order ID for compact display
+ * Shows first 8 characters with ellipsis, but with better styling
+ */
+export const orderId = (id: string | null | undefined): string => {
+  if (!id) return 'N/A';
+  
+  // For UUIDs, show first 8 characters
+  if (id.length > 8) {
+    return `${id.slice(0, 8)}...`;
+  }
+  
+  return id;
+};
+
+/**
+ * Get full order ID for copy/paste or tooltips
+ */
+export const fullOrderId = (id: string | null | undefined): string => {
+  return id || 'N/A';
+};

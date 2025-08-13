@@ -174,7 +174,7 @@
                             path: "/settings/locations",
                             label: "Locations",
                             icon: "📍",
-                            functional: false,
+                            functional: true,
                         },
                         {
                             path: "/settings/apps",
@@ -297,7 +297,7 @@
         <header class="top-header">
             <div class="header-left">
                 <div class="logo">
-                    <div class="logo-icon">🛒</div>
+                    <img src="/android-chrome-512x512.png" alt="BetterCallSold" class="logo-icon" />
                     <span class="logo-text">BetterCallSold</span>
                 </div>
             </div>
@@ -451,13 +451,8 @@
     .logo-icon {
         width: 20px;
         height: 20px;
-        background: #00a96e;
         border-radius: 3px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        filter: grayscale(1) brightness(2);
+        object-fit: cover;
     }
 
     .logo-text {
@@ -827,7 +822,6 @@
         margin-left: var(--sidebar-width);
         min-height: calc(100vh - var(--header-height));
         background-color: var(--color-surface);
-        padding: var(--space-4);
     }
 
     /* Global Design System Overrides */

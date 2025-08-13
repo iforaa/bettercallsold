@@ -45,8 +45,9 @@
     }
     
     function handleProductMessage(productMessage) {
-        messages = [...messages, productMessage];
-        scrollChatToBottom();
+        // Don't add product messages to chat display
+        // Product messages are still sent via Pusher but not shown in chat window
+        console.log('Product message received but not displayed in chat:', productMessage);
     }
     
     function handleConnected() {
@@ -111,15 +112,6 @@
         }, 100);
     }
     
-    function isLatestProductMessage(messages, currentIndex) {
-        // Find the last product message index
-        for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i].isProductMessage) {
-                return i === currentIndex;
-            }
-        }
-        return false;
-    }
 </script>
 
 <div class="chat-display">
@@ -149,39 +141,8 @@
             </div>
         {:else}
             {#each messages as message, index (message.id)}
-                {#if message.isProductMessage}
-                    <!-- Only show the most recent product message -->
-                    {#if isLatestProductMessage(messages, index)}
-                        <div class="message product-message">
-                        <div class="product-message-header">
-                            <span class="product-icon">🛍️</span>
-                            <span class="message-user">{message.user}</span>
-                            <span class="message-time">
-                                {message.timestamp.toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                })}
-                            </span>
-                        </div>
-                        <div class="product-message-content">
-                            <div class="product-info">
-                                {#if message.product.image}
-                                    <div class="product-image-chat">
-                                        <img src={message.product.image} alt={message.product.name} />
-                                    </div>
-                                {/if}
-                                <div class="product-details-chat">
-                                    <div class="product-name-chat">{message.product.name}</div>
-                                    <div class="product-price-chat">${message.product.price}</div>
-                                </div>
-                            </div>
-                            <div class="product-message-text">
-                                {message.message}
-                            </div>
-                        </div>
-                    </div>
-                    {/if}
-                {:else}
+                <!-- Only display regular chat messages, not product messages -->
+                {#if !message.isProductMessage}
                     <div class="message">
                         <div class="message-header">
                             <span class="message-user">{message.user}</span>
@@ -372,93 +333,6 @@
         word-wrap: break-word;
     }
 
-    /* Product Message Styles */
-    .product-message {
-        background: linear-gradient(135deg, #fef3c7 0%, #f59e0b 100%);
-        border: 2px solid #f59e0b;
-        box-shadow: 0 4px 8px rgba(245, 158, 11, 0.2);
-        position: relative;
-        overflow: hidden;
-    }
-
-    .product-message::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: linear-gradient(90deg, #f59e0b, #eab308, #f59e0b);
-        animation: shimmer 2s ease-in-out infinite;
-    }
-
-    .product-message-header {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 0.75rem;
-    }
-
-    .product-icon {
-        font-size: 1rem;
-    }
-
-    .product-message-content {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-
-    .product-info {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        background: rgba(255, 255, 255, 0.9);
-        border-radius: 8px;
-        padding: 0.75rem;
-    }
-
-    .product-image-chat {
-        width: 50px;
-        height: 50px;
-        border-radius: 6px;
-        overflow: hidden;
-        background: #f6f6f7;
-        flex-shrink: 0;
-    }
-
-    .product-image-chat img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .product-details-chat {
-        flex: 1;
-    }
-
-    .product-name-chat {
-        font-weight: 600;
-        font-size: 0.875rem;
-        color: #202223;
-        margin-bottom: 0.25rem;
-        line-height: 1.3;
-    }
-
-    .product-price-chat {
-        font-size: 1rem;
-        font-weight: 700;
-        color: #f59e0b;
-    }
-
-    .product-message-text {
-        font-size: 0.875rem;
-        color: #92400e;
-        font-weight: 500;
-        background: rgba(255, 255, 255, 0.7);
-        padding: 0.5rem 0.75rem;
-        border-radius: 6px;
-    }
 
     .chat-input-section {
         padding: 1rem 1.5rem;
@@ -542,10 +416,6 @@
         50% { opacity: 0.6; }
     }
 
-    @keyframes shimmer {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(100%); }
-    }
 
     @media (max-width: 768px) {
         .chat-input-container {

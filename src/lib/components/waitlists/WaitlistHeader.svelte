@@ -21,12 +21,9 @@
                 <div class="skeleton skeleton-badge"></div>
             </div>
         {:else if waitlist}
-            <h2 class="header-card-title">Waitlist Entry #{waitlist.id.slice(0, 8)}...</h2>
+            <h2 class="header-card-title">Waitlist Entry #{waitlist.id}</h2>
             <div class="header-card-meta">
                 <span class="header-card-date">{dateTime(waitlist.created_at)}</span>
-                <span class="variant-item">
-                    Position {formatPosition(waitlist.position)}
-                </span>
                 {#if waitlist.authorized_at}
                     <span class="status-badge authorized">Authorized</span>
                 {:else}
@@ -38,6 +35,14 @@
             </div>
         {/if}
     </div>
+    {#if !loading && waitlist}
+        <div class="header-card-aside">
+            <div class="metric-display metric-display-inline">
+                <div class="metric-value">{formatPosition(waitlist.position)}</div>
+                <div class="metric-label">Position</div>
+            </div>
+        </div>
+    {/if}
 </div>
 
 <style>

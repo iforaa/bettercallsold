@@ -26,7 +26,6 @@
 	// New refactored components
 	import StreamConfiguration from '$lib/components/live-stream/StreamConfiguration.svelte';
 	import StreamStatusDisplay from '$lib/components/live-stream/StreamStatusDisplay.svelte';
-	import LiveStreamControls from '$lib/components/live-stream/LiveStreamControls.svelte';
 	import StreamMetrics from '$lib/components/live-stream/StreamMetrics.svelte';
 
 	let { data }: { data: PageData } = $props();
@@ -211,19 +210,6 @@
 			<div class="content-layout">
 				<!-- Main Content -->
 				<div class="content-main">
-					<!-- Live Stream Controls -->
-					<LiveStreamControls
-						canStart={canStart}
-						canStop={canStop}
-						isStarting={liveStreamState.loading.startingLiveSelling}
-						isStopping={liveStreamState.loading.stoppingLiveSelling}
-						formData={settings.liveSellingForm}
-						validation={formValidation}
-						onStartLiveSelling={handleStartLiveSelling}
-						onStopLiveSelling={handleStopLiveSelling}
-						onUpdateForm={handleUpdateLiveSellingForm}
-					/>
-
 					<!-- Live Chat -->
 					<LiveChat />
 

@@ -1,7 +1,6 @@
 <script lang="ts">
-    import { waitlistsState, waitlistsActions, getFilteredWaitlists, getWaitlistMetrics, hasCriticalErrors, isAnyLoading } from '$lib/state/waitlists.svelte.js';
+    import { waitlistsState, waitlistsActions, getFilteredWaitlists, hasCriticalErrors, isAnyLoading } from '$lib/state/waitlists.svelte.js';
     import { createWaitlistsContext } from '$lib/contexts/waitlists.svelte.js';
-    import WaitlistMetrics from '$lib/components/waitlists/WaitlistMetrics.svelte';
     import WaitlistsTable from '$lib/components/waitlists/WaitlistsTable.svelte';
     import LoadingState from '$lib/components/states/LoadingState.svelte';
     import ErrorState from '$lib/components/states/ErrorState.svelte';
@@ -22,7 +21,6 @@
 
     // Derived values using $derived with function calls
     const filteredWaitlists = $derived(getFilteredWaitlists());
-    const metrics = $derived(getWaitlistMetrics());
     const hasErrors = $derived(hasCriticalErrors());
     const loading = $derived(isAnyLoading());
 
@@ -112,10 +110,7 @@
                         </button>
                     </div>
                 {/if}
-                <button class="btn btn-secondary">Export</button>
-                <button class="btn btn-primary" onclick={() => alert('Add to waitlist coming soon!')}>
-                    Add to waitlist
-                </button>
+                <!-- Buttons removed per requirements -->
             </div>
         </div>
     </div>
@@ -139,11 +134,7 @@
 
         <!-- Waitlists Content -->
         {#if !loading && !hasErrors}
-            <!-- Metrics Cards -->
-            <WaitlistMetrics 
-                {metrics} 
-                loading={waitlistsState.loading.waitlists} 
-            />
+            <!-- Metrics removed per requirements -->
         {/if}
 
         <!-- Main Content -->
@@ -171,11 +162,7 @@
                     icon="⏱️"
                     title="No waitlists found"
                     description="Waitlist entries will appear here when customers join product waitlists."
-                >
-                    <button class="btn btn-primary" onclick={() => alert('Add to waitlist coming soon!')}>
-                        Add First Entry
-                    </button>
-                </EmptyState>
+                />
             {/if}
         {/if}
     </div>

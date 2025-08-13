@@ -40,9 +40,6 @@
         }
     }
 
-    function handleEdit() {
-        alert('Edit waitlist functionality coming soon!');
-    }
 
     // Clean up when leaving the page
     $effect(() => {
@@ -82,9 +79,6 @@
                         {/if}
                     </button>
                 {/if}
-                <button class="btn btn-primary" onclick={handleEdit}>
-                    Edit Entry
-                </button>
             </div>
         </div>
     </div>
@@ -123,13 +117,15 @@
                     <!-- Customer Information -->
                     <CustomerSection 
                         waitlist={waitlistsState.currentWaitlist} 
-                        loading={waitlistsState.loading.current} 
+                        loading={waitlistsState.loading.current}
+                        waitlistId={data.waitlistId} 
                     />
 
                     <!-- Product Information -->
                     <ProductSection 
                         waitlist={waitlistsState.currentWaitlist} 
-                        loading={waitlistsState.loading.current} 
+                        loading={waitlistsState.loading.current}
+                        waitlistId={data.waitlistId} 
                     />
 
                     <!-- Waitlist Details Summary -->
@@ -139,7 +135,7 @@
                             <div class="detail-list">
                                 <div class="detail-row">
                                     <span class="detail-label">Entry ID:</span>
-                                    <span class="detail-value detail-value-mono">{waitlistsState.currentWaitlist?.id}</span>
+                                    <span class="detail-value detail-value-mono detail-id">{waitlistsState.currentWaitlist?.id}</span>
                                 </div>
                                 <div class="detail-row">
                                     <span class="detail-label">Position:</span>
@@ -195,6 +191,12 @@
         font-family: monospace;
         font-weight: var(--font-weight-semibold);
         color: var(--color-text);
+    }
+    
+    .detail-id {
+        max-width: none !important;
+        word-break: break-all;
+        white-space: normal;
     }
 
     /* Source badge colors - platform specific */

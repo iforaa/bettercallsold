@@ -3,6 +3,7 @@ import { query } from '$lib/database.js';
 import { createInventoryRecord } from '$lib/inventory-db.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
+import { ProductService } from '$lib/services/ProductService.js';
 
 export async function POST({ request }) {
   try {
@@ -191,14 +192,40 @@ export async function POST({ request }) {
               updated_at: now
             };
 
-            // Prepare images if requested - convert to PostgreSQL JSON
+            // Process and upload images to Cloudflare if requested
             let images = [];
             if (includeImages && detailedProduct.allImageUrls && detailedProduct.allImageUrls.length > 0) {
-              images = detailedProduct.allImageUrls.map((url, index) => ({
-                url: url,
-                alt: detailedProduct.productName,
-                position: index + 1
-              }));
+              addLog(`📸 Processing ${detailedProduct.allImageUrls.length} media files for ${detailedProduct.productName}`, 'info');
+              
+              try {
+                // Download and upload media to Cloudflare
+                const cloudflareUrls = await ProductService.downloadAndUploadMedia(
+                  detailedProduct.allImageUrls, 
+                  detailedProduct.productName
+                );
+                
+                if (cloudflareUrls.length > 0) {
+                  images = cloudflareUrls.map((url, index) => ({
+                    url: url,
+                    alt: detailedProduct.productName,
+                    position: index + 1,
+                    source: 'cloudflare'
+                  }));
+                  addLog(`✅ Uploaded ${cloudflareUrls.length} media files to Cloudflare for ${detailedProduct.productName}`, 'success');
+                } else {
+                  addLog(`⚠️ No media files were successfully uploaded for ${detailedProduct.productName}`, 'warning');
+                }
+              } catch (mediaError) {
+                addLog(`❌ Failed to upload media for ${detailedProduct.productName}: ${mediaError.message}`, 'error');
+                // Fallback to original URLs if Cloudflare upload fails
+                images = detailedProduct.allImageUrls.map((url, index) => ({
+                  url: url,
+                  alt: detailedProduct.productName,
+                  position: index + 1,
+                  source: 'commentsold'
+                }));
+                addLog(`📎 Using original CommentSold URLs as fallback for ${detailedProduct.productName}`, 'info');
+              }
             }
             productData.images = images.length > 0 ? JSON.stringify(images) : null;
 
