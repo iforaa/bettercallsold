@@ -420,7 +420,7 @@
 				<h1 class="error-state-title">Replay Not Found</h1>
 				<p class="error-state-message">The requested replay could not be found.</p>
 				<div class="error-state-actions">
-					<button class="btn btn-primary" onclick={goBack}>Back to Replays</button>
+					<button class="btn btn-primary" onclick={handleGoBack}>Back to Replays</button>
 				</div>
 			</div>
 		</div>
