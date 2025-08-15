@@ -3,6 +3,8 @@
  * Follows the Services + Runes + Context architecture pattern
  */
 
+import { MediaService } from './MediaService.js';
+
 export class CollectionService {
 	/**
 	 * Get all collections with filtering options
@@ -170,25 +172,24 @@ export class CollectionService {
 	}
 
 	/**
-	 * Upload collection image
+	 * Upload collection image using centralized MediaService
 	 * @param {File} file - Image file to upload
 	 * @returns {Promise<string>} Image URL
 	 */
 	static async uploadImage(file) {
-		const formData = new FormData();
-		formData.append('file', file);
-		
-		const response = await fetch('/api/upload', {
-			method: 'POST',
-			body: formData
-		});
-		
-		if (!response.ok) {
-			throw new Error(`Failed to upload image: ${response.statusText}`);
+		try {
+			const result = await MediaService.uploadFile(file, {
+				provider: 'cloudflare',
+				cache: true,
+				allowedTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+			});
+			
+			return result.url;
+			
+		} catch (error) {
+			console.error(`Failed to upload collection image ${file.name}:`, error);
+			throw new Error(`Failed to upload collection image ${file.name}: ${error.message}`);
 		}
-		
-		const result = await response.json();
-		return result.url;
 	}
 
 	/**

@@ -48,6 +48,17 @@ export async function GET({ url }) {
 
     const result = await query(inventoryQuery, queryParams);
 
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM inventory i
+      JOIN products p ON i.product_id = p.id AND p.tenant_id = $1
+      ${whereClause}
+    `;
+    const countParams = queryParams.slice(0, -2); // Remove limit and offset params
+    const countResult = await query(countQuery, countParams);
+    const totalCount = parseInt(countResult.rows[0].total);
+
     // Transform the data for the frontend
     const inventoryItems = result.rows.map(row => ({
       id: row.id,
@@ -71,7 +82,19 @@ export async function GET({ url }) {
       updated_at: row.updated_at
     }));
 
-    return jsonResponse(inventoryItems);
+    // Return paginated response with metadata
+    return jsonResponse({
+      items: inventoryItems,
+      pagination: {
+        total: totalCount,
+        limit: limit,
+        offset: offset,
+        page: Math.floor(offset / limit) + 1,
+        totalPages: Math.ceil(totalCount / limit),
+        hasNext: offset + inventoryItems.length < totalCount,
+        hasPrev: offset > 0
+      }
+    });
   } catch (error) {
     console.error('Get inventory details error:', error);
     return internalServerErrorResponse('Failed to fetch inventory details');

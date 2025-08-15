@@ -13,6 +13,12 @@
 	
 	const productId = data.productId;
 	
+	// Track if form has been initialized to prevent loops
+	let formInitialized = $state(false);
+	
+	// Track attempted loads to prevent infinite retry on 404
+	let attemptedProductIds = $state(new Set());
+	
 	// Form data for editing
 	let formData: ProductFormData = $state({
 		title: '',
@@ -62,47 +68,48 @@
 				position: item.position || 1
 			})) || []
 		};
+		
+		console.log('Product Detail - Form initialized with', formData.collections?.length || 0, 'collections');
 	}
 
 	// Load product and collections on mount and route changes
 	$effect(() => {
-		if (productId && (!currentProduct || currentProduct.id !== productId)) {
+		if (productId && 
+			(!currentProduct || currentProduct.id !== productId) && 
+			!productsState.loading.current &&
+			!attemptedProductIds.has(productId)) {
+			console.log('Product Detail - Loading product:', productId);
+			attemptedProductIds.add(productId);
 			productsActions.loadProduct(productId);
 		}
 	});
 
+	// Load collections once if not already loaded
 	$effect(() => {
-		if (!collections.length) {
+		if (!collections.length && !productsState.loading.collections) {
 			productsActions.loadCollections();
 		}
 	});
 
-	// Initialize form when product loads
+	// Initialize form when product loads (once per product)
 	$effect(() => {
-		if (currentProduct && currentProduct.id === productId) {
-			console.log('Product Detail - Current product loaded:', currentProduct);
-			console.log('Product Detail - Raw images field:', currentProduct.images);
-			console.log('Product Detail - Images type:', typeof currentProduct.images);
-			
-			// Parse images for logging
-			let parsedImages = [];
-			if (currentProduct.images) {
-				try {
-					parsedImages = Array.isArray(currentProduct.images) ? currentProduct.images : JSON.parse(currentProduct.images);
-					console.log('Product Detail - Parsed images:', parsedImages);
-				} catch (error) {
-					console.log('Product Detail - Failed to parse images:', error);
-				}
-			}
+		if (currentProduct && currentProduct.id === productId && !formInitialized) {
+			console.log('Product Detail - Initializing form for product:', currentProduct.id);
+			console.log('Product Detail - Product collections:', currentProduct.product_collections);
 			
 			initializeFormData(currentProduct);
+			formInitialized = true;
 		}
 	});
+	
+	// Reset form state when navigating to different product
+	$effect(() => {
+		formInitialized = false;
+		// Clear attempted product IDs when route changes to allow retry on navigation
+		attemptedProductIds.clear();
+		console.log('Product Detail - Route changed to product:', productId);
+	});
 	// Handle form field changes
-	function handleFormChange(updatedData: Partial<ProductFormData>) {
-		formData = { ...formData, ...updatedData };
-	}
-
 	// Handle form submission for updates
 	async function handleSubmit(data: ProductFormData) {
 		if (!currentProduct) return;
@@ -147,12 +154,24 @@
 	}
 
 	function navigateBack() {
-		// Check if we came from an order or waitlist details page
-		const from = $page.url.searchParams.get('from');
-		const orderId = $page.url.searchParams.get('orderId');
+		// Check if we came from a collection, order, customer, waitlist, or replay details page
+		const from = data.from || $page.url.searchParams.get('from');
+		const orderId = data.orderId || $page.url.searchParams.get('orderId');
+		const customerId = data.customerId || $page.url.searchParams.get('customerId');
 		const waitlistId = $page.url.searchParams.get('waitlistId');
+		const fromCollection = data.fromCollection || $page.url.searchParams.get('fromCollection');
+		const fromInventory = data.fromInventory || $page.url.searchParams.get('fromInventory');
+		const replayId = data.replayId || $page.url.searchParams.get('replayId');
 		
-		if (from === 'order' && orderId) {
+		if (fromInventory) {
+			goto('/inventory');
+		} else if (fromCollection) {
+			goto(`/collections/${fromCollection}`);
+		} else if (from === 'replay' && replayId) {
+			goto(`/replays/${replayId}`);
+		} else if (from === 'customer' && customerId) {
+			goto(`/customers/${customerId}`);
+		} else if (from === 'order' && orderId) {
 			goto(`/orders/${orderId}`);
 		} else if (from === 'waitlist' && waitlistId) {
 			goto(`/waitlists/${waitlistId}`);
@@ -162,7 +181,16 @@
 	}
 
 	function handleRetry() {
+		// Reset the attempted product ID to allow retry
+		attemptedProductIds.delete(productId);
 		productsActions.retry();
+	}
+	
+	// Handle form changes (debounced to prevent excessive updates)
+	function handleFormChange(updatedData: Partial<ProductFormData>) {
+		// Only update the specific fields that changed
+		Object.assign(formData, updatedData);
+		productsActions.setFormData(formData);
 	}
 </script>
 
@@ -179,11 +207,14 @@
 	/>
 {:else if hasErrors}
 	<ErrorState 
-		message="Error Loading Product"
-		errorText={productsState.errors.current || 'Unable to load product details'}
-		onRetry={handleRetry}
+		message={productsState.errors.current?.includes('not found') ? 'Product Not Found' : 'Error Loading Product'}
+		errorText={productsState.errors.current?.includes('not found') 
+			? 'This product may have been removed or is not available.' 
+			: productsState.errors.current || 'Unable to load product details'}
+		onRetry={productsState.errors.current?.includes('not found') ? undefined : handleRetry}
 		showBackButton={true}
 		onBack={navigateBack}
+		retryLabel={productsState.errors.current?.includes('not found') ? undefined : 'Try Again'}
 	/>
 {:else if currentProduct}
 	<div class="page">
@@ -234,8 +265,8 @@
 		errorText="The product you're looking for doesn't exist or has been removed."
 		icon="📦"
 		showBackButton={true}
-		onBack={() => goto('/products')}
-		backButtonText="Back to Products"
+		onBack={navigateBack}
+		backButtonText={data.from === 'replay' ? 'Back to Replay' : 'Back to Products'}
 	/>
 {/if}
 

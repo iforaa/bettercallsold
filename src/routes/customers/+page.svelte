@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import LoadingState from '$lib/components/states/LoadingState.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -70,13 +71,12 @@
 				</div>
 			</div>
 			<div class="page-actions">
-				<button class="btn btn-secondary">Export</button>
-				<button class="btn btn-primary">Add customer</button>
+				<!-- Actions removed as requested -->
 			</div>
 		</div>
 	</div>
 
-	<div class="page-content">
+	<div class="page-content-padded">
 		{#if error}
 			<div class="error-state">
 				<div class="error-state-content">
@@ -91,20 +91,18 @@
 				</div>
 			</div>
 		{:else if loading}
-			<!-- Loading state -->
-			<div class="loading-state">
-				<div class="loading-spinner loading-spinner-lg"></div>
-				<p class="loading-text">Loading customers...</p>
-			</div>
+			<LoadingState message="Loading customers..." size="lg" />
 		{:else if customers && customers.length > 0}
-			<div class="table-container">
-				<table class="table">
+			<div class="content-section">
+				<div class="table-container">
+					<table class="table">
 					<thead>
 						<tr>
 							<th class="table-cell-main">Customer</th>
 							<th>Email</th>
-							<th>Role</th>
-							<th>Status</th>
+							<th>Orders</th>
+							<th>Amount spent</th>
+							<th>Location</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -127,14 +125,13 @@
 									<span class="table-cell-text">{customer.email}</span>
 								</td>
 								<td>
-									<span class="badge badge-neutral">
-										{customer.role}
-									</span>
+									<span class="table-cell-text">{customer.order_count || 0}</span>
 								</td>
 								<td>
-									<span class="badge badge-success">
-										Active
-									</span>
+									<span class="table-cell-text">${parseFloat(customer.total_spent || 0).toFixed(2)}</span>
+								</td>
+								<td>
+									<span class="table-cell-text">{customer.location || 'No location'}</span>
 								</td>
 							</tr>
 						{/each}
@@ -145,6 +142,7 @@
 			<div class="content-footer">
 				<div class="table-summary">Showing {customers.length} of {customers.length} customers</div>
 			</div>
+		</div>
 		{:else}
 			<div class="empty-state">
 				<div class="empty-state-content">

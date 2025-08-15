@@ -3,99 +3,59 @@
 	import { browser } from '$app/environment';
 
 	// State management
-	let settings = $state(null);
-	let products = $state([]);
-	let collections = $state([]);
+	let storeContent = $state('');
 	let loading = $state(true);
 	let error = $state('');
+	let storeSettings = $state(null);
 
-	// Derived values from settings
-	let heroImageUrl = $derived(settings?.hero_image_url);
-	let heroTitle = $derived(settings?.hero_title || 'Welcome to our store');
-	let heroSubtitle = $derived(settings?.hero_subtitle || 'Discover amazing products');
-	let heroCta = $derived(settings?.hero_cta_text || 'Shop Now');
-	let heroClaUrl = $derived(settings?.hero_cta_url || '/store/catalog');
-	let storeEnabled = $derived(settings?.store_enabled !== false); // Default to true if not set
-
-	// Load store settings and featured products
-	async function loadStoreData() {
+	// Load and render the store homepage
+	async function loadStore() {
 		if (!browser) return;
 		
 		try {
 			loading = true;
 			error = '';
 
-			// Load store settings
+			// Load store settings first
 			const settingsResponse = await fetch('/api/webstore/settings');
 			if (settingsResponse.ok) {
-				settings = await settingsResponse.json();
+				storeSettings = await settingsResponse.json();
 			}
 
-			// Load featured products (first 16 products to account for filtering)
-			const productsResponse = await fetch('/api/products?limit=16');
-			if (productsResponse.ok) {
-				const productsData = await productsResponse.json();
-				let allProducts = productsData.products || productsData || [];
-				
-				// Filter out products without images and take first 8
-				products = allProducts
-					.filter(product => {
-						if (!product.images) return false;
-						if (Array.isArray(product.images) && product.images.length === 0) return false;
-						if (typeof product.images === 'string') {
-							try {
-								const parsed = JSON.parse(product.images);
-								return Array.isArray(parsed) && parsed.length > 0;
-							} catch {
-								return false;
-							}
-						}
-						return true;
-					})
-					.slice(0, 8);
-			}
+			// Render the homepage using the active home template
+			const response = await fetch('/api/store/page', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					page_type: 'home'
+				})
+			});
 
-			// Load collections
-			const collectionsResponse = await fetch('/api/collections');
-			if (collectionsResponse.ok) {
-				const collectionsData = await collectionsResponse.json();
-				collections = collectionsData || [];
+			if (response.ok) {
+				const data = await response.json();
+				storeContent = data.html;
+			} else {
+				throw new Error('Failed to load store');
 			}
 
 		} catch (err) {
-			console.error('Load store data error:', err);
-			error = 'Failed to load store data';
+			console.error('Load store error:', err);
+			error = 'Failed to load store';
 		} finally {
 			loading = false;
 		}
 	}
 
-	// Format currency
-	function formatCurrency(amount: number) {
-		if (!amount) return '$0.00';
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: 'USD'
-		}).format(amount);
-	}
-
-	// Get product image
-	function getProductImage(product: any): string {
-		if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-			return typeof product.images[0] === 'string' ? product.images[0] : product.images[0].url;
-		}
-		return '/placeholder-product.jpg'; // You'll need to add this placeholder image
-	}
-
-	// Load data on mount
+	// Load store on mount
 	onMount(() => {
-		loadStoreData();
+		loadStore();
 	});
 </script>
 
 <svelte:head>
-	<title>{settings?.store_name || 'My Store'}</title>
-	<meta name="description" content={settings?.meta_description || `Welcome to ${settings?.store_name || 'our store'}`} />
+	<title>{storeSettings?.store_name || 'My Store'}</title>
+	<meta name="description" content={storeSettings?.meta_description || `Welcome to ${storeSettings?.store_name || 'our store'}`} />
+	<meta name="keywords" content={storeSettings?.meta_keywords || ''} />
 </svelte:head>
 
 {#if loading}
@@ -105,463 +65,126 @@
 	</div>
 {:else if error}
 	<div class="error-container">
-		<p>Error: {error}</p>
-		<button class="retry-btn" onclick={() => loadStoreData()}>Retry</button>
-	</div>
-{:else if !storeEnabled}
-	<div class="store-disabled">
-		<div class="disabled-content">
-			<h1>Store Temporarily Unavailable</h1>
-			<p>We're currently updating our store. Please check back soon!</p>
+		<div class="error-content">
+			<h1>Store Unavailable</h1>
+			<p>{error}</p>
+			<button class="retry-btn" onclick={() => loadStore()}>Retry</button>
 		</div>
+	</div>
+{:else if storeContent}
+	<!-- Render the complete store with live Liquid content -->
+	<div class="live-store">
+		{@html storeContent}
 	</div>
 {:else}
-	<!-- Hero Section -->
-	<section class="hero-section" style:background-image={heroImageUrl ? `url(${heroImageUrl})` : 'none'}>
-		<div class="hero-overlay">
-			<div class="hero-container">
-				<div class="hero-content">
-					<h1 class="hero-title">{heroTitle}</h1>
-					<p class="hero-subtitle">{heroSubtitle}</p>
-				</div>
-			</div>
+	<div class="empty-store">
+		<div class="empty-content">
+			<h1>Store Not Ready</h1>
+			<p>No homepage template found. Please create a home template in the website builder.</p>
+			<a href="/sales-channels/web-store" class="setup-btn">Setup Store</a>
 		</div>
-	</section>
-
-	<!-- Collections Section -->
-	{#if collections.length > 0}
-		<section class="collections-section">
-			<div class="section-container">
-				<div class="collections-list">
-					{#each collections as collection}
-						<div class="collection-item">
-							<a href="/store/catalog?collection={collection.id}" class="collection-link">
-								<h2 class="collection-name">{collection.name || 'Untitled Collection'}</h2>
-								<span class="collection-count">{collection.product_count || 0}</span>
-							</a>
-						</div>
-					{/each}
-				</div>
-			</div>
-		</section>
-	{/if}
-
-	<!-- Featured Products Section -->
-	{#if products.length > 0}
-		<section class="featured-section">
-			<div class="section-container">
-				<div class="section-header">
-					<h2 class="section-title">Featured Products</h2>
-					<a href="/store/catalog" class="view-all-link">View All</a>
-				</div>
-				
-				<div class="products-grid">
-					{#each products as product}
-						<div class="product-card">
-							<a href="/store/products/{product.id}" class="product-link">
-								<div class="product-image">
-									<img 
-										src={getProductImage(product)} 
-										alt={product.name || 'Product'}
-										loading="lazy"
-									/>
-								</div>
-								<div class="product-info">
-									<h3 class="product-title">{product.name || 'Untitled Product'}</h3>
-									<div class="product-price">
-										{formatCurrency(product.price || 0)}
-									</div>
-								</div>
-							</a>
-						</div>
-					{/each}
-				</div>
-			</div>
-		</section>
-	{/if}
-
-	<!-- Additional Content Sections -->
-	<section class="content-section">
-		<div class="section-container">
-			<div class="content-grid">
-				<div class="content-block">
-					<h3>Premium Quality</h3>
-					<p>We source only the finest materials and work with skilled artisans to create products that stand the test of time.</p>
-				</div>
-				<div class="content-block">
-					<h3>Fast Shipping</h3>
-					<p>Get your orders quickly with our expedited shipping options. Most orders arrive within 2-5 business days.</p>
-				</div>
-				<div class="content-block">
-					<h3>Easy Returns</h3>
-					<p>Not satisfied? Return your purchase within 30 days for a full refund. No questions asked.</p>
-				</div>
-			</div>
-		</div>
-	</section>
+	</div>
 {/if}
 
 <style>
 	/* Loading & Error States */
 	.loading-container,
 	.error-container,
-	.store-disabled {
+	.empty-store {
 		min-height: 100vh;
 		display: flex;
-		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 1rem;
-		color: var(--store-secondary-color);
+		padding: 2rem;
+		background: #f8fafc;
 	}
 
-	.disabled-content {
+	.error-content,
+	.empty-content {
 		text-align: center;
 		max-width: 500px;
 		padding: 2rem;
+		background: white;
+		border-radius: 12px;
+		border: 1px solid #e2e8f0;
+		box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 	}
 
-	.disabled-content h1 {
-		color: var(--store-primary-color);
-		font-size: 2rem;
-		font-weight: 300;
+	.error-content h1,
+	.empty-content h1 {
+		color: #1e293b;
+		font-size: 1.5rem;
+		font-weight: 600;
 		margin-bottom: 1rem;
 	}
 
-	.disabled-content p {
-		font-size: 1.125rem;
-		color: var(--store-secondary-color);
-		margin: 0;
+	.error-content p,
+	.empty-content p {
+		color: #64748b;
+		margin-bottom: 2rem;
+		line-height: 1.6;
 	}
 
 	.loading-spinner {
 		width: 40px;
 		height: 40px;
-		border: 4px solid #f3f4f6;
-		border-top-color: var(--store-accent-color);
+		border: 4px solid #f1f5f9;
+		border-top-color: #3b82f6;
 		border-radius: 50%;
 		animation: spin 1s linear infinite;
+		margin-bottom: 1rem;
 	}
 
-	.retry-btn {
-		background: var(--store-primary-color);
+	.retry-btn,
+	.setup-btn {
+		background: #3b82f6;
 		color: white;
 		border: none;
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
+		padding: 0.75rem 1.5rem;
+		border-radius: 8px;
+		font-weight: 600;
 		cursor: pointer;
-		font-weight: 500;
+		text-decoration: none;
+		display: inline-block;
+		transition: background-color 0.2s ease;
+	}
+
+	.retry-btn:hover,
+	.setup-btn:hover {
+		background: #2563eb;
 	}
 
 	@keyframes spin {
 		to { transform: rotate(360deg); }
 	}
 
-	/* Hero Section */
-	.hero-section {
-		position: relative;
-		height: 500px;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		background-size: cover;
-		background-position: center;
-		background-attachment: fixed;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.hero-overlay {
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background: rgba(0, 0, 0, 0.4);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.hero-container {
-		max-width: 1200px;
-		width: 100%;
-		padding: 0 1rem;
-	}
-
-	.hero-content {
-		text-align: center;
-		color: white;
-		max-width: 600px;
-		margin: 0 auto;
-	}
-
-	.hero-title {
-		font-size: 3rem;
-		font-weight: 300;
-		margin-bottom: 1rem;
-		line-height: 1.2;
-		letter-spacing: -0.025em;
-	}
-
-	.hero-subtitle {
-		font-size: 1.25rem;
-		margin-bottom: 2rem;
-		opacity: 0.9;
-		font-weight: 300;
-	}
-
-
-	/* Collections Section */
-	.collections-section {
-		padding: 4rem 0;
-		background: white;
-	}
-
-	.collections-list {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-		max-width: 800px;
-	}
-
-	.collection-item {
-		border-bottom: 1px solid #f3f4f6;
-		padding-bottom: 1.5rem;
-	}
-
-	.collection-item:last-child {
-		border-bottom: none;
-		padding-bottom: 0;
-	}
-
-	.collection-link {
-		text-decoration: none;
-		color: inherit;
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		transition: color 0.2s ease;
-	}
-
-	.collection-link:hover {
-		color: var(--store-accent-color);
-	}
-
-	.collection-name {
-		font-size: 2rem;
-		font-weight: 300;
-		color: var(--store-primary-color);
-		margin: 0;
-		line-height: 1.2;
-		letter-spacing: -0.025em;
-		flex: 1;
-	}
-
-	.collection-count {
-		font-size: 1rem;
-		color: var(--store-secondary-color);
-		font-weight: 400;
-		margin-left: 1rem;
-		flex-shrink: 0;
-	}
-
-	/* Featured Products Section */
-	.featured-section {
-		padding: 4rem 0;
-		background: white;
-	}
-
-	.section-container {
-		max-width: 1200px;
-		margin: 0 auto;
-		padding: 0 1rem;
-	}
-
-	.section-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 3rem;
-	}
-
-	.section-title {
-		font-size: 2rem;
-		font-weight: 300;
-		color: var(--store-primary-color);
-		margin: 0;
-		letter-spacing: -0.025em;
-	}
-
-	.view-all-link {
-		color: var(--store-accent-color);
-		text-decoration: none;
-		font-weight: 500;
-		text-transform: uppercase;
-		font-size: 0.875rem;
-		letter-spacing: 0.025em;
-		transition: color 0.2s ease;
-	}
-
-	.view-all-link:hover {
-		color: var(--store-primary-color);
-	}
-
-	.products-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-		gap: 2rem;
-	}
-
-	.product-card {
-		background: white;
-		border-radius: 8px;
-		overflow: hidden;
-		transition: transform 0.3s ease, box-shadow 0.3s ease;
-		border: 1px solid #f3f4f6;
-	}
-
-	.product-card:hover {
-		transform: translateY(-4px);
-		box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-	}
-
-	.product-link {
-		text-decoration: none;
+	/* Live Store Content */
+	.live-store {
+		/* Reset any admin panel styles that might interfere */
+		all: initial;
+		font-family: inherit;
+		line-height: inherit;
 		color: inherit;
 		display: block;
+		min-height: 100vh;
 	}
 
-	.product-image {
-		aspect-ratio: 1;
-		overflow: hidden;
-		background: #f9fafb;
-		position: relative;
+	/* Ensure rendered content displays properly */
+	.live-store :global(*) {
+		box-sizing: border-box;
 	}
 
-	.product-image img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-		transition: transform 0.3s ease;
+	.live-store :global(img) {
+		max-width: 100%;
+		height: auto;
 	}
 
-	.product-card:hover .product-image img {
-		transform: scale(1.05);
+	.live-store :global(a) {
+		color: inherit;
+		text-decoration: none;
 	}
 
-	.product-info {
-		padding: 1.5rem;
-	}
-
-	.product-title {
-		font-size: 1rem;
-		font-weight: 500;
-		color: var(--store-primary-color);
-		margin: 0 0 0.5rem 0;
-		line-height: 1.4;
-	}
-
-	.product-price {
-		font-size: 1.125rem;
-		font-weight: 600;
-		color: var(--store-accent-color);
-	}
-
-	/* Content Section */
-	.content-section {
-		padding: 4rem 0;
-		background: #f9fafb;
-	}
-
-	.content-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-		gap: 3rem;
-	}
-
-	.content-block {
-		text-align: center;
-	}
-
-	.content-block h3 {
-		font-size: 1.25rem;
-		font-weight: 600;
-		color: var(--store-primary-color);
-		margin-bottom: 1rem;
-	}
-
-	.content-block p {
-		color: var(--store-secondary-color);
-		line-height: 1.6;
-		margin: 0;
-	}
-
-	/* Responsive Design */
-	@media (max-width: 768px) {
-		.hero-title {
-			font-size: 2rem;
-		}
-
-		.hero-subtitle {
-			font-size: 1rem;
-		}
-
-		.section-header {
-			flex-direction: column;
-			gap: 1rem;
-			text-align: center;
-		}
-
-		.products-grid {
-			grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-			gap: 1.5rem;
-		}
-
-		.content-grid {
-			grid-template-columns: 1fr;
-			gap: 2rem;
-		}
-
-		.collection-name {
-			font-size: 1.5rem;
-		}
-
-		.featured-section,
-		.content-section,
-		.collections-section {
-			padding: 2rem 0;
-		}
-	}
-
-	@media (max-width: 480px) {
-		.hero-section {
-			height: 400px;
-		}
-
-		.hero-title {
-			font-size: 1.75rem;
-		}
-
-		.products-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.collection-name {
-			font-size: 1.25rem;
-		}
-
-		.collection-link {
-			flex-direction: column;
-			align-items: flex-start;
-			gap: 0.5rem;
-		}
-
-		.collection-count {
-			margin-left: 0;
-		}
-
-		.product-info {
-			padding: 1rem;
-		}
+	.live-store :global(a:hover) {
+		text-decoration: underline;
 	}
 </style>

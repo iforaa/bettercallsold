@@ -2,7 +2,7 @@
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { 
 		replaysState, 
 		replaysActions, 
@@ -30,6 +30,9 @@
 	// Track the last loaded replay ID to prevent re-loading the same replay
 	let lastLoadedReplayId = $state(null);
 	
+	// Chart instance
+	let chartInstance = null;
+	
 	// Initialize replay data
 	$effect(() => {
 		if (browser && replayId && replayId !== lastLoadedReplayId) {
@@ -43,6 +46,10 @@
 	// Cleanup on destroy
 	onDestroy(() => {
 		replaysActions.destroyVideoPlayer();
+		if (chartInstance) {
+			chartInstance.destroy();
+			chartInstance = null;
+		}
 	});
 	
 	// Event handlers
@@ -67,8 +74,150 @@
 	
 	function handleProductClick(product: any) {
 		console.log('Product clicked:', product);
-		// TODO: Navigate to product details or external link
+		if (product?.id || product?.product_id) {
+			// Navigate to product details with replay context for back navigation
+			const productId = product.id || product.product_id;
+			goto(`/products/${productId}?from=replay&replayId=${replayId}`);
+		}
 	}
+
+	// Generate fake sales data for the chart
+	function generateSalesData(durationMinutes: number) {
+		const dataPoints = Math.min(60, Math.max(10, durationMinutes)); // Between 10-60 data points
+		const timeInterval = durationMinutes / dataPoints;
+		const labels = [];
+		const salesData = [];
+		const viewersData = [];
+		
+		let cumulativeSales = 0;
+		let baseViewers = Math.floor(Math.random() * 500) + 100; // Base viewers 100-600
+		
+		for (let i = 0; i <= dataPoints; i++) {
+			const minutes = Math.floor(i * timeInterval);
+			labels.push(`${Math.floor(minutes / 60)}:${(minutes % 60).toString().padStart(2, '0')}`);
+			
+			// Generate sales spikes (more sales during peak moments)
+			const isProductMoment = Math.random() > 0.7; // 30% chance of product showcase
+			const salesIncrease = isProductMoment 
+				? Math.floor(Math.random() * 15) + 5  // 5-20 sales during product moments
+				: Math.floor(Math.random() * 3);      // 0-3 sales otherwise
+				
+			cumulativeSales += salesIncrease;
+			salesData.push(cumulativeSales);
+			
+			// Generate viewer fluctuations
+			const viewerChange = (Math.random() - 0.5) * 100; // ±50 viewers
+			baseViewers = Math.max(50, baseViewers + viewerChange);
+			viewersData.push(Math.floor(baseViewers));
+		}
+		
+		return { labels, salesData, viewersData };
+	}
+
+	// Initialize chart
+	async function initializeChart() {
+		if (!browser || !replay) return;
+		
+		try {
+			// Dynamically import Chart.js to avoid SSR issues
+			const { Chart, registerables } = await import('chart.js');
+			Chart.register(...registerables);
+			
+			const canvas = document.getElementById('salesChart');
+			if (!canvas || chartInstance) return;
+			
+			// Parse duration from replay (fallback to 60 minutes)
+			const durationMinutes = replay.duration_seconds 
+				? Math.floor(replay.duration_seconds / 60) 
+				: 60;
+				
+			const { labels, salesData, viewersData } = generateSalesData(durationMinutes);
+			
+			chartInstance = new Chart(canvas, {
+				type: 'line',
+				data: {
+					labels,
+					datasets: [
+						{
+							label: 'Cumulative Sales',
+							data: salesData,
+							borderColor: '#00a96e',
+							backgroundColor: 'rgba(0, 169, 110, 0.1)',
+							tension: 0.4,
+							fill: true,
+							yAxisID: 'y'
+						},
+						{
+							label: 'Live Viewers',
+							data: viewersData,
+							borderColor: '#005bd3',
+							backgroundColor: 'rgba(0, 91, 211, 0.1)',
+							tension: 0.4,
+							fill: false,
+							yAxisID: 'y1'
+						}
+					]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: false,
+					interaction: {
+						mode: 'index',
+						intersect: false,
+					},
+					plugins: {
+						title: {
+							display: false
+						},
+						legend: {
+							position: 'top',
+						}
+					},
+					scales: {
+						x: {
+							display: true,
+							title: {
+								display: true,
+								text: 'Time'
+							}
+						},
+						y: {
+							type: 'linear',
+							display: true,
+							position: 'left',
+							title: {
+								display: true,
+								text: 'Sales Count'
+							},
+							beginAtZero: true
+						},
+						y1: {
+							type: 'linear',
+							display: true,
+							position: 'right',
+							title: {
+								display: true,
+								text: 'Viewers'
+							},
+							beginAtZero: true,
+							grid: {
+								drawOnChartArea: false,
+							},
+						}
+					}
+				}
+			});
+		} catch (error) {
+			console.error('Failed to initialize chart:', error);
+		}
+	}
+
+	// Initialize chart when replay data is loaded
+	$effect(() => {
+		if (replay && !chartInstance) {
+			setTimeout(initializeChart, 100); // Small delay to ensure DOM is ready
+		}
+	});
 
 </script>
 
@@ -142,25 +291,7 @@
 			<div class="content-layout">
 				<!-- Main Content -->
 				<div class="content-main">
-					<!-- Products Section -->
-					{#if replay?.products && Array.isArray(replay.products) && replay.products.length > 0}
-						<div class="content-section">
-							<div class="content-header">
-								<h3 class="content-title">Products ({replay.products.length})</h3>
-								<p class="content-description">Products featured in this replay</p>
-							</div>
-							<div class="content-body">
-								<ProductGrid
-									products={replay.products}
-									maxItems={6}
-									showMore={true}
-									onProductClick={handleProductClick}
-								/>
-							</div>
-						</div>
-					{/if}
-
-					<!-- Replay Details -->
+					<!-- Replay Information Section -->
 					<div class="content-section">
 						<div class="content-header">
 							<h3 class="content-title">Replay Information</h3>
@@ -213,17 +344,39 @@
 									<p class="description-text">{replay.description}</p>
 								</div>
 							{/if}
-
-							{#if replay.metadata}
-								<div class="metadata-section">
-									<h3>Sync Metadata</h3>
-									<div class="metadata-content">
-										<pre>{JSON.stringify(replay.metadata, null, 2)}</pre>
-									</div>
-								</div>
-							{/if}
 						</div>
 					</div>
+
+					<!-- Sales Analytics Chart -->
+					<div class="content-section">
+						<div class="content-header">
+							<h3 class="content-title">Sales Analytics</h3>
+							<p class="content-description">Sales performance during live stream</p>
+						</div>
+						<div class="content-body">
+							<div class="chart-container">
+								<canvas id="salesChart" width="400" height="200"></canvas>
+							</div>
+						</div>
+					</div>
+
+					<!-- Products Section -->
+					{#if replay?.products && Array.isArray(replay.products) && replay.products.length > 0}
+						<div class="content-section">
+							<div class="content-header">
+								<h3 class="content-title">Products ({replay.products.length})</h3>
+								<p class="content-description">Products featured in this replay</p>
+							</div>
+							<div class="content-body">
+								<ProductGrid
+									products={replay.products}
+									maxItems={6}
+									showMore={true}
+									onProductClick={handleProductClick}
+								/>
+							</div>
+						</div>
+					{/if}
 				</div>
 
 				<!-- Sidebar -->
@@ -330,12 +483,12 @@
 		text-align: right;
 	}
 	
-	/* Metadata styling */
-	.description-section, .metadata-section {
+	/* Description styling */
+	.description-section {
 		margin-top: var(--space-8);
 	}
 	
-	.description-section h3, .metadata-section h3 {
+	.description-section h3 {
 		margin: 0 0 var(--space-4) 0;
 		font-size: var(--font-size-base);
 		font-weight: var(--font-weight-semibold);
@@ -347,19 +500,21 @@
 		line-height: var(--line-height-normal);
 		margin: 0;
 	}
-	
-	.metadata-content {
-		background: var(--color-surface-hover);
+
+	/* Chart container styling */
+	.chart-container {
+		position: relative;
+		height: 300px;
+		width: 100%;
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
 		border-radius: var(--radius-lg);
 		padding: var(--space-4);
-		overflow-x: auto;
 	}
-	
-	.metadata-content pre {
-		margin: 0;
-		font-size: var(--font-size-xs);
-		color: var(--color-text);
-		font-family: var(--font-mono);
+
+	.chart-container canvas {
+		width: 100% !important;
+		height: 100% !important;
 	}
 	
 	/* Responsive adjustments not covered by design system */

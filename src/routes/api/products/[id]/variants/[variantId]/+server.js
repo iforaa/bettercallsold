@@ -1,5 +1,4 @@
 import { query } from '$lib/database.js';
-import { updateInventoryQuantity } from '$lib/inventory-db.js';
 import { jsonResponse, internalServerErrorResponse, notFoundResponse, badRequestResponse, successResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
 
@@ -72,6 +71,7 @@ export async function GET({ params }) {
       title: variantTitle,
       price: record.variant_price || record.base_price,
       compare_at_price: null,
+      cost: record.cost || 0,
       sku: record.sku || '',
       barcode: record.barcode || '',
       inventory_quantity: record.quantity || 0,
@@ -125,7 +125,11 @@ export async function PUT({ params, request }) {
     // Handle inventory quantity update
     if (updateData.inventory_quantity !== undefined) {
       const newQuantity = parseInt(updateData.inventory_quantity) || 0;
-      await updateInventoryQuantity(variantId, newQuantity, DEFAULT_TENANT_ID);
+      await query(`
+        UPDATE inventory 
+        SET quantity = $1, updated_at = NOW()
+        WHERE id = $2 AND tenant_id = $3
+      `, [newQuantity, variantId, DEFAULT_TENANT_ID]);
     }
     
     // Handle variant attribute updates (color, size, sku, barcode)
@@ -171,6 +175,11 @@ export async function PUT({ params, request }) {
     if (updateData.price !== undefined) {
       updateFields.push('price = $' + (updateValues.length + 1));
       updateValues.push(updateData.price);
+    }
+    
+    if (updateData.cost !== undefined) {
+      updateFields.push('cost = $' + (updateValues.length + 1));
+      updateValues.push(updateData.cost);
     }
     
     // Update inventory record if there are fields to update

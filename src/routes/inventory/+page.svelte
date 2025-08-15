@@ -1,27 +1,52 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
-	import { inventoryState, inventoryActions, getFilteredInventory, getInventoryMetrics } from '$lib/state/inventory.svelte.js';
+	import { page } from '$app/stores';
+	import { inventoryState, inventoryActions, getFilteredInventory, getInventoryMetrics, getPaginationInfo } from '$lib/state/inventory.svelte.js';
 	import { ToastService } from '$lib/services/ToastService.js';
 	import LoadingState from '$lib/components/states/LoadingState.svelte';
 	import ErrorState from '$lib/components/states/ErrorState.svelte';
 	import EmptyState from '$lib/components/states/EmptyState.svelte';
 	import QuantityAdjustModal from '$lib/components/inventory/QuantityAdjustModal.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
 
 	let { data }: { data: PageData } = $props();
 	
 	// Reactive state from global store
 	let inventory = $derived(getFilteredInventory());
 	let metrics = $derived(getInventoryMetrics());
+	let paginationInfo = $derived(getPaginationInfo());
 	let loading = $derived(inventoryState.loading.list);
 	let error = $derived(inventoryState.errors.list);
 	let selectedItems = $derived(inventoryState.selection.selectedItems);
 	let selectAll = $derived(inventoryState.selection.selectAll);
 
-	// Load inventory on mount
+	// URL parameter values
+	let currentPage = $derived(data.currentPage || 1);
+	let currentLimit = $derived(data.currentLimit || 50);
+	let currentSearch = $derived(data.currentSearch || '');
+	let currentLocation = $derived(data.currentLocation || 'all');
+	let currentStockStatus = $derived(data.currentStockStatus || 'all');
+
+	// Sync URL parameters with state
 	$effect(() => {
-		// Only load if we haven't loaded recently or if there are no items
-		if (!inventoryState.lastFetch || inventoryState.items.length === 0) {
+		const offset = (currentPage - 1) * currentLimit;
+		const needsUpdate = 
+			inventoryState.filters.search !== currentSearch ||
+			inventoryState.filters.location !== currentLocation ||
+			inventoryState.filters.stockStatus !== currentStockStatus ||
+			inventoryState.filters.limit !== currentLimit ||
+			inventoryState.filters.offset !== offset ||
+			!inventoryState.lastFetch;
+		
+		if (needsUpdate) {
+			// Set filters without auto-reload to prevent infinite loop
+			inventoryActions.setFilter('search', currentSearch, false);
+			inventoryActions.setFilter('location', currentLocation, false);
+			inventoryActions.setFilter('stockStatus', currentStockStatus, false);
+			inventoryActions.setFilter('limit', currentLimit, false);
+			inventoryActions.setFilter('offset', offset, false);
+			// Load inventory once after all filters are set
 			inventoryActions.loadInventory();
 		}
 	});
@@ -38,6 +63,25 @@
 		inventoryActions.retry();
 	}
 
+	// URL navigation for pagination and filters
+	function updateInventoryUrl(params: { page?: number; limit?: number }) {
+		const url = new URL($page.url);
+		
+		if (params.page && params.page > 1) {
+			url.searchParams.set('page', params.page.toString());
+		} else {
+			url.searchParams.delete('page');
+		}
+		
+		if (params.limit && params.limit !== 50) { // 50 is default
+			url.searchParams.set('limit', params.limit.toString());
+		} else if (params.limit === 50) {
+			url.searchParams.delete('limit');
+		}
+		
+		goto(url.toString());
+	}
+
 
 
 	// Navigate to variant page
@@ -52,6 +96,32 @@
 	function handleQuantityAdjustment(item: any, field: 'available' | 'on_hand') {
 		inventoryActions.openAdjustModal(item, field);
 	}
+
+	// Get first product image
+	function getFirstImage(item: any): string | null {
+		try {
+			if (!item.product_images) return null;
+			
+			let images = item.product_images;
+			if (typeof images === 'string') {
+				images = JSON.parse(images);
+			}
+			
+			if (Array.isArray(images) && images.length > 0) {
+				const firstImage = images[0];
+				if (typeof firstImage === 'string') {
+					return firstImage;
+				} else if (firstImage && typeof firstImage === 'object' && firstImage.url) {
+					return firstImage.url;
+				}
+			}
+			
+			return null;
+		} catch (e) {
+			return null;
+		}
+	}
+
 
 </script>
 
@@ -118,7 +188,7 @@
 								/>
 							</th>
 							<th class="table-cell-main">Product</th>
-							<th>SKU</th>
+							<th class="table-cell-sku">SKU</th>
 							<th class="table-cell-numeric">Unavailable</th>
 							<th class="table-cell-numeric">Committed</th>
 							<th class="table-cell-numeric">Available</th>
@@ -139,15 +209,23 @@
 								<td class="table-cell-main">
 									<div class="table-cell-content">
 										<div class="table-cell-media">
-											<div class="table-cell-placeholder">📦</div>
+											{#if getFirstImage(item)}
+												<img 
+													src={getFirstImage(item)} 
+													alt={item.product_name || 'Product image'}
+													class="table-cell-image"
+												/>
+											{:else}
+												<div class="table-cell-placeholder">📦</div>
+											{/if}
 										</div>
 										<div class="table-cell-details">
-											<span class="table-cell-title">{item.formattedTitle}</span>
-											<span class="table-cell-subtitle">{item.formattedLocation}</span>
+											<div class="table-cell-title">{item.formattedTitle}</div>
+											<div class="table-cell-subtitle">{item.formattedLocation}</div>
 										</div>
 									</div>
 								</td>
-								<td>
+								<td class="table-cell-sku">
 									<span class="table-cell-text table-cell-muted">{item.formattedSKU}</span>
 								</td>
 								<td class="table-cell-numeric">
@@ -179,9 +257,16 @@
 			</div>
 
 			<!-- Pagination -->
-			<div class="content-footer">
-				<div class="table-summary">1-{inventory.length} of {inventory.length} items</div>
-			</div>
+			{#if !error && inventory.length > 0}
+				<Pagination
+					paginationInfo={paginationInfo}
+					actions={inventoryActions}
+					loading={loading}
+					itemName="inventory items"
+					useUrl={true}
+					urlActions={{ updateUrl: updateInventoryUrl }}
+				/>
+			{/if}
 		{:else}
 			<EmptyState 
 				icon="📊"
@@ -207,9 +292,86 @@
 		gap: var(--space-4);
 	}
 
+	/* Inventory table specific customizations - match products table */
+	.table-cell-main {
+		min-width: 250px;
+		width: 30%; /* Match products table width */
+		padding-left: var(--space-1); /* Reduced left padding from space-2 to space-1 */
+	}
+
+	.table-cell-sku {
+		width: 120px;
+		min-width: 100px;
+	}
+
+	.table-cell-image {
+		width: 40px;
+		height: 40px;
+		border-radius: var(--radius-md); /* Match products table radius */
+		object-fit: cover;
+		border: 1px solid var(--color-border);
+	}
+
+	.table-cell-title {
+		font-weight: var(--font-weight-normal); /* Match products table normal weight */
+		font-size: var(--font-size-sm);
+		color: var(--color-text);
+		line-height: var(--line-height-tight);
+		word-wrap: break-word;
+		word-break: break-word;
+		hyphens: auto;
+		display: -webkit-box;
+		-webkit-line-clamp: 2; /* Allow up to 2 lines */
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		margin-bottom: 0; /* Match products table - no bottom margin */
+	}
+
+	.table-cell-subtitle {
+		font-weight: normal;
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		line-height: var(--line-height-tight);
+	}
+
+	.table-cell-content {
+		display: flex;
+		align-items: center; /* Match products table - center alignment */
+		gap: var(--space-2); /* Match products table gap */
+	}
+
+	.table-cell-details {
+		flex: 1;
+		min-width: 0; /* Allow text to wrap properly */
+	}
+
+	.table-cell-media {
+		width: 40px;
+		height: 40px;
+		background: var(--color-surface-hover); /* Match products table background */
+		border-radius: var(--radius-md); /* Match products table radius */
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: var(--font-size-base); /* Match products table font size */
+		overflow: hidden;
+		border: 1px solid var(--color-border);
+		flex-shrink: 0;
+	}
+
+	.table-cell-placeholder {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--color-surface-hover); /* Match products table background */
+		color: var(--color-text-muted);
+	}
+
 	/* All header, form, table, modal, toast, loading, and other component styles now handled by design system */
 	
-	/* Responsive adjustments not covered by design system */
+	/* Responsive adjustments - match products table */
 	@media (max-width: 768px) {
 		.table {
 			min-width: 800px;
@@ -219,6 +381,16 @@
 			flex-direction: column;
 			align-items: flex-start;
 			gap: var(--space-2);
+		}
+
+		.table-cell-image {
+			width: 32px; /* Match products table mobile size */
+			height: 32px;
+		}
+
+		.table-cell-media {
+			width: 32px; /* Match products table mobile size */
+			height: 32px;
 		}
 	}
 </style>

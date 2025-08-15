@@ -1,4 +1,4 @@
-import { query } from '$lib/database.js';
+import { query, getCached, setCache } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
 
@@ -11,6 +11,14 @@ export async function GET({ params }) {
         status: 400,
         headers: { 'content-type': 'application/json' }
       });
+    }
+
+    const cacheKey = `customer:${id}:orders:${DEFAULT_TENANT_ID}`;
+    
+    // Try to get from cache first
+    const cachedOrders = await getCached(cacheKey);
+    if (cachedOrders) {
+      return jsonResponse(cachedOrders);
     }
 
     // Query to get customer orders with basic order information
@@ -35,6 +43,9 @@ export async function GET({ params }) {
     );
     
     const result = await Promise.race([queryPromise, timeoutPromise]);
+    
+    // Cache the orders data for 3 minutes (shorter cache since orders change more frequently)
+    await setCache(cacheKey, result.rows, 180);
     
     return jsonResponse(result.rows);
   } catch (error) {

@@ -1,6 +1,7 @@
 import { query } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
-import { DEFAULT_TENANT_ID } from '$lib/constants.js';
+import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, PLUGIN_EVENTS } from '$lib/constants.js';
+import { PluginService } from '$lib/services/PluginService.js';
 
 export async function GET({ url }) {
   try {
@@ -175,6 +176,37 @@ export async function GET({ url }) {
 
     // Generate search suggestions for empty results
     const suggestions = total === 0 ? await generateSearchSuggestions(searchTerm) : [];
+
+    // Trigger search events
+    try {
+      const searchPayload = {
+        query: searchTerm,
+        user_id: DEFAULT_MOBILE_USER_ID,
+        results_count: total,
+        page: page,
+        limit: limit,
+        filters: {
+          collection_id: collectionId,
+          min_price: minPrice,
+          max_price: maxPrice,
+          sort_by: sortBy
+        },
+        searched_at: new Date().toISOString()
+      };
+      
+      if (total === 0) {
+        await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.SEARCH_NO_RESULTS, {
+          ...searchPayload,
+          suggestions: suggestions
+        });
+        console.log('📤 Search no results event triggered for query:', searchTerm);
+      } else {
+        await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.SEARCH_PERFORMED, searchPayload);
+        console.log('📤 Search performed event triggered for query:', searchTerm, 'Results:', total);
+      }
+    } catch (pluginError) {
+      console.error('Error triggering search plugin event:', pluginError);
+    }
 
     // Return search results
     const response = {

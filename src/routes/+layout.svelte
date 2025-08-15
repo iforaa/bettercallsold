@@ -4,15 +4,29 @@
     import { isAuthenticated, authLoaded, logout } from "$lib/stores/auth.js";
     import AuthWall from "$lib/components/AuthWall.svelte";
     import type { LayoutData } from "./$types";
+    import { onMount } from "svelte";
+    import { pluginsState, pluginsActions, getPluginsForMenu } from "$lib/state/plugins.svelte.js";
 
     let { children, data }: { children: any; data: LayoutData } = $props();
+    
+    let currentPath = $derived($page.url.pathname);
+    let isStorefront = $derived(currentPath.startsWith("/store"));
+    
+    // Load plugins on mount with caching - ONLY for non-store routes
+    onMount(() => {
+        if (!isStorefront) {
+            pluginsActions.loadPlugins();
+        }
+    });
+
+    // Handle plugin refresh
+    async function handleRefreshPlugins() {
+        await pluginsActions.refreshPlugins();
+    }
 
     function handleLogout() {
         logout();
     }
-
-    let currentPath = $derived($page.url.pathname);
-    let isStorefront = $derived(currentPath.startsWith("/store"));
 
     // Define which pages are functional (not demo)
     const functionalPages = new Set(["/settings/users"]);
@@ -177,10 +191,10 @@
                             functional: true,
                         },
                         {
-                            path: "/settings/apps",
-                            label: "Apps and sales channels",
+                            path: "/settings/plugins",
+                            label: "Plugins and sales channels",
                             icon: "🧩",
-                            functional: false,
+                            functional: true,
                         },
                         {
                             path: "/settings/domains",
@@ -248,25 +262,28 @@
                 },
             ],
         },
-        {
-            title: "Plugins",
-            items: [
-                {
-                    path: "/plugins/klaviyo",
-                    label: "Klaviyo (demo)",
-                    icon: "📧",
-                },
-                { path: "/plugins/klarna", label: "Klarna (demo)", icon: "💳" },
-                {
-                    path: "/plugins/uppromote",
-                    label: "UpPromote (demo)",
-                    icon: "🤝",
-                },
-                { path: "/cs-sync", label: "CS Sync", icon: "🔄" },
-                { path: "/test-cs-api", label: "Test CS API", icon: "🧪" },
-            ],
-        },
+        // Dynamic plugins section - will be added conditionally
     ];
+
+    // Computed menu sections with dynamic plugins using new state management
+    let menuSectionsWithPlugins = $state([...menuSections]);
+    
+    // Update menu sections when plugins change
+    $effect(() => {
+        const sections = [...menuSections];
+        const pluginsForMenu = getPluginsForMenu();
+        
+        // Add plugins section if there are any active plugins
+        if (pluginsForMenu.length > 0) {
+            sections.push({
+                title: "Plugins",
+                items: pluginsForMenu,
+                hasReloadButton: true // Flag to show reload button
+            });
+        }
+        
+        menuSectionsWithPlugins = sections;
+    });
 
     function isActiveRoute(itemPath: string): boolean {
         if (itemPath === "/") {
@@ -332,10 +349,22 @@
             <!-- Left Sidebar -->
             <aside class="sidebar">
                 <nav class="sidebar-nav">
-                    {#each menuSections as section}
+                    {#each menuSectionsWithPlugins as section}
                         <div class="nav-section">
                             {#if section.title}
-                                <div class="section-title">{section.title}</div>
+                                <div class="section-title">
+                                    <span class="section-title-text">{section.title}</span>
+                                    {#if section.hasReloadButton}
+                                        <button 
+                                            class="section-reload-btn" 
+                                            onclick={handleRefreshPlugins}
+                                            disabled={pluginsState.loading}
+                                            title="Reload plugins"
+                                        >
+                                            <span class="reload-icon" class:spinning={pluginsState.loading}>🔄</span>
+                                        </button>
+                                    {/if}
+                                </div>
                             {/if}
                             {#each section.items as item}
                                 <a
@@ -608,6 +637,58 @@
         letter-spacing: 0.5px;
         margin-top: 16px;
         margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .section-title-text {
+        flex: 1;
+    }
+
+    .section-reload-btn {
+        background: transparent;
+        border: none;
+        padding: 2px;
+        margin: 0;
+        cursor: pointer;
+        border-radius: 3px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.1s ease;
+        opacity: 0.6;
+        width: 16px;
+        height: 16px;
+    }
+
+    .section-reload-btn:hover {
+        background: #e7e7e7;
+        opacity: 1;
+    }
+
+    .section-reload-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .section-reload-btn:disabled:hover {
+        background: transparent;
+    }
+
+    .reload-icon {
+        font-size: 10px;
+        transition: transform 0.3s ease;
+        display: inline-block;
+    }
+
+    .reload-icon.spinning {
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
     }
 
     .nav-item {

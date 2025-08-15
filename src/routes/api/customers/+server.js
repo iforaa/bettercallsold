@@ -1,11 +1,25 @@
-import { query } from '$lib/database.js';
+import { query, getCached, setCache, deleteCache } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID, QUERIES } from '$lib/constants.js';
 
 export async function GET() {
   try {
+    const cacheKey = `customers:${DEFAULT_TENANT_ID}`;
+    
+    // Try to get from cache first
+    const cachedCustomers = await getCached(cacheKey);
+    if (cachedCustomers) {
+      return jsonResponse(cachedCustomers);
+    }
+
+    // If not in cache, query database
     const result = await query(QUERIES.GET_CUSTOMERS, [DEFAULT_TENANT_ID]);
-    return jsonResponse(result.rows);
+    const customers = result.rows;
+
+    // Cache the results for 5 minutes
+    await setCache(cacheKey, customers, 300);
+
+    return jsonResponse(customers);
   } catch (error) {
     console.error('Get customers error:', error);
     return internalServerErrorResponse('Failed to fetch customers');
@@ -54,6 +68,10 @@ export async function POST({ request }) {
       now,
       now
     ]);
+
+    // Invalidate customers list cache when new customer is created
+    const cacheKey = `customers:${DEFAULT_TENANT_ID}`;
+    await deleteCache(cacheKey);
 
     return jsonResponse(result.rows[0], { status: 201 });
   } catch (error) {

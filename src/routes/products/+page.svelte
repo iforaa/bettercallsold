@@ -2,12 +2,13 @@
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { productsState, productsActions, getFilteredProducts, getProductMetrics, hasCriticalErrors, isAnyLoading } from '$lib/state/products.svelte.js';
+	import { productsState, productsActions, getFilteredProducts, getProductMetrics, hasCriticalErrors, isAnyLoading, getPaginationInfo } from '$lib/state/products.svelte.js';
 	import { createProductsContext, getProductsContext } from '$lib/contexts/products.svelte.js';
 	import { ToastService } from '$lib/services/ToastService.js';
 	import ProductsTable from '$lib/components/products/ProductsTable.svelte';
 	import LoadingState from '$lib/components/states/LoadingState.svelte';
 	import ErrorState from '$lib/components/states/ErrorState.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
 
 	let { data }: { data: PageData } = $props();
 	
@@ -16,10 +17,13 @@
 	
 	// Computed values from state
 	let currentStatus = $derived(data.currentStatus || 'all');
+	let currentPage = $derived(data.currentPage || 1);
+	let currentLimit = $derived(data.currentLimit || 50);
 	let filteredProducts = $derived(getFilteredProducts());
 	let productMetrics = $derived(getProductMetrics());
 	let hasErrors = $derived(hasCriticalErrors());
 	let loading = $derived(isAnyLoading());
+	let paginationInfo = $derived(getPaginationInfo());
 
 	const tabs = [
 		{ id: 'all', label: 'All' },
@@ -28,10 +32,22 @@
 		{ id: 'archived', label: 'Archived' }
 	];
 
-	// Load products when component mounts or status changes
+	// Sync URL parameters with state
 	$effect(() => {
-		if (!productsState.lastFetch || productsState.filters.status !== currentStatus) {
-			productsActions.setFilter('status', currentStatus);
+		const offset = (currentPage - 1) * currentLimit;
+		const needsUpdate = 
+			productsState.filters.status !== currentStatus ||
+			productsState.filters.limit !== currentLimit ||
+			productsState.filters.offset !== offset ||
+			!productsState.lastFetch;
+		
+		if (needsUpdate) {
+			// Set filters without auto-reload to prevent infinite loop
+			productsActions.setFilter('status', currentStatus, false);
+			productsActions.setFilter('limit', currentLimit, false);
+			productsActions.setFilter('offset', offset, false);
+			// Load products once after all filters are set
+			productsActions.loadProducts();
 		}
 	});
 	// Tab switching function
@@ -130,6 +146,25 @@
 	function handleRetry() {
 		productsActions.retry();
 	}
+
+	// URL navigation for pagination
+	function updatePaginationUrl(params: { page?: number; limit?: number }) {
+		const url = new URL($page.url);
+		
+		if (params.page && params.page > 1) {
+			url.searchParams.set('page', params.page.toString());
+		} else {
+			url.searchParams.delete('page');
+		}
+		
+		if (params.limit && params.limit !== 50) { // 50 is default
+			url.searchParams.set('limit', params.limit.toString());
+		} else if (params.limit === 50) {
+			url.searchParams.delete('limit');
+		}
+		
+		goto(url.toString());
+	}
 </script>
 
 <svelte:head>
@@ -198,6 +233,18 @@
 				onSelectAll={handleSelectAll}
 				showSelection={true}
 			/>
+			
+			<!-- Pagination Controls -->
+			{#if !hasErrors && filteredProducts.length > 0}
+				<Pagination
+					paginationInfo={paginationInfo}
+					actions={productsActions}
+					loading={loading}
+					itemName="products"
+					useUrl={true}
+					urlActions={{ updateUrl: updatePaginationUrl }}
+				/>
+			{/if}
 		{/if}
 	</div>
 </div>
@@ -205,10 +252,10 @@
 <!-- Export Modal -->
 {#if context.state.showExportModal}
 	<div class="modal-overlay" onclick={() => context.actions.closeExportModal()}>
-		<div class="modal modal-lg" onclick={(e) => e.stopPropagation()}>
+		<div class="modal-content modal-content-lg" onclick={(e) => e.stopPropagation()}>
 			<div class="modal-header">
 				<h2 class="modal-title">Export products</h2>
-				<button class="btn btn-icon" onclick={() => context.actions.closeExportModal()}>&times;</button>
+				<button class="modal-close" onclick={() => context.actions.closeExportModal()}>&times;</button>
 			</div>
 			
 			<div class="modal-body">
@@ -260,14 +307,16 @@
 				</div>
 			</div>
 
-			<div class="modal-actions">
-				<button class="btn btn-secondary" onclick={() => context.actions.closeExportModal()}>Cancel</button>
-				<button class="btn btn-primary" onclick={handleExport} disabled={context.derived.isProcessingBulkAction}>
-					{#if context.derived.isProcessingBulkAction && context.state.bulkActions.operation === 'export'}
-						<span class="spinner"></span>
-					{/if}
-					{context.derived.isProcessingBulkAction && context.state.bulkActions.operation === 'export' ? 'Exporting...' : 'Export products'}
-				</button>
+			<div class="modal-footer">
+				<div class="modal-actions">
+					<button class="btn btn-secondary" onclick={() => context.actions.closeExportModal()}>Cancel</button>
+					<button class="btn btn-primary" onclick={handleExport} disabled={context.derived.isProcessingBulkAction}>
+						{#if context.derived.isProcessingBulkAction && context.state.bulkActions.operation === 'export'}
+							<span class="spinner"></span>
+						{/if}
+						{context.derived.isProcessingBulkAction && context.state.bulkActions.operation === 'export' ? 'Exporting...' : 'Export products'}
+					</button>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -354,4 +403,5 @@
 	.link:hover {
 		text-decoration: underline;
 	}
+
 </style>

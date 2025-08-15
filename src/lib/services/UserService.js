@@ -101,7 +101,7 @@ export class UserService {
     if (params.search) searchParams.set('search', params.search);
     if (params.role) searchParams.set('role', params.role);
     
-    const url = `/api/team${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    const url = `/api/staff${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -112,7 +112,7 @@ export class UserService {
   }
 
   static async addTeamMember(userData) {
-    const response = await fetch('/api/team', {
+    const response = await fetch('/api/staff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData)
@@ -120,35 +120,38 @@ export class UserService {
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`);
     }
     
     return await response.json();
   }
 
   static async updateTeamMember(id, updates) {
-    const response = await fetch(`/api/team/${id}`, {
+    const response = await fetch(`/api/staff`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates)
+      body: JSON.stringify({ userIds: [id], updates })
     });
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`);
     }
     
-    return await response.json();
+    const result = await response.json();
+    return result.updated && result.updated[0] ? result.updated[0] : null;
   }
 
   static async removeTeamMember(id) {
-    const response = await fetch(`/api/team/${id}`, {
-      method: 'DELETE'
+    const response = await fetch(`/api/staff`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userIds: [id] })
     });
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`);
     }
     
     return true;

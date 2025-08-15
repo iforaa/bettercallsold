@@ -1,6 +1,7 @@
 import { query } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
-import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID } from '$lib/constants.js';
+import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, PLUGIN_EVENTS } from '$lib/constants.js';
+import { PluginService } from '$lib/services/PluginService.js';
 
 export async function GET() {
 	try {
@@ -110,6 +111,33 @@ export async function POST({ request }) {
 		`;
 		
 		const insertResult = await query(insertQuery, [DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, product_id]);
+		
+		// Get product details for plugin event
+		const productQuery = `
+			SELECT name, price, images 
+			FROM products 
+			WHERE id = $1 AND tenant_id = $2
+		`;
+		
+		const productResult = await query(productQuery, [product_id, DEFAULT_TENANT_ID]);
+		const productData = productResult.rows[0];
+		
+		// Trigger favorite added event
+		try {
+			const favoriteAddedPayload = {
+				favorite_id: insertResult.rows[0].id,
+				product_id: product_id,
+				product_name: productData?.name || 'Unknown Product',
+				price: productData?.price || 0,
+				user_id: DEFAULT_MOBILE_USER_ID,
+				added_at: insertResult.rows[0].created_at
+			};
+			
+			await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.FAVORITE_ADDED, favoriteAddedPayload);
+			console.log('📤 Favorite added event triggered for product:', product_id);
+		} catch (pluginError) {
+			console.error('Error triggering favorite added plugin event:', pluginError);
+		}
 		
 		console.log('✅ Product added to favorites successfully');
 

@@ -1,6 +1,7 @@
 import { query } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse, notFoundResponse } from '$lib/response.js';
-import { DEFAULT_TENANT_ID } from '$lib/constants.js';
+import { DEFAULT_TENANT_ID, PLUGIN_EVENTS } from '$lib/constants.js';
+import { PluginService } from '$lib/services/PluginService.js';
 
 export async function DELETE({ params }) {
 	try {
@@ -12,10 +13,15 @@ export async function DELETE({ params }) {
 			return badRequestResponse('Invalid waitlist ID format');
 		}
 
-		// Check if waitlist item exists
+		// Get waitlist item data before deletion for plugin event
 		const checkQuery = `
-			SELECT id FROM waitlist 
-			WHERE id = $1 AND tenant_id = $2
+			SELECT w.id, w.product_id, w.inventory_id, w.user_id,
+			       p.name as product_name, i.size, i.color, i.price,
+			       p.price as product_price
+			FROM waitlist w
+			LEFT JOIN products p ON w.product_id = p.id
+			LEFT JOIN inventory i ON w.inventory_id = i.id
+			WHERE w.id = $1 AND w.tenant_id = $2
 		`;
 		
 		const checkResult = await query(checkQuery, [waitlistId, DEFAULT_TENANT_ID]);
@@ -34,6 +40,27 @@ export async function DELETE({ params }) {
 		const result = await query(deleteQuery, [waitlistId, DEFAULT_TENANT_ID]);
 		
 		if (result.rows.length > 0) {
+			// Trigger plugin event for waitlist removal
+			try {
+				const waitlistData = checkResult.rows[0];
+				const eventPayload = {
+					waitlist_id: waitlistId,
+					product_id: waitlistData.product_id,
+					product_name: waitlistData.product_name,
+					inventory_id: waitlistData.inventory_id,
+					user_id: waitlistData.user_id,
+					size: waitlistData.size || 'One Size',
+					color: waitlistData.color || 'Default',
+					price: waitlistData.price || waitlistData.product_price || 0,
+					removed_at: new Date().toISOString()
+				};
+
+				await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.WAITLIST_ITEM_REMOVED, eventPayload);
+				console.log(`📤 Waitlist item removed event triggered for product: ${waitlistData.product_id}`);
+			} catch (pluginError) {
+				console.error('Error triggering waitlist removal plugin event:', pluginError);
+			}
+
 			return jsonResponse({
 				message: 'Waitlist item removed successfully',
 				waitlist_id: waitlistId

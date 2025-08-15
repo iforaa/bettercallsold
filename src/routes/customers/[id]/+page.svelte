@@ -3,6 +3,8 @@
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import LoadingState from '$lib/components/states/LoadingState.svelte';
+	import ErrorState from '$lib/components/states/ErrorState.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -10,9 +12,11 @@
 	let customer: any = $state(null);
 	let orders: any[] = $state([]);
 	let waitlists: any[] = $state([]);
+	let cartItems: any[] = $state([]);
 	let loading = $state(true);
 	let loadingOrders = $state(false);
 	let loadingWaitlists = $state(false);
+	let loadingCart = $state(false);
 	let error = $state('');
 
 	async function loadCustomer() {
@@ -93,13 +97,39 @@
 		}
 	}
 
-	// Load orders and waitlists when customer data is loaded
+	async function loadCustomerCart() {
+		if (!browser || !customer) return;
+		
+		try {
+			loadingCart = true;
+			
+			const response = await fetch(`/api/customers/${data.customerId}/cart`);
+			
+			if (!response.ok) {
+				throw new Error('Failed to fetch customer cart');
+			}
+
+			const cartData = await response.json();
+			cartItems = cartData;
+		} catch (err) {
+			console.error('Load customer cart error:', err);
+			// Don't show error for cart, just keep empty array
+			cartItems = [];
+		} finally {
+			loadingCart = false;
+		}
+	}
+
+	// Load orders, waitlists, and cart when customer data is loaded
 	$effect(() => {
 		if (customer && customer.stats.order_count > 0) {
 			loadCustomerOrders();
 		}
 		if (customer) {
 			loadCustomerWaitlists();
+		}
+		if (customer && customer.stats.cart_items_count > 0) {
+			loadCustomerCart();
 		}
 	});
 	let activeTab = $state('overview');
@@ -157,7 +187,7 @@
 	}
 
 	// Navigate back to customers list or order details if came from there
-	function goBackToCustomers() {
+	function goBack() {
 		navigateBack();
 	}
 
@@ -175,6 +205,20 @@
 			goto('/customers');
 		}
 	}
+
+	function goToOrder(orderId: string) {
+		if (orderId) {
+			// Pass customer context so order page can navigate back to this customer
+			goto(`/orders/${orderId}?from=customer&customerId=${data.customerId}`);
+		}
+	}
+
+	function goToProduct(productId: string) {
+		if (productId) {
+			// Pass customer context so product page can navigate back to this customer
+			goto(`/products/${productId}?from=customer&customerId=${data.customerId}`);
+		}
+	}
 </script>
 
 <svelte:head>
@@ -182,96 +226,109 @@
 </svelte:head>
 
 <div class="page">
-	{#if error}
-		<div class="error-state">
-			<div class="error-state-content">
-				<div class="error-state-icon">⚠</div>
-				<h1 class="error-state-title">Error Loading Customer</h1>
-				<p class="error-state-message">{error}</p>
-				<div class="error-state-actions">
-					<button class="btn btn-primary" onclick={() => loadCustomer()}>
-						Retry
-					</button>
-					<button class="btn btn-secondary" onclick={goBackToCustomers}>
-						Back to Customers
-					</button>
-				</div>
+	<div class="page-header">
+		<div class="page-header-content">
+			<div class="flex-header">
+				<button class="btn btn-secondary" onclick={goBack}>
+					← Back to Customers
+				</button>
+				<h1 class="page-title">
+					<span class="page-icon">👥</span>
+					Customer Details
+				</h1>
+			</div>
+			<div class="page-actions">
+				<!-- Actions will be added here if needed -->
 			</div>
 		</div>
-	{:else if loading}
-		<div class="loading-state">
-			<div class="loading-spinner loading-spinner-lg"></div>
-			<p class="loading-text">Loading customer details...</p>
-		</div>
-	{:else if customer}
-		<div class="page-header">
-			<div class="page-header-content">
-				<div class="page-header-nav">
-					<button class="btn-icon" onclick={goBackToCustomers}>
-						←
-					</button>
-					<div class="breadcrumb">
-						<button class="breadcrumb-item" onclick={goBackToCustomers}>
-							👥 Customers
-						</button>
-						<span class="breadcrumb-separator">›</span>
-						<span class="breadcrumb-item current">{customer.name}</span>
+	</div>
+
+	<div class="page-content-padded">
+		{#if error}
+			<ErrorState 
+				error={error}
+				onRetry={loadCustomer}
+				onBack={goBack}
+				backLabel="Back to Customers"
+			/>
+		{:else if loading}
+			<LoadingState 
+				message="Loading customer details..." 
+				size="lg" 
+			/>
+		{:else if customer}
+			<div class="content-max-width">
+				<div class="header-card">
+					<div class="header-card-content">
+						<h2 class="header-card-title">{customer.name}</h2>
+						<div class="header-card-meta">
+							<span class="header-card-date">Customer since {new Date(customer.created_at).toLocaleDateString()}</span>
+							<span class="badge badge-success">Active</span>
+						</div>
+						<!-- Customer Details -->
+						<div class="header-card-details">
+							<div class="detail-grid">
+								<div class="detail-item">
+									<span class="detail-label">Customer ID:</span>
+									<span class="detail-value detail-value-mono">{customer.id}</span>
+								</div>
+								<div class="detail-item">
+									<span class="detail-label">Email:</span>
+									<span class="detail-value">{customer.email}</span>
+								</div>
+								{#if customer.phone}
+									<div class="detail-item">
+										<span class="detail-label">Phone:</span>
+										<span class="detail-value">{customer.phone}</span>
+									</div>
+								{/if}
+								<div class="detail-item">
+									<span class="detail-label">Orders:</span>
+									<span class="detail-value">{customer.stats.order_count}</span>
+								</div>
+								{#if customer.address}
+									<div class="detail-item">
+										<span class="detail-label">Address:</span>
+										<span class="detail-value">{customer.address}</span>
+									</div>
+								{/if}
+								<div class="detail-item">
+									<span class="detail-label">Last updated:</span>
+									<span class="detail-value">{new Date(customer.updated_at).toLocaleDateString()}</span>
+								</div>
+								{#if customer.facebook_id}
+									<div class="detail-item">
+										<span class="detail-label">Facebook ID:</span>
+										<span class="detail-value">{customer.facebook_id}</span>
+									</div>
+								{/if}
+								{#if customer.instagram_id}
+									<div class="detail-item">
+										<span class="detail-label">Instagram ID:</span>
+										<span class="detail-value">{customer.instagram_id}</span>
+									</div>
+								{/if}
+							</div>
+						</div>
 					</div>
-				</div>
-				<div class="page-actions">
-					<button class="btn btn-secondary">More actions</button>
-				</div>
-			</div>
-			
-			<!-- Customer Header Info -->
-			<div class="header-summary">
-				<div class="header-summary-media">
-					<div class="table-cell-media">
-						<div class="table-cell-placeholder">
-							{getInitials(customer.name)}
+					<div class="header-card-aside">
+						<div class="metric-display metric-display-inline">
+							<div class="metric-value">{formatCurrency(customer.stats.total_spent)}</div>
+							<div class="metric-label">Total Spent</div>
 						</div>
 					</div>
 				</div>
-				<div class="header-summary-content">
-					<h1 class="header-summary-title">{customer.name}</h1>
-					<div class="header-summary-meta">
-						<span class="header-summary-subtitle">ID: {customer.id.slice(0, 8)}...</span>
-					</div>
-				</div>
-			</div>
-		</div>
 
-		<div class="page-content">
-		<!-- Stats Overview -->
-		<div class="metrics-grid">
-			<div class="metric-card">
-				<div class="metric-card-value">{formatCurrency(customer.stats.total_spent)}</div>
-				<div class="metric-card-label">Amount spent</div>
 			</div>
-			<div class="metric-card">
-				<div class="metric-card-value">{customer.stats.order_count}</div>
-				<div class="metric-card-label">Orders</div>
-			</div>
-			<div class="metric-card">
-				<div class="metric-card-value">{getCustomerSince(customer.stats.customer_since)}</div>
-				<div class="metric-card-label">Customer since</div>
-			</div>
-			<div class="metric-card">
-				<div class="metric-card-value">{customer.stats.cart_items_count}</div>
-				<div class="metric-card-label">Cart items</div>
-			</div>
-		</div>
 
-		<!-- Content Layout -->
-		<div class="content-layout">
-			<!-- Main Content Area -->
-			<div class="content-main">
+			<!-- Last Order and Customer Summary Layout -->
+			<div class="card-group">
 				<!-- Last Order Section -->
-				<div class="content-section">
-					<div class="content-header">
-						<h3 class="content-title">Last order placed</h3>
+				<div class="info-card">
+					<div class="card-header">
+						<h3 class="card-title">Last order placed</h3>
 					</div>
-					<div class="content-body">
+					<div class="card-body">
 						{#if customer.stats.order_count === 0}
 							<div class="empty-state">
 								<div class="empty-state-content">
@@ -310,41 +367,51 @@
 					</div>
 				</div>
 
-				<!-- Tabs Section -->
-				<div class="content-section">
-					<div class="nav-tabs">
-						<button 
-							class="nav-tab {activeTab === 'overview' ? 'active' : ''}"
-							onclick={() => activeTab = 'overview'}
-						>
-							Overview
-						</button>
-						<button 
-							class="nav-tab {activeTab === 'orders' ? 'active' : ''}"
-							onclick={() => activeTab = 'orders'}
-						>
-							Orders ({customer.stats.order_count})
-						</button>
-						<button 
-							class="nav-tab {activeTab === 'cart' ? 'active' : ''}"
-							onclick={() => activeTab = 'cart'}
-						>
-							Cart items ({customer.stats.cart_items_count})
-						</button>
-						<button 
-							class="nav-tab {activeTab === 'posts' ? 'active' : ''}"
-							onclick={() => activeTab = 'posts'}
-						>
-							Posts ({customer.stats.posts_count})
-						</button>
-						<button 
-							class="nav-tab {activeTab === 'waitlists' ? 'active' : ''}"
-							onclick={() => activeTab = 'waitlists'}
-						>
-							Waitlists ({waitlists.length})
-						</button>
+				<!-- Overview Tabs -->
+				<div class="info-card">
+					<div class="card-header">
+						<h3 class="card-title">Overview</h3>
 					</div>
-					
+					<div class="card-body">
+						<div class="nav-tabs">
+							<button 
+								class="nav-tab {activeTab === 'overview' ? 'active' : ''}"
+								onclick={() => activeTab = 'overview'}
+							>
+								Overview
+							</button>
+							<button 
+								class="nav-tab {activeTab === 'orders' ? 'active' : ''}"
+								onclick={() => activeTab = 'orders'}
+							>
+								Orders ({customer.stats.order_count})
+							</button>
+							<button 
+								class="nav-tab {activeTab === 'cart' ? 'active' : ''}"
+								onclick={() => activeTab = 'cart'}
+							>
+								Cart items ({customer.stats.cart_items_count})
+							</button>
+							<button 
+								class="nav-tab {activeTab === 'posts' ? 'active' : ''}"
+								onclick={() => activeTab = 'posts'}
+							>
+								Posts ({customer.stats.posts_count})
+							</button>
+							<button 
+								class="nav-tab {activeTab === 'waitlists' ? 'active' : ''}"
+								onclick={() => activeTab = 'waitlists'}
+							>
+								Waitlists ({waitlists.length})
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Tab Content -->
+			<div class="content-max-width">
+				<div class="content-section">
 					<div class="content-body">
 						{#if activeTab === 'overview'}
 							<div class="content-flow">
@@ -366,23 +433,24 @@
 							</div>
 						{:else if activeTab === 'orders'}
 							{#if loadingOrders}
-								<div class="loading-state">
-									<div class="loading-spinner loading-spinner-lg"></div>
-									<p class="loading-text">Loading orders...</p>
-								</div>
+								<LoadingState message="Loading orders..." size="lg" />
 							{:else if orders.length > 0}
-								<div class="content-flow">
+								<div class="item-grid">
 									{#each orders as order}
-										<div class="card card-interactive" onclick={() => goto(`/orders/${order.id}`)}>
-											<div class="card-content">
-												<div class="card-meta">#{order.id.slice(0, 8)}...</div>
-												<div class="card-details">
-													<div class="card-title">{formatCurrency(order.total_amount)}</div>
-													<div class="card-subtitle">{order.items_count} item{order.items_count !== 1 ? 's' : ''} • {order.payment_method} • {new Date(order.created_at).toLocaleDateString()}</div>
+										<div class="product-card product-card-clickable" onclick={() => goToOrder(order.id)}>
+											<div class="product-card-image">
+												<div class="product-card-placeholder">📋</div>
+											</div>
+											<div class="product-card-content">
+												<div class="product-card-title">Order #{order.id.slice(0, 8)}...</div>
+												<div class="product-card-variants">
+													<span class="variant-item">{order.payment_method}</span>
+													<span class="variant-item">{order.status}</span>
 												</div>
-												<div class="card-action">
-													<span class="badge badge-{order.status === 'completed' ? 'success' : order.status === 'pending' ? 'warning' : order.status === 'cancelled' ? 'error' : 'info'}">{order.status}</span>
-												</div>
+												<div class="product-card-meta">{new Date(order.created_at).toLocaleDateString()}</div>
+											</div>
+											<div class="product-card-price">
+												{formatCurrency(order.total_amount)}
 											</div>
 										</div>
 									{/each}
@@ -397,13 +465,44 @@
 								</div>
 							{/if}
 						{:else if activeTab === 'cart'}
-							<div class="empty-state">
-								<div class="empty-state-content">
-									<div class="empty-state-icon">🛒</div>
-									<p class="empty-state-message">No cart items found</p>
-									<p class="empty-state-description">Cart items will appear here when the customer adds products</p>
+							{#if loadingCart}
+								<LoadingState message="Loading cart items..." size="lg" />
+							{:else if cartItems.length > 0}
+								<div class="item-grid">
+									{#each cartItems as item}
+										<div class="product-card product-card-clickable" onclick={() => goToProduct(item.product_id)}>
+											<div class="product-card-image">
+												{#if item.product_images && item.product_images.length > 0}
+													<img src="{item.product_images[0].url}" alt="{item.product_name}" />
+												{:else}
+													<div class="product-card-placeholder">📦</div>
+												{/if}
+											</div>
+											<div class="product-card-content">
+												<div class="product-card-title">{item.product_name}</div>
+												{#if item.variant_data && (item.variant_data.color || item.variant_data.size)}
+													<div class="product-card-variants">
+														{#if item.variant_data.color}<span class="variant-item">{item.variant_data.color}</span>{/if}
+														{#if item.variant_data.size}<span class="variant-item">{item.variant_data.size}</span>{/if}
+													</div>
+												{/if}
+												<div class="product-card-meta">Qty: {item.quantity}</div>
+											</div>
+											<div class="product-card-price">
+												{formatCurrency(item.product_price)}
+											</div>
+										</div>
+									{/each}
 								</div>
-							</div>
+							{:else}
+								<div class="empty-state">
+									<div class="empty-state-content">
+										<div class="empty-state-icon">🛒</div>
+										<p class="empty-state-message">No cart items found</p>
+										<p class="empty-state-description">Cart items will appear here when the customer adds products</p>
+									</div>
+								</div>
+							{/if}
 						{:else if activeTab === 'posts'}
 							<div class="empty-state">
 								<div class="empty-state-content">
@@ -414,10 +513,7 @@
 							</div>
 						{:else if activeTab === 'waitlists'}
 							{#if loadingWaitlists}
-								<div class="loading-state">
-									<div class="loading-spinner loading-spinner-lg"></div>
-									<p class="loading-text">Loading waitlists...</p>
-								</div>
+								<LoadingState message="Loading waitlists..." size="lg" />
 							{:else if waitlists.length > 0}
 								<div class="content-flow">
 									{#each waitlists as waitlist}
@@ -462,74 +558,8 @@
 				</div>
 			</div>
 
-			<!-- Sidebar -->
-			<div class="content-sidebar">
-				<!-- Customer Details Card -->
-				<div class="sidebar-section">
-					<div class="sidebar-header">
-						<h3 class="sidebar-title">Customer</h3>
-					</div>
-					
-					<div class="sidebar-subsection">
-						<h4 class="sidebar-subtitle">Contact information</h4>
-						<div class="detail-list">
-							<div class="detail-item">
-								<span class="detail-label">Email</span>
-								<span class="detail-value">{customer.email}</span>
-							</div>
-							{#if customer.phone}
-								<div class="detail-item">
-									<span class="detail-label">Phone</span>
-									<span class="detail-value">{customer.phone}</span>
-								</div>
-							{/if}
-							{#if customer.address}
-								<div class="detail-item">
-									<span class="detail-label">Address</span>
-									<span class="detail-value">{customer.address}</span>
-								</div>
-							{/if}
-						</div>
-					</div>
-
-					{#if customer.facebook_id || customer.instagram_id}
-						<div class="sidebar-subsection">
-							<h4 class="sidebar-subtitle">Social media</h4>
-							<div class="detail-list">
-								{#if customer.facebook_id}
-									<div class="detail-item">
-										<span class="detail-label">Facebook ID</span>
-										<span class="detail-value">{customer.facebook_id}</span>
-									</div>
-								{/if}
-								{#if customer.instagram_id}
-									<div class="detail-item">
-										<span class="detail-label">Instagram ID</span>
-										<span class="detail-value">{customer.instagram_id}</span>
-									</div>
-								{/if}
-							</div>
-						</div>
-					{/if}
-
-					<div class="sidebar-subsection">
-						<h4 class="sidebar-subtitle">Account details</h4>
-						<div class="detail-list">
-							<div class="detail-item">
-								<span class="detail-label">Customer since</span>
-								<span class="detail-value">{new Date(customer.created_at).toLocaleDateString()}</span>
-							</div>
-							<div class="detail-item">
-								<span class="detail-label">Last updated</span>
-								<span class="detail-value">{new Date(customer.updated_at).toLocaleDateString()}</span>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-		</div>
-	{/if}
+		{/if}
+	</div>
 </div>
 
 <!-- Toast Notifications -->
@@ -554,6 +584,44 @@
 <style>
 	/* Minimal custom styles - most styling now handled by design system */
 	
+	/* Custom header card details styling */
+	.header-card-details {
+		margin-top: var(--space-4);
+		padding-top: var(--space-4);
+		border-top: 1px solid var(--color-border);
+	}
+
+	.detail-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		gap: var(--space-3);
+	}
+
+	.detail-item {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+
+	.detail-label {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
+		font-weight: var(--font-weight-medium);
+	}
+
+	.detail-value {
+		font-size: var(--font-size-sm);
+		color: var(--color-text);
+		word-break: break-word;
+	}
+
+	.detail-value-mono {
+		font-family: monospace;
+		font-size: var(--font-size-xs);
+	}
+
 	/* Custom header summary styling */
 	.header-summary {
 		display: flex;
@@ -637,6 +705,35 @@
 		font-size: var(--font-size-sm);
 		color: var(--color-text);
 		word-break: break-word;
+	}
+
+	/* Product card clickable styling - match orders details */
+	.product-card-clickable {
+		cursor: pointer;
+		transition: all var(--transition-fast);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+	}
+
+	.product-card-clickable:hover {
+		transform: translateY(-2px);
+		box-shadow: var(--shadow-md);
+		border-color: var(--color-accent);
+	}
+
+	.product-card-clickable:active {
+		transform: translateY(0);
+		box-shadow: var(--shadow-sm);
+	}
+
+	/* Add subtle indication that cards are clickable */
+	.product-card-clickable .product-card-title {
+		color: var(--color-accent);
+		transition: color var(--transition-fast);
+	}
+
+	.product-card-clickable:hover .product-card-title {
+		color: var(--color-accent-hover);
 	}
 
 	/* Responsive adjustments not covered by design system */

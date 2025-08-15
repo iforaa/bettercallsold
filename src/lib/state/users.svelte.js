@@ -149,9 +149,9 @@ export const usersActions = {
       
       // Handle both simple array and paginated response
       if (Array.isArray(result)) {
-        usersState.users = result.map(UserService.formatUser);
+        usersState.users = result.map(user => UserService.formatUser(user));
       } else {
-        usersState.users = result.data ? result.data.map(UserService.formatUser) : [];
+        usersState.users = result.data ? result.data.map(user => UserService.formatUser(user)) : [];
         if (result.pagination) {
           usersState.pagination = { ...usersState.pagination, ...result.pagination };
         }
@@ -182,7 +182,7 @@ export const usersActions = {
       };
       
       const result = await UserService.getTeamMembers(mergedParams);
-      usersState.teamMembers = result.map(UserService.formatUser);
+      usersState.teamMembers = result.map(user => UserService.formatUser(user));
       usersState.teamLastFetch = new Date();
       
     } catch (error) {
@@ -255,41 +255,37 @@ export const usersActions = {
   async updateUser(id, updates) {
     if (!id) return false;
     
-    usersState.isEditing = true;
-    usersState.formErrors = [];
-    
     try {
-      const updatedUser = await UserService.updateUser(id, updates);
-      const formattedUser = UserService.formatUser(updatedUser);
-      
-      // Update current user if it's the one being edited
-      if (usersState.currentUser?.id === id) {
-        usersState.currentUser = formattedUser;
+      const updatedUser = await UserService.updateTeamMember(id, updates);
+      if (updatedUser) {
+        const formattedUser = UserService.formatUser(updatedUser);
+        
+        // Update current user if it's the one being edited
+        if (usersState.currentUser?.id === id) {
+          usersState.currentUser = formattedUser;
+        }
+        
+        // Update in users list
+        const index = usersState.users.findIndex(user => user.id === id);
+        if (index !== -1) {
+          usersState.users[index] = formattedUser;
+        }
+        
+        // Update in team members if it exists there
+        const teamIndex = usersState.teamMembers.findIndex(user => user.id === id);
+        if (teamIndex !== -1) {
+          usersState.teamMembers[teamIndex] = formattedUser;
+        }
+        
+        toastService.success('User updated successfully');
+        return formattedUser;
       }
-      
-      // Update in users list
-      const index = usersState.users.findIndex(user => user.id === id);
-      if (index !== -1) {
-        usersState.users[index] = formattedUser;
-      }
-      
-      // Update in team members if it exists there
-      const teamIndex = usersState.teamMembers.findIndex(user => user.id === id);
-      if (teamIndex !== -1) {
-        usersState.teamMembers[teamIndex] = formattedUser;
-      }
-      
-      this.closeUserModal();
-      toastService.success('User updated successfully');
-      return true;
+      return false;
       
     } catch (error) {
-      usersState.formErrors = [error.message];
       console.error('Failed to update user:', error);
       toastService.error(`Failed to update user: ${error.message}`);
-      return false;
-    } finally {
-      usersState.isEditing = false;
+      throw error;
     }
   },
 
@@ -297,7 +293,7 @@ export const usersActions = {
     if (!id) return false;
     
     try {
-      await UserService.deleteUser(id);
+      await UserService.removeTeamMember(id);
       
       // Remove from users list
       usersState.users = usersState.users.filter(user => user.id !== id);
@@ -313,13 +309,12 @@ export const usersActions = {
       // Remove from selection
       usersState.selectedUsers = usersState.selectedUsers.filter(userId => userId !== id);
       
-      this.closeDeleteModal();
-      toastService.success('User deleted successfully');
+      toastService.success('Staff member removed successfully');
       return true;
       
     } catch (error) {
       console.error('Failed to delete user:', error);
-      toastService.error(`Failed to delete user: ${error.message}`);
+      toastService.error(`Failed to remove staff member: ${error.message}`);
       return false;
     }
   },

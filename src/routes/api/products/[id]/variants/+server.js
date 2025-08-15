@@ -1,5 +1,4 @@
 import { query } from '$lib/database.js';
-import { getProductWithInventory } from '$lib/inventory-db.js';
 import { jsonResponse, internalServerErrorResponse, notFoundResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
 

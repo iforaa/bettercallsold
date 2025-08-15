@@ -1,6 +1,7 @@
 import { query } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
-import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID } from '$lib/constants.js';
+import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, PLUGIN_EVENTS } from '$lib/constants.js';
+import { PluginService } from '$lib/services/PluginService.js';
 
 export async function POST({ request }) {
 	try {
@@ -103,6 +104,25 @@ export async function POST({ request }) {
 
 		// Generate payment ID (in production, this would come from payment processor)
 		const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+		// Trigger checkout started event
+		try {
+			const checkoutStartedPayload = {
+				user_id: DEFAULT_MOBILE_USER_ID,
+				item_count: cartResult.rows.length,
+				subtotal: subtotal,
+				tax: tax,
+				shipping: shipping,
+				total: total,
+				payment_method: payment_method,
+				started_at: new Date().toISOString()
+			};
+			
+			await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.CHECKOUT_STARTED, checkoutStartedPayload);
+			console.log('📤 Checkout started event triggered');
+		} catch (pluginError) {
+			console.error('Error triggering checkout started plugin event:', pluginError);
+		}
 
 		// Begin transaction
 		await query('BEGIN');
@@ -235,6 +255,32 @@ export async function POST({ request }) {
 			// Commit transaction
 			await query('COMMIT');
 
+			// Trigger checkout completed event
+			try {
+				const checkoutCompletedPayload = {
+					order_id: orderId,
+					user_id: DEFAULT_MOBILE_USER_ID,
+					status: orderStatus,
+					total_amount: total,
+					subtotal_amount: subtotal,
+					tax_amount: tax,
+					shipping_amount: shipping,
+					payment_method: payment_method,
+					payment_id: paymentId,
+					item_count: orderItems.length,
+					customer_name: customerName,
+					customer_email: customerEmail,
+					customer_phone: customerPhone,
+					shipping_address: JSON.parse(shippingAddressJson),
+					completed_at: new Date().toISOString()
+				};
+				
+				await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.CHECKOUT_COMPLETED, checkoutCompletedPayload);
+				console.log('📤 Checkout completed event triggered for order:', orderId);
+			} catch (pluginError) {
+				console.error('Error triggering checkout completed plugin event:', pluginError);
+			}
+
 			// Return success response
 			const response = {
 				success: true,
@@ -255,6 +301,23 @@ export async function POST({ request }) {
 		} catch (error) {
 			// Rollback transaction on error
 			await query('ROLLBACK');
+			
+			// Trigger checkout failed event
+			try {
+				const checkoutFailedPayload = {
+					user_id: DEFAULT_MOBILE_USER_ID,
+					error_message: error.message,
+					payment_method: payment_method,
+					total: total,
+					failed_at: new Date().toISOString()
+				};
+				
+				await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.CHECKOUT_FAILED, checkoutFailedPayload);
+				console.log('📤 Checkout failed event triggered:', error.message);
+			} catch (pluginError) {
+				console.error('Error triggering checkout failed plugin event:', pluginError);
+			}
+			
 			throw error;
 		}
 

@@ -1,6 +1,7 @@
 import { query } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
-import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID } from '$lib/constants.js';
+import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, PLUGIN_EVENTS } from '$lib/constants.js';
+import { PluginService } from '$lib/services/PluginService.js';
 
 export async function POST({ request }) {
 	try {
@@ -58,6 +59,27 @@ export async function POST({ request }) {
 				product_id,
 				inventory_id
 			]);
+
+			// Trigger plugin event for waitlist addition
+			try {
+				const eventPayload = {
+					waitlist_id: waitlistResult.rows[0].id,
+					product_id: product_id,
+					product_name: inventory.product_name,
+					inventory_id: inventory_id,
+					user_id: DEFAULT_MOBILE_USER_ID,
+					size: inventory.size || 'One Size',
+					color: inventory.color || 'Default',
+					price: inventory.price || inventory.product_price || 0,
+					available_quantity: 0,
+					added_at: new Date().toISOString()
+				};
+
+				await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.WAITLIST_ITEM_ADDED, eventPayload);
+				console.log(`📤 Waitlist item added event triggered for product: ${product_id}`);
+			} catch (pluginError) {
+				console.error('Error triggering waitlist plugin event:', pluginError);
+			}
 			
 			return jsonResponse({
 				message: 'Added to Waitlist',
@@ -102,6 +124,28 @@ export async function POST({ request }) {
 			
 			const inventoryUpdateResult = await query(updateInventoryQuery, [inventory_id, DEFAULT_TENANT_ID]);
 			const newQuantity = inventoryUpdateResult.rows[0]?.quantity || 0;
+
+			// Trigger plugin event for cart addition
+			try {
+				const eventPayload = {
+					cart_id: cartResult.rows[0].id,
+					product_id: product_id,
+					product_name: inventory.product_name,
+					inventory_id: inventory_id,
+					user_id: DEFAULT_MOBILE_USER_ID,
+					quantity: 1,
+					size: inventory.size || 'One Size',
+					color: inventory.color || 'Default',
+					price: inventory.price || inventory.product_price || 0,
+					available_quantity: newQuantity,
+					added_at: new Date().toISOString()
+				};
+
+				await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.CART_ITEM_ADDED, eventPayload);
+				console.log(`📤 Cart item added event triggered for product: ${product_id}`);
+			} catch (pluginError) {
+				console.error('Error triggering cart plugin event:', pluginError);
+			}
 			
 			return jsonResponse({
 				message: 'Added to Cart',

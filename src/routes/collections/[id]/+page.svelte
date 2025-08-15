@@ -248,18 +248,15 @@
 					</div>
 				</div>
 				<div class="page-actions">
-					<button class="btn btn-secondary">View</button>
-					<div class="dropdown">
-						<button class="btn btn-secondary dropdown-trigger">
-							More actions
-							<span class="dropdown-icon">▼</span>
-						</button>
-						<div class="dropdown-content">
-							<div class="dropdown-item dropdown-item-danger" onclick={handleDelete}>
-								Delete collection
-							</div>
-						</div>
-					</div>
+					<button class="btn btn-secondary" onclick={discardChanges}>
+						Discard
+					</button>
+					<button class="btn btn-primary" onclick={() => handleSubmit(formData)} disabled={updating || uploading}>
+						{#if updating || uploading}
+							<span class="loading-spinner"></span>
+						{/if}
+						{uploading ? 'Uploading...' : updating ? 'Saving...' : 'Save'}
+					</button>
 				</div>
 			</div>
 		</div>
@@ -319,22 +316,24 @@
 						<div class="content-header">
 							<h3 class="content-title">Products</h3>
 							<div class="content-controls">
-								<div class="form-field form-field-inline" style="margin-bottom: 0;">
+								<div class="search-browse-row">
 									<input 
 										type="text" 
 										placeholder="Search products"
 										bind:value={searchTerm}
 										class="form-input form-input-sm"
 									/>
+									<button class="btn btn-secondary" onclick={toggleProductBrowser}>
+										Browse
+									</button>
 								</div>
-								<button class="btn btn-secondary" onclick={toggleProductBrowser}>
-									Browse
-								</button>
-								<div class="form-field form-field-inline" style="margin-bottom: 0;">
+								<div class="sort-dropdown">
 									<select class="form-select form-select-sm">
-										<option>Sort: Best selling</option>
-										<option>Sort: Alphabetical</option>
-										<option>Sort: Date added</option>
+										<option value="best_selling">Best selling</option>
+										<option value="alphabetical">Alphabetical</option>
+										<option value="date_added">Date added</option>
+										<option value="price_low_high">Price: Low to high</option>
+										<option value="price_high_low">Price: High to low</option>
 									</select>
 								</div>
 							</div>
@@ -344,7 +343,7 @@
 						{#if products.length > 0}
 							<div class="content-flow">
 								{#each products as product, index}
-									<div class="card card-interactive">
+									<div class="card card-interactive" onclick={() => goto(`/products/${product.id}?fromCollection=${collectionId}`)}>
 										<div class="card-content">
 											<div class="card-meta">{index + 1}.</div>
 											<div class="card-media">
@@ -366,7 +365,7 @@
 											</div>
 											<button 
 												class="btn-icon btn-ghost card-action" 
-												onclick={() => removeProductFromCollection(product.id)}
+												onclick={(e) => { e.stopPropagation(); removeProductFromCollection(product.id); }}
 												title="Remove from collection"
 											>
 												×
@@ -457,28 +456,6 @@
 
 				<!-- Sidebar -->
 				<div class="content-sidebar">
-					<!-- Publishing -->
-					<div class="sidebar-section">
-						<div class="sidebar-header">
-							<h3 class="sidebar-title">Publishing</h3>
-							<button class="btn btn-tertiary btn-sm">Manage</button>
-						</div>
-						
-						<div class="form-field">
-							<div class="form-status-item">
-								<div class="status-indicator status-active"></div>
-								<span class="status-label">Online Store</span>
-								<button class="btn-icon btn-sm">⚙</button>
-							</div>
-						</div>
-						<div class="notice notice-info">
-							<div class="notice-icon">ℹ</div>
-							<div class="notice-content">
-								<p class="notice-message">To add this collection to your online store's navigation, you need to <a href="#" class="link">update your menu</a></p>
-							</div>
-							<button class="notice-dismiss">×</button>
-						</div>
-					</div>
 
 					<!-- Image -->
 					<div class="sidebar-section">
@@ -510,30 +487,7 @@
 						</div>
 					</div>
 
-					<!-- Theme template -->
-					<div class="sidebar-section">
-						<h3 class="sidebar-title">Theme template</h3>
-						<div class="form-field">
-							<select class="form-select">
-								<option>Default collection</option>
-							</select>
-						</div>
-					</div>
 
-					<!-- Save/Discard -->
-					<div class="sidebar-section">
-						<div class="form-actions">
-							<button class="btn btn-secondary" onclick={discardChanges}>
-								Discard
-							</button>
-							<button class="btn btn-primary" onclick={() => handleSubmit(formData)} disabled={updating || uploading}>
-								{#if updating || uploading}
-									<span class="loading-spinner"></span>
-								{/if}
-								{uploading ? 'Uploading...' : updating ? 'Saving...' : 'Save'}
-							</button>
-						</div>
-					</div>
 				</div>
 			</div>
 		</div>
@@ -547,6 +501,38 @@
 	/* Content layout specific to collections detail page */
 	.content-layout {
 		grid-template-columns: 1fr 300px;
+	}
+
+	/* Search and Browse on same line */
+	.search-browse-row {
+		display: flex;
+		gap: var(--space-3);
+		align-items: center;
+		flex: 1;
+	}
+
+	.search-browse-row .form-input {
+		flex: 1;
+	}
+
+	/* Enhanced sort dropdown styling */
+	.sort-dropdown {
+		position: relative;
+		min-width: 160px;
+	}
+
+	.sort-dropdown .form-select {
+		padding-right: var(--space-8);
+		background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+		background-repeat: no-repeat;
+		background-position: right var(--space-2) center;
+		background-size: 14px;
+		cursor: pointer;
+		font-weight: var(--font-weight-medium);
+	}
+
+	.sort-dropdown .form-select:hover {
+		background-color: var(--color-surface-hover);
 	}
 
 	/* All header, form, table, modal, toast, sidebar, and other component styles now handled by design system */

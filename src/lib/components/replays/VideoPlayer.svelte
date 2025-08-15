@@ -274,8 +274,9 @@
 		background: black;
 		border-radius: var(--radius-lg);
 		overflow: hidden;
-		aspect-ratio: 16/9;
+		aspect-ratio: 9/16; /* Vertical aspect ratio for mobile videos */
 		width: 100%;
+		max-height: 60vh; /* Limit height on larger screens */
 	}
 	
 	.video-element {
@@ -337,8 +338,9 @@
 		background: black;
 		border-radius: var(--radius-lg);
 		overflow: hidden;
-		aspect-ratio: 16/9;
+		aspect-ratio: 9/16; /* Vertical aspect ratio for mobile videos */
 		width: 100%;
+		max-height: 60vh; /* Limit height on larger screens */
 	}
 	
 	.placeholder-image {
@@ -378,8 +380,9 @@
 		justify-content: center;
 		background: var(--color-surface-hover);
 		border-radius: var(--radius-lg);
-		aspect-ratio: 16/9;
+		aspect-ratio: 9/16; /* Vertical aspect ratio for mobile videos */
 		width: 100%;
+		max-height: 60vh; /* Limit height on larger screens */
 		text-align: center;
 		padding: var(--space-6);
 	}

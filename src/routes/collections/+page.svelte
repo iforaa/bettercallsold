@@ -65,7 +65,6 @@
 				</div>
 			</div>
 			<div class="page-actions">
-				<button class="btn btn-secondary">Export</button>
 				<a href="/collections/new" class="btn btn-primary">Create collection</a>
 			</div>
 		</div>

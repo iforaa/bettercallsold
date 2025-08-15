@@ -1,4 +1,4 @@
-import { query } from '$lib/database.js';
+import { query, getCached, setCache } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
 
@@ -11,6 +11,14 @@ export async function GET({ params }) {
         status: 400,
         headers: { 'content-type': 'application/json' }
       });
+    }
+
+    const cacheKey = `customer:${customerId}:waitlists:${DEFAULT_TENANT_ID}`;
+    
+    // Try to get from cache first
+    const cachedWaitlists = await getCached(cacheKey);
+    if (cachedWaitlists) {
+      return jsonResponse(cachedWaitlists);
     }
 
     // Query to get customer's waitlist entries with product and inventory details
@@ -37,6 +45,9 @@ export async function GET({ params }) {
     );
     
     const result = await Promise.race([queryPromise, timeoutPromise]);
+    
+    // Cache the waitlists data for 3 minutes (shorter cache since waitlists change more frequently)
+    await setCache(cacheKey, result.rows || [], 180);
     
     return jsonResponse(result.rows || []);
   } catch (error) {

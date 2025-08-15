@@ -3,6 +3,8 @@
  * Handles all product-related API calls and data transformations
  */
 
+import { MediaService } from './MediaService.js';
+
 export class ProductService {
   /**
    * Get all products with optional filtering and pagination
@@ -313,45 +315,34 @@ export class ProductService {
   }
 
   /**
-   * Upload images to Cloudflare R2 storage
+   * Upload images using centralized MediaService
    */
   static async uploadImages(images) {
     if (!images || images.length === 0) {
       return [];
     }
 
-    const uploadedUrls = [];
-    
-    for (const image of images) {
-      try {
-        const formData = new FormData();
-        formData.append('video', image); // Cloudflare worker expects 'video' field name
-        formData.append('fileName', image.name);
-        formData.append('contentType', image.type);
-        
-        const response = await fetch('https://quartergate.org/upload', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Upload failed: HTTP ${response.status}`);
-        }
-        
-        const result = await response.json();
-        uploadedUrls.push(result.fileUrl);
-        
-      } catch (error) {
-        console.error(`Failed to upload image ${image.name}:`, error);
-        throw new Error(`Failed to upload image ${image.name}: ${error.message}`);
+    try {
+      const { results, errors } = await MediaService.uploadFiles(images, {
+        provider: 'cloudflare',
+        cache: true,
+        parallel: true
+      });
+      
+      if (errors.length > 0) {
+        console.warn('Some images failed to upload:', errors);
       }
+      
+      return results.map(result => result.url);
+      
+    } catch (error) {
+      console.error('Failed to upload images:', error);
+      throw new Error(`Failed to upload images: ${error.message}`);
     }
-    
-    return uploadedUrls;
   }
 
   /**
-   * Download media from URL and upload to Cloudflare R2 storage
+   * Download media from URL and upload using centralized MediaService
    * Used for importing media from external sources (e.g., CommentSold)
    */
   static async downloadAndUploadMedia(mediaUrls, productName = 'product') {
@@ -359,81 +350,24 @@ export class ProductService {
       return [];
     }
 
-    const uploadedUrls = [];
-    
-    for (let i = 0; i < mediaUrls.length; i++) {
-      const mediaUrl = mediaUrls[i];
-      try {
-        // Download the media file
-        console.log(`Downloading media from: ${mediaUrl}`);
-        const downloadResponse = await fetch(mediaUrl);
-        
-        if (!downloadResponse.ok) {
-          throw new Error(`Failed to download: HTTP ${downloadResponse.status}`);
-        }
-
-        // Get the content type and determine file extension
-        const contentType = downloadResponse.headers.get('content-type') || 'application/octet-stream';
-        const buffer = await downloadResponse.arrayBuffer();
-        
-        // Determine file extension from content type or URL
-        let extension = '';
-        if (contentType.includes('image/jpeg') || contentType.includes('image/jpg')) {
-          extension = '.jpg';
-        } else if (contentType.includes('image/png')) {
-          extension = '.png';
-        } else if (contentType.includes('image/gif')) {
-          extension = '.gif';
-        } else if (contentType.includes('image/webp')) {
-          extension = '.webp';
-        } else if (contentType.includes('video/mp4')) {
-          extension = '.mp4';
-        } else {
-          // Try to get extension from URL
-          const urlExtension = mediaUrl.split('.').pop()?.toLowerCase();
-          if (urlExtension && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4'].includes(urlExtension)) {
-            extension = `.${urlExtension}`;
-          } else {
-            extension = '.jpg'; // Default fallback
-          }
-        }
-
-        // Create a filename
-        const sanitizedProductName = productName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
-        const fileName = `${sanitizedProductName}_${i + 1}_${Date.now()}${extension}`;
-        
-        // Convert ArrayBuffer to Blob for upload
-        const blob = new Blob([buffer], { type: contentType });
-        
-        // Create FormData for Cloudflare upload
-        const formData = new FormData();
-        formData.append('video', blob, fileName); // Cloudflare worker expects 'video' field name
-        formData.append('fileName', fileName);
-        formData.append('contentType', contentType);
-        
-        // Upload to Cloudflare
-        const uploadResponse = await fetch('https://quartergate.org/upload', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (!uploadResponse.ok) {
-          throw new Error(`Cloudflare upload failed: HTTP ${uploadResponse.status}`);
-        }
-        
-        const result = await uploadResponse.json();
-        uploadedUrls.push(result.fileUrl);
-        
-        console.log(`Successfully uploaded ${fileName} to Cloudflare: ${result.fileUrl}`);
-        
-      } catch (error) {
-        console.error(`Failed to download and upload media from ${mediaUrl}:`, error);
-        // Continue with other media files instead of failing completely
-        console.warn(`Skipping media file ${mediaUrl} due to error: ${error.message}`);
+    try {
+      const { results, errors } = await MediaService.downloadAndUpload(mediaUrls, {
+        provider: 'cloudflare',
+        productName,
+        stopOnError: false,
+        cache: false // Don't cache external downloads
+      });
+      
+      if (errors.length > 0) {
+        console.warn(`Failed to upload ${errors.length} media files:`, errors);
       }
+      
+      return results.map(result => result.url);
+      
+    } catch (error) {
+      console.error('Failed to download and upload media:', error);
+      throw new Error(`Failed to download and upload media: ${error.message}`);
     }
-    
-    return uploadedUrls;
   }
 
   /**

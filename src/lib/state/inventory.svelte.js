@@ -31,6 +31,9 @@ export const inventoryState = $state({
 		offset: 0
 	},
 	
+	// Pagination metadata from API
+	pagination: null,
+	
 	// Metrics and analytics
 	metrics: {
 		totalItems: 0,
@@ -74,7 +77,19 @@ export const inventoryActions = {
 		
 		try {
 			const queryParams = { ...inventoryState.filters, ...params };
-			const items = await InventoryService.getInventoryItems(queryParams);
+			const response = await InventoryService.getInventoryItems(queryParams);
+			
+			// Handle both old and new response formats
+			let items;
+			if (response.items) {
+				// New paginated response format
+				items = response.items;
+				inventoryState.pagination = response.pagination;
+			} else {
+				// Old array response format (fallback)
+				items = response;
+				inventoryState.pagination = null;
+			}
 			
 			// Format items for display
 			inventoryState.items = items.map(InventoryService.formatInventoryItem);
@@ -203,22 +218,30 @@ export const inventoryActions = {
 	 * Set filter values
 	 * @param {string} key - Filter key
 	 * @param {any} value - Filter value
+	 * @param {boolean} reload - Whether to reload inventory immediately
 	 */
-	setFilter(key, value) {
+	setFilter(key, value, reload = true) {
 		inventoryState.filters[key] = value;
-		// Reset pagination when filters change
+		// Reset pagination when filters change (except when setting offset/limit directly)
 		if (key !== 'limit' && key !== 'offset') {
 			inventoryState.filters.offset = 0;
+		}
+		// Reload inventory with new filters only if requested
+		if (reload) {
+			this.loadInventory();
 		}
 	},
 
 	/**
-	 * Set multiple filters at once
+	 * Set multiple filters at once without triggering multiple reloads
 	 * @param {Object} filters - Filters object
 	 */
-	setFilters(filters) {
+	setFilters(filters, reload = true) {
 		Object.assign(inventoryState.filters, filters);
 		inventoryState.filters.offset = 0; // Reset pagination
+		if (reload) {
+			this.loadInventory();
+		}
 	},
 
 	/**
@@ -363,6 +386,40 @@ export const inventoryActions = {
 	},
 
 	/**
+	 * Go to next page
+	 */
+	nextPage() {
+		const newOffset = inventoryState.filters.offset + inventoryState.filters.limit;
+		this.setFilter('offset', newOffset);
+	},
+
+	/**
+	 * Go to previous page
+	 */
+	prevPage() {
+		const newOffset = Math.max(0, inventoryState.filters.offset - inventoryState.filters.limit);
+		this.setFilter('offset', newOffset);
+	},
+
+	/**
+	 * Go to specific page
+	 * @param {number} page - Page number (1-based)
+	 */
+	goToPage(page) {
+		const newOffset = (page - 1) * inventoryState.filters.limit;
+		this.setFilter('offset', newOffset);
+	},
+
+	/**
+	 * Set page size
+	 * @param {number} size - New page size
+	 */
+	setPageSize(size) {
+		this.setFilter('limit', size);
+		this.setFilter('offset', 0); // Reset to first page
+	},
+
+	/**
 	 * Reset all state to initial values
 	 */
 	reset() {
@@ -377,6 +434,7 @@ export const inventoryActions = {
 			limit: 50,
 			offset: 0
 		};
+		inventoryState.pagination = null;
 		inventoryState.metrics = {
 			totalItems: 0,
 			totalCostValue: 0,
@@ -446,5 +504,42 @@ export function getAdjustmentModalData() {
 		isLoading: inventoryState.loading.updating,
 		hasErrors: Boolean(inventoryState.errors.updating),
 		errorMessage: inventoryState.errors.updating
+	};
+}
+
+export function getPaginationInfo() {
+	const { limit, offset } = inventoryState.filters;
+	const currentPage = Math.floor(offset / limit) + 1;
+	
+	// Use API pagination metadata if available, otherwise fall back to client-side logic
+	if (inventoryState.pagination) {
+		const startItem = inventoryState.pagination.total === 0 ? 0 : offset + 1;
+		const endItem = Math.min(offset + limit, inventoryState.pagination.total);
+		
+		return {
+			currentPage: inventoryState.pagination.page,
+			startItem,
+			endItem,
+			total: inventoryState.pagination.total,
+			hasNext: inventoryState.pagination.hasNext,
+			hasPrev: inventoryState.pagination.hasPrev,
+			limit
+		};
+	}
+	
+	// Fallback for backward compatibility
+	const startItem = offset + 1;
+	const endItem = Math.min(offset + limit, offset + inventoryState.items.length);
+	const hasNext = inventoryState.items.length === limit; // Assume there's more if we got a full page
+	const hasPrev = offset > 0;
+	
+	return {
+		currentPage,
+		startItem,
+		endItem,
+		total: inventoryState.items.length,
+		hasNext,
+		hasPrev,
+		limit
 	};
 }

@@ -157,9 +157,6 @@
 								</div>
 								<div class="table-product-details">
 									<div class="table-product-title">{product.name}</div>
-									{#if product.price > 0}
-										<div class="table-product-price">{formatPrice(product.price)}</div>
-									{/if}
 								</div>
 							</div>
 						</td>
@@ -197,7 +194,7 @@
 						</td>
 						<td>
 							<span class="table-catalogs">
-								{product.collections?.length || 0}
+								{product.product_collections?.length || 0}
 							</span>
 						</td>
 					</tr>
@@ -222,6 +219,7 @@
 	.table-product-col {
 		min-width: 250px;
 		width: 30%;
+		padding-left: var(--space-2); /* Reduce left padding from default */
 	}
 
 	.table-inventory-col {
@@ -233,7 +231,7 @@
 	.table-product-info {
 		display: flex;
 		align-items: center;
-		gap: var(--space-2);
+		gap: var(--space-2); /* Back to space-2 for better visual balance */
 	}
 
 	.table-product-image {
@@ -248,7 +246,6 @@
 		overflow: hidden;
 		border: 1px solid var(--color-border);
 		flex-shrink: 0;
-		opacity: 0.6;
 	}
 
 	.table-image-placeholder,
@@ -266,16 +263,10 @@
 	}
 
 	.table-product-title {
-		font-weight: var(--font-weight-medium);
+		font-weight: var(--font-weight-normal);
 		color: var(--color-text);
 		font-size: var(--font-size-sm);
 		margin-bottom: 0;
-	}
-
-	.table-product-price {
-		font-size: var(--font-size-xs);
-		color: var(--color-text-muted);
-		margin-top: var(--space-1);
 	}
 
 	/* Inventory display */

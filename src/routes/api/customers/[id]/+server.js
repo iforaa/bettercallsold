@@ -1,10 +1,17 @@
-import { query } from '$lib/database.js';
+import { query, getCached, setCache, deleteCache } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, notFoundResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID } from '$lib/constants.js';
 
 export async function GET({ params }) {
   try {
     const { id } = params;
+    const cacheKey = `customer:${id}:${DEFAULT_TENANT_ID}`;
+    
+    // Try to get from cache first
+    const cachedCustomer = await getCached(cacheKey);
+    if (cachedCustomer) {
+      return jsonResponse(cachedCustomer);
+    }
 
     // Get customer basic info (check if customer exists first, then filter by role if column exists)
     const customerResult = await query(`
@@ -73,6 +80,9 @@ export async function GET({ params }) {
       }
     };
 
+    // Cache the customer data for 5 minutes
+    await setCache(cacheKey, customerData, 300);
+
     return jsonResponse(customerData);
   } catch (error) {
     console.error('Get customer error:', error);
@@ -121,6 +131,12 @@ export async function PUT({ params, request }) {
       id,
       DEFAULT_TENANT_ID
     ]);
+
+    // Invalidate both individual customer cache and customers list cache
+    const customerCacheKey = `customer:${id}:${DEFAULT_TENANT_ID}`;
+    const customerListCacheKey = `customers:${DEFAULT_TENANT_ID}`;
+    await deleteCache(customerCacheKey);
+    await deleteCache(customerListCacheKey);
 
     return jsonResponse(result.rows[0]);
   } catch (error) {

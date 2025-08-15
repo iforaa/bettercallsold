@@ -22,25 +22,24 @@
 		onFormChange
 	}: Props = $props();
 
-	// Log image URLs for debugging
+	// Log image count for debugging (reduced logging)
 	$effect(() => {
-		console.log('ProductForm - existingImages received:', existingImages);
-		if (existingImages && existingImages.length > 0) {
-			existingImages.forEach((image, index) => {
-				const url = getImageUrl(image);
-				console.log(`Image ${index + 1} Raw:`, image);
-				console.log(`Image ${index + 1} URL:`, url);
-				console.log(`Image ${index + 1} Source:`, getImageSource(image));
-			});
-		} else {
-			console.log('ProductForm - No existing images found');
-		}
+		console.log(`ProductForm - Received ${existingImages?.length || 0} existing images`);
 	});
 
 	// Local state for UI interactions
 	let showCollectionDropdown = $state(false);
 	let collectionSearchTerm = $state('');
 	let selectedCollections = $state(formData?.collections || []);
+	
+	// Sync selectedCollections with formData changes (prevent infinite loops)
+	$effect(() => {
+		const formCollections = formData?.collections || [];
+		if (JSON.stringify(selectedCollections) !== JSON.stringify(formCollections)) {
+			selectedCollections = [...formCollections];
+			console.log('ProductForm - Synced collections:', selectedCollections.length, 'items');
+		}
+	});
 
 	// Computed properties
 	let filteredCollections = $derived(
@@ -380,6 +379,16 @@
 			<!-- Collections -->
 			<div class="form-field collection-dropdown-container">
 				<label class="form-label">Collections</label>
+				<!-- Debug info -->
+				{#if selectedCollections.length === 0 && collections.length === 0}
+					<div class="collections-debug">
+						<small class="text-muted">No collections available. <a href="/collections" class="link">Create collections</a> to organize your products.</small>
+					</div>
+				{:else if selectedCollections.length === 0}
+					<div class="collections-debug">
+						<small class="text-muted">{collections.length} collections available</small>
+					</div>
+				{/if}
 				<div class="dropdown dropdown-multiselect dropdown-full" class:active={showCollectionDropdown}>
 					<!-- Selected Collections -->
 					{#if selectedCollections.length > 0}
@@ -390,6 +399,10 @@
 									<button type="button" class="dropdown-tag-remove" onclick={() => removeCollection(collectionId)}>×</button>
 								</div>
 							{/each}
+						</div>
+					{:else}
+						<div class="dropdown-placeholder">
+							<span class="text-muted">No collections selected</span>
 						</div>
 					{/if}
 					
@@ -652,5 +665,39 @@
 		.form-sidebar {
 			order: -1;
 		}
+	}
+	
+	/* Collections placeholder */
+	.dropdown-placeholder {
+		padding: var(--space-2) var(--space-3);
+		border: 1px dashed var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface-hover);
+		margin-bottom: var(--space-2);
+	}
+	
+	.dropdown-placeholder .text-muted {
+		color: var(--color-text-muted);
+		font-size: var(--font-size-sm);
+	}
+	
+	/* Collections debug info */
+	.collections-debug {
+		margin-bottom: var(--space-2);
+	}
+	
+	.collections-debug small {
+		color: var(--color-text-muted);
+		font-size: var(--font-size-xs);
+	}
+	
+	.collections-debug .link {
+		color: var(--color-accent);
+		text-decoration: none;
+		font-weight: var(--font-weight-medium);
+	}
+	
+	.collections-debug .link:hover {
+		text-decoration: underline;
 	}
 </style>

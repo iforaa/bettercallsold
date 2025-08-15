@@ -130,6 +130,26 @@ export function isAnyLoading() {
          loading.updating || loading.deleting || loading.bulk || loading.export;
 }
 
+// Pagination computed values
+export function getPaginationInfo() {
+  const { limit, offset } = productsState.filters;
+  const currentPage = Math.floor(offset / limit) + 1;
+  const startItem = offset + 1;
+  const endItem = Math.min(offset + limit, offset + productsState.products.length);
+  const hasNext = productsState.products.length === limit; // Assume there's more if we got a full page
+  const hasPrev = offset > 0;
+  
+  return {
+    currentPage,
+    startItem,
+    endItem,
+    total: productsState.products.length,
+    hasNext,
+    hasPrev,
+    limit
+  };
+}
+
 export function getStatusBreakdown() {
   const filtered = getFilteredProducts();
   const breakdown = {
@@ -454,6 +474,27 @@ export const productsActions = {
   clearCurrentProduct() {
     productsState.currentProduct = null;
     productsState.errors.current = '';
+  },
+
+  // Pagination actions
+  nextPage() {
+    const newOffset = productsState.filters.offset + productsState.filters.limit;
+    this.setFilter('offset', newOffset);
+  },
+  
+  prevPage() {
+    const newOffset = Math.max(0, productsState.filters.offset - productsState.filters.limit);
+    this.setFilter('offset', newOffset);
+  },
+  
+  goToPage(page) {
+    const newOffset = (page - 1) * productsState.filters.limit;
+    this.setFilter('offset', newOffset);
+  },
+  
+  setPageSize(size) {
+    this.setFilter('limit', size);
+    this.setFilter('offset', 0); // Reset to first page
   },
 
   clearErrors() {

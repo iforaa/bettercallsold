@@ -21,7 +21,15 @@
 	});
 
 	function goBack() {
-		goto('/orders');
+		// Check if we came from a customer details page
+		const from = data.from || new URL(location.href).searchParams.get('from');
+		const customerId = data.customerId || new URL(location.href).searchParams.get('customerId');
+		
+		if (from === 'customer' && customerId) {
+			goto(`/customers/${customerId}`);
+		} else {
+			goto('/orders');
+		}
 	}
 
 	function goToProduct(productId) {
