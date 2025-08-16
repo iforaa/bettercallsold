@@ -41,7 +41,7 @@ export async function GET({ url }) {
     const products = await query(
       `
       SELECT p.*,
-             COALESCE(SUM(i.quantity), 0) as total_quantity,
+             COALESCE(SUM(i.quantity), 0) as total_inventory,
              COUNT(i.id) as variant_count,
              COALESCE(ARRAY_AGG(
                json_build_object(
@@ -54,7 +54,7 @@ export async function GET({ url }) {
                  'location', i.location,
                  'position', i.position
                ) ORDER BY i.position
-             ) FILTER (WHERE i.id IS NOT NULL), ARRAY[]::json[]) as inventory
+             ) FILTER (WHERE i.id IS NOT NULL), ARRAY[]::json[]) as inventory_items
       FROM products p
       LEFT JOIN inventory i ON i.product_id = p.id AND i.tenant_id = p.tenant_id
       ${whereClause}

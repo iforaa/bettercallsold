@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
@@ -15,11 +15,9 @@
 	// Template editor state
 	let editorContent = $state('');
 
-	// Site configuration state
-	let siteConfig = $state({
-		siteName: 'My Store',
-		apiBaseUrl: 'http://localhost:5173/api'
-	});
+	// Template settings state
+	let templateSettings = $state({});
+	let expandedSections = $state({}); // Track which sections are expanded
 
 	// Derived state from URL
 	let selectedTemplateId = $derived($page.url.searchParams.get('template'));
@@ -62,16 +60,53 @@
 		}
 	}
 
-	// Load store settings for site config
-	async function loadStoreSettings() {
+	// Load template settings
+	function loadTemplateSettings(template) {
+		if (!template) return;
+		
+		// Initialize template settings from default_settings or empty object
+		const defaults = template.default_settings || {};
+		templateSettings = { ...defaults };
+		
+		// Reset expanded sections
+		expandedSections = {};
+		if (template.settings_schema?.sections) {
+			// Expand first section by default
+			const firstSection = Object.keys(template.settings_schema.sections)[0];
+			if (firstSection) {
+				expandedSections[firstSection] = true;
+			}
+		}
+	}
+
+	// Toggle section expansion
+	function toggleSection(sectionKey) {
+		expandedSections[sectionKey] = !expandedSections[sectionKey];
+	}
+
+	// Update template setting
+	async function updateTemplateSetting(settingKey, value) {
+		templateSettings[settingKey] = value;
+		
+		// Save to database - this would update the template's default_settings
 		try {
-			const response = await fetch('/api/webstore/settings');
+			const response = await fetch('/api/templates', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					id: selectedTemplate.id,
+					default_settings: templateSettings
+				})
+			});
+			
 			if (response.ok) {
-				const data = await response.json();
-				siteConfig.siteName = data.store_name || 'My Store';
+				showToast('Template settings updated!', 'success');
+			} else {
+				throw new Error('Failed to update template settings');
 			}
 		} catch (err) {
-			console.error('Failed to load store settings:', err);
+			console.error('Failed to update template settings:', err);
+			showToast('Failed to update template settings', 'error');
 		}
 	}
 
@@ -92,33 +127,84 @@
 		goto('/sales-channels/web-store');
 	}
 
+	// Debounce timer for preview rendering
+	let renderTimeout = null;
+
+	// Process HTML to make it safe for iframe preview
+	function processHtmlForIframe(html) {
+		if (!html) return html;
+		
+		// Get the current origin for absolute URLs
+		const origin = window.location.origin;
+		
+		return html
+			// Remove or comment out external script references that might cause 404s
+			.replace(/<script\s+src="([^"]*)"[^>]*><\/script>/gi, (match, src) => {
+				// Skip external URLs (http/https)
+				if (src.match(/^https?:\/\//)) {
+					return match;
+				}
+				// Comment out relative script references for preview
+				return `<!-- Preview: Script removed - ${src} -->`;
+			})
+			// Convert relative URLs to absolute for assets that should work
+			.replace(/href="(?!https?:\/\/)([^"]+)"/gi, `href="${origin}/$1"`)
+			// Remove any api client initialization for preview
+			.replace(/if \(typeof StoreApiClient[\s\S]*?}\s*}\);/gi, '// API client disabled for preview')
+			// Remove cart functionality for preview
+			.replace(/function toggleCart\(\)[\s\S]*?}/gi, 'function toggleCart() { /* Disabled for preview */ }')
+			// Add a base tag to help with relative URLs
+			.replace(/<head>/i, `<head>\n  <base href="${origin}/">`);
+	}
+
 	// Render template preview using the same endpoint as the actual store
 	async function renderPreview(template) {
-		if (!template) return;
+		if (!template || rendering) return;
 		
-		try {
-			rendering = true;
-			
-			const response = await fetch('/api/store/page', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					page_type: template.template_type === 'page' ? template.template_name : 'home'
-				})
-			});
-
-			if (response.ok) {
-				const data = await response.json();
-				templatePreview = data.html;
-			} else {
-				throw new Error('Preview rendering failed');
-			}
-		} catch (err) {
-			console.error('Preview error:', err);
-			showToast('Failed to render preview', 'error');
-		} finally {
-			rendering = false;
+		// Clear any existing timeout
+		if (renderTimeout) {
+			clearTimeout(renderTimeout);
 		}
+		
+		// Debounce the render call
+		renderTimeout = setTimeout(async () => {
+			try {
+				rendering = true;
+				
+				const controller = new AbortController();
+				const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+				
+				const response = await fetch('/api/store/page', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						page_type: template.template_type === 'page' ? template.template_name : 'home'
+					}),
+					signal: controller.signal
+				});
+
+				clearTimeout(timeoutId);
+
+				if (response.ok) {
+					const data = await response.json();
+					// Process HTML to make it iframe-safe
+					templatePreview = processHtmlForIframe(data.html);
+				} else {
+					throw new Error(`Preview rendering failed: ${response.status}`);
+				}
+			} catch (err) {
+				if (err.name === 'AbortError') {
+					console.warn('Preview render timeout');
+					showToast('Preview render timed out', 'error');
+				} else {
+					console.error('Preview error:', err);
+					showToast('Failed to render preview', 'error');
+				}
+				templatePreview = ''; // Clear preview on error
+			} finally {
+				rendering = false;
+			}
+		}, 300); // 300ms debounce
 	}
 
 	// Save template
@@ -161,10 +247,15 @@
 		}
 	}
 
+	// Track the last rendered template to prevent infinite loops
+	let lastRenderedTemplateId = $state(null);
+
 	// Watch for template selection changes and render preview
 	$effect(() => {
-		if (selectedTemplate && !isEditing) {
+		if (selectedTemplate && !isEditing && selectedTemplate.id !== lastRenderedTemplateId) {
+			lastRenderedTemplateId = selectedTemplate.id;
 			renderPreview(selectedTemplate);
+			loadTemplateSettings(selectedTemplate);
 		}
 	});
 
@@ -178,7 +269,13 @@
 	// Initialize
 	onMount(() => {
 		loadTemplates();
-		loadStoreSettings();
+	});
+
+	// Cleanup
+	onDestroy(() => {
+		if (renderTimeout) {
+			clearTimeout(renderTimeout);
+		}
 	});
 </script>
 
@@ -237,35 +334,42 @@
 
 	<div class="page-content">
 		{#if error}
-			<div class="error-state">
-				<div class="error-state-content">
-					<div class="error-state-icon">⚠</div>
-					<h1 class="error-state-title">Error</h1>
-					<p class="error-state-message">{error}</p>
-					<div class="error-state-actions">
-						<button class="btn btn-primary" onclick={() => loadTemplates()}>
-							Retry
-						</button>
+			<div class="page-content-padded">
+				<div class="error-state">
+					<div class="error-state-content">
+						<div class="error-state-icon">⚠</div>
+						<h1 class="error-state-title">Error</h1>
+						<p class="error-state-message">{error}</p>
+						<div class="error-state-actions">
+							<button class="btn btn-primary" onclick={() => loadTemplates()}>
+								Retry
+							</button>
+						</div>
 					</div>
 				</div>
 			</div>
 		{:else if loading}
-			<div class="loading-state">
-				<div class="loading-spinner loading-spinner-lg"></div>
-				<p class="loading-text">Loading templates...</p>
+			<div class="page-content-padded">
+				<div class="loading-state">
+					<div class="loading-spinner loading-spinner-lg"></div>
+					<p class="loading-text">Loading templates...</p>
+				</div>
 			</div>
 		{:else if isEditing && selectedTemplate}
 			<!-- Template Editor View -->
-			<div class="editor-layout">
-				<textarea 
-					class="code-editor"
-					bind:value={editorContent}
-					placeholder="Enter your Liquid template code here..."
-				></textarea>
+			<div class="page-content-padded">
+				<div class="editor-layout">
+					<textarea 
+						class="code-editor"
+						bind:value={editorContent}
+						placeholder="Enter your Liquid template code here..."
+					></textarea>
+				</div>
 			</div>
 		{:else}
 			<!-- Templates View with Sidebar Layout -->
-			<div class="builder-layout">
+			<div class="page-content-padded">
+				<div class="builder-layout">
 				<!-- Main Content Area -->
 				<div class="main-content">
 					{#if selectedTemplate}
@@ -295,7 +399,12 @@
 											<p>Preview will appear here when rendered</p>
 											<button 
 												class="btn btn-primary"
-												onclick={() => renderPreview(selectedTemplate)}
+												onclick={() => {
+													if (!rendering) {
+														templatePreview = ''; // Clear current preview
+														renderPreview(selectedTemplate);
+													}
+												}}
 												disabled={rendering}
 											>
 												{#if rendering}
@@ -323,34 +432,95 @@
 
 				<!-- Right Sidebar -->
 				<aside class="right-sidebar">
-					<!-- Store Settings -->
-					<div class="sidebar-section">
-						<div class="sidebar-section-header">
-							<h3 class="sidebar-section-title">Store Settings</h3>
-						</div>
-						<div class="sidebar-section-content">
-							<div class="form-field">
-								<label class="form-label" for="site-name">Store Name</label>
-								<input 
-									id="site-name"
-									type="text" 
-									class="form-input form-input-sm"
-									bind:value={siteConfig.siteName}
-									placeholder="My Amazing Store"
-								/>
+					<!-- Template Configuration -->
+					{#if selectedTemplate}
+						<div class="sidebar-section">
+							<div class="sidebar-section-header">
+								<h3 class="sidebar-section-title">Template</h3>
 							</div>
-							<div class="form-field">
-								<label class="form-label" for="api-url">API Base URL</label>
-								<input 
-									id="api-url"
-									type="url" 
-									class="form-input form-input-sm"
-									bind:value={siteConfig.apiBaseUrl}
-									placeholder="http://localhost:5173/api"
-								/>
+							<div class="sidebar-section-content">
+								{#if selectedTemplate.settings_schema?.sections}
+									{#each Object.entries(selectedTemplate.settings_schema.sections) as [sectionKey, section]}
+										<div class="template-section">
+											<button 
+												class="template-section-header"
+												onclick={() => toggleSection(sectionKey)}
+											>
+												<span class="section-icon">
+													{#if expandedSections[sectionKey]}▼{:else}▶{/if}
+												</span>
+												<span class="section-icon-type">📄</span>
+												<span class="section-title">{section.title || sectionKey}</span>
+											</button>
+											
+											{#if expandedSections[sectionKey] && section.settings}
+												<div class="template-section-content">
+													{#each section.settings as setting}
+														<div class="template-setting">
+															<div class="setting-header">
+																<span class="setting-icon">
+																	{#if setting.type === 'text'}📝{:else if setting.type === 'color'}🎨{:else if setting.type === 'image_picker'}🖼️{:else if setting.type === 'checkbox'}☑{:else}⚙{/if}
+																</span>
+																<span class="setting-label">{setting.label}</span>
+															</div>
+															
+															{#if setting.type === 'text'}
+																<input 
+																	type="text"
+																	class="form-input form-input-sm"
+																	bind:value={templateSettings[setting.id]}
+																	placeholder={setting.default}
+																	onblur={() => updateTemplateSetting(setting.id, templateSettings[setting.id])}
+																/>
+															{:else if setting.type === 'color'}
+																<input 
+																	type="color"
+																	class="form-input form-input-sm color-input"
+																	bind:value={templateSettings[setting.id]}
+																	onchange={() => updateTemplateSetting(setting.id, templateSettings[setting.id])}
+																/>
+															{:else if setting.type === 'checkbox'}
+																<label class="form-label checkbox-label">
+																	<input 
+																		type="checkbox"
+																		bind:checked={templateSettings[setting.id]}
+																		onchange={() => updateTemplateSetting(setting.id, templateSettings[setting.id])}
+																	/>
+																	{setting.label}
+																</label>
+															{:else if setting.type === 'image_picker'}
+																<div class="image-picker">
+																	<input 
+																		type="url"
+																		class="form-input form-input-sm"
+																		bind:value={templateSettings[setting.id]}
+																		placeholder="Image URL"
+																		onblur={() => updateTemplateSetting(setting.id, templateSettings[setting.id])}
+																	/>
+																</div>
+															{:else}
+																<input 
+																	type="text"
+																	class="form-input form-input-sm"
+																	bind:value={templateSettings[setting.id]}
+																	placeholder={setting.default}
+																	onblur={() => updateTemplateSetting(setting.id, templateSettings[setting.id])}
+																/>
+															{/if}
+														</div>
+													{/each}
+												</div>
+											{/if}
+										</div>
+									{/each}
+								{:else}
+									<div class="empty-template-settings">
+										<p>This template has no configurable settings.</p>
+									</div>
+								{/if}
 							</div>
 						</div>
-					</div>
+					{/if}
 
 					<!-- Templates List -->
 					<div class="sidebar-section">
@@ -394,6 +564,7 @@
 					</div>
 				</aside>
 			</div>
+			</div>
 		{/if}
 	</div>
 </div>
@@ -421,17 +592,16 @@
 	.builder-layout {
 		display: grid;
 		grid-template-columns: 1fr 320px;
-		gap: 0; /* Remove gap for wider preview */
-		min-height: calc(100vh - 140px);
-		align-items: start; /* Align content to top, let it grow naturally */
+		gap: 0;
+		height: calc(100vh - 140px);
+		align-items: stretch;
 	}
 
 	.main-content {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-6);
-		overflow: visible; /* Allow natural flow */
-		/* Remove all padding to eliminate space between preview and sidebar */
+		overflow: hidden;
+		height: 100%;
 	}
 
 	/* Template Details */
@@ -637,33 +807,33 @@
 	.right-sidebar {
 		display: flex;
 		flex-direction: column;
-		position: sticky;
-		top: var(--space-4);
-		height: calc(100vh - 180px);
-		align-self: start;
-		gap: 0; /* Remove any gaps between sections */
-		padding-left: var(--space-4); /* Add left padding for separation from main content */
+		height: 100%;
+		gap: var(--space-4);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: 16px;
+		overflow: hidden;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 	}
 
 	.sidebar-section {
-		border-bottom: 1px solid var(--color-border);
-		margin-bottom: var(--space-4); /* Add spacing between sections */
+		display: flex;
+		flex-direction: column;
 	}
 
 	.sidebar-section:last-child {
-		border-bottom: none;
-		margin-bottom: 0;
+		flex: 1;
+		overflow: hidden;
 	}
 
 	.sidebar-section-header {
-		padding: var(--space-3) var(--space-4);
+		padding: var(--space-4);
 		background: var(--color-background-secondary);
 		border-bottom: 1px solid var(--color-border);
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: var(--space-2);
-		border-radius: var(--radius-md) var(--radius-md) 0 0;
 	}
 
 	.sidebar-section-title {
@@ -678,31 +848,24 @@
 	.sidebar-section-content {
 		padding: var(--space-4);
 		background: var(--color-surface);
-		border-radius: 0 0 var(--radius-md) var(--radius-md);
+		flex: 1;
 	}
 
 	/* Store Settings section */
 	.sidebar-section:first-child {
-		border-radius: var(--radius-lg) var(--radius-lg) var(--radius-md) var(--radius-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		margin-bottom: var(--space-6);
+		border-bottom: 1px solid var(--color-border);
 	}
 
 	/* Templates section */
 	.sidebar-section:nth-child(2) {
-		border-radius: var(--radius-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
 		flex: 1;
 		display: flex;
 		flex-direction: column;
-		margin-bottom: 0;
+		overflow: hidden;
 	}
 
 	.sidebar-section:nth-child(2) .sidebar-section-content {
 		padding: 0;
-		border-radius: 0 0 var(--radius-md) var(--radius-md);
 		flex: 1;
 		overflow-y: auto;
 	}
@@ -731,12 +894,128 @@
 		font-size: var(--font-size-sm);
 	}
 
+	.sidebar-section-content .color-input {
+		height: 36px;
+		padding: 4px;
+		border-radius: var(--radius-sm);
+	}
+
+	.sidebar-section-content .form-label input[type="checkbox"] {
+		margin-right: var(--space-2);
+	}
+
+	/* Template Settings Styles */
+	.template-section {
+		border-bottom: 1px solid var(--color-border);
+		margin-bottom: var(--space-2);
+	}
+
+	.template-section:last-child {
+		border-bottom: none;
+		margin-bottom: 0;
+	}
+
+	.template-section-header {
+		width: 100%;
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-3) 0;
+		background: transparent;
+		border: none;
+		cursor: pointer;
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-medium);
+		color: var(--color-text-primary);
+	}
+
+	.template-section-header:hover {
+		background: var(--color-background-secondary);
+		border-radius: var(--radius-sm);
+		padding-left: var(--space-2);
+		padding-right: var(--space-2);
+	}
+
+	.section-icon {
+		font-size: 10px;
+		color: var(--color-text-tertiary);
+		width: 12px;
+	}
+
+	.section-icon-type {
+		font-size: 14px;
+	}
+
+	.section-title {
+		flex: 1;
+		text-align: left;
+	}
+
+	.template-section-content {
+		padding-left: var(--space-6);
+		padding-bottom: var(--space-3);
+	}
+
+	.template-setting {
+		margin-bottom: var(--space-4);
+	}
+
+	.template-setting:last-child {
+		margin-bottom: 0;
+	}
+
+	.setting-header {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-bottom: var(--space-2);
+	}
+
+	.setting-icon {
+		font-size: 12px;
+		width: 16px;
+	}
+
+	.setting-label {
+		font-size: var(--font-size-xs);
+		font-weight: var(--font-weight-medium);
+		color: var(--color-text-secondary);
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
+	}
+
+	.checkbox-label {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-normal);
+		color: var(--color-text-primary);
+		text-transform: none;
+		letter-spacing: normal;
+		margin-bottom: 0;
+	}
+
+	.empty-template-settings {
+		padding: var(--space-4);
+		text-align: center;
+		color: var(--color-text-secondary);
+		font-size: var(--font-size-sm);
+	}
+
+	.image-picker {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
 
 	/* Template Content Area */
 	.template-content {
 		flex: 1;
 		display: flex;
 		flex-direction: column;
+		height: 100%;
 		min-height: 0;
 	}
 
@@ -745,10 +1024,11 @@
 		flex-direction: column;
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
+		border-radius: 16px;
 		overflow: hidden;
 		flex: 1;
-		min-height: 500px;
+		height: 100%;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 	}
 
 	.preview-loading {
@@ -767,18 +1047,15 @@
 		display: flex;
 		flex-direction: column;
 		position: relative;
-		min-height: 500px;
+		height: 100%;
 	}
 
 	.template-preview-iframe {
 		width: 100%;
 		height: 100%;
-		min-height: 500px;
 		border: none;
 		background: white;
-		border-radius: inherit;
-		
-		/* Ensure iframe takes full space */
+		border-radius: 16px;
 		flex: 1;
 	}
 
@@ -797,9 +1074,10 @@
 		justify-content: center;
 		background: var(--color-background-secondary);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		min-height: 300px;
+		border-radius: 16px;
+		height: 100%;
 		padding: var(--space-8);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 	}
 
 	/* Editor Layout */

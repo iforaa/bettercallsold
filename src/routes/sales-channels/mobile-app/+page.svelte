@@ -25,7 +25,6 @@
 	let error = $derived(mobileAppState.errors.config);
 	let saveError = $derived(mobileAppState.errors.saving);
 	let validationErrors = $derived(mobileAppState.errors.validation);
-	let previewOpen = $derived(mobileAppState.ui.previewOpen);
 	let isDirty = $derived(hasUnsavedChanges());
 	
 	// Computed values
@@ -86,14 +85,6 @@
 		}
 	}
 	
-	// Handle preview
-	function handleTogglePreview() {
-		mobileAppActions.togglePreview();
-	}
-	
-	function handleClosePreview() {
-		mobileAppActions.closePreview();
-	}
 	
 	// Handle retry
 	function handleRetry() {
@@ -131,18 +122,30 @@
 				</div>
 			</div>
 			<div class="page-header-aside">
-				<div class="page-actions">
+				<div class="save-actions">
 					{#if isDirty}
-						<div class="unsaved-indicator">
+						<div class="unsaved-indicator-header">
 							<span class="unsaved-dot"></span>
 							<span class="unsaved-text">Unsaved changes</span>
 						</div>
 					{/if}
 					{#if lastSave}
-						<div class="last-save">
+						<div class="last-save-header">
 							Last saved: {lastSave.toLocaleTimeString()}
 						</div>
 					{/if}
+					<button
+						class="btn btn-primary"
+						onclick={handleSave}
+						disabled={saving || !validation.isValid}
+					>
+						{#if saving}
+							<span class="loading-spinner loading-spinner-sm"></span>
+							Saving...
+						{:else}
+							💾 Save Configuration
+						{/if}
+					</button>
 				</div>
 			</div>
 		</div>
@@ -164,34 +167,36 @@
 				subMessage="Please wait while we fetch your app settings"
 			/>
 		{:else}
-			<!-- Validation Errors -->
-			{#if validationErrors.length > 0}
-				<div class="alert-banner alert-banner-error">
-					<div class="alert-banner-content">
-						<span class="alert-banner-icon">⚠</span>
-						<div>
-							<strong>Configuration Issues:</strong>
-							<ul class="error-list">
-								{#each validationErrors as error}
-									<li>{error}</li>
-								{/each}
-							</ul>
+			<div class="page-content-padded">
+				<!-- Validation Errors -->
+				{#if validationErrors.length > 0}
+					<div class="alert-banner alert-banner-error">
+						<div class="alert-banner-content">
+							<span class="alert-banner-icon">⚠</span>
+							<div>
+								<strong>Configuration Issues:</strong>
+								<ul class="error-list">
+									{#each validationErrors as error}
+										<li>{error}</li>
+									{/each}
+								</ul>
+							</div>
 						</div>
 					</div>
-				</div>
-			{/if}
+				{/if}
 
-			<!-- Save Error -->
-			{#if saveError}
-				<div class="alert-banner alert-banner-error">
-					<div class="alert-banner-content">
-						<span class="alert-banner-icon">⚠</span>
-						<span>Failed to save: {saveError}</span>
+				<!-- Save Error -->
+				{#if saveError}
+					<div class="alert-banner alert-banner-error">
+						<div class="alert-banner-content">
+							<span class="alert-banner-icon">⚠</span>
+							<span>Failed to save: {saveError}</span>
+						</div>
 					</div>
-				</div>
-			{/if}
+				{/if}
 
-			<div class="content-grid">
+				<div class="main-layout">
+				<div class="content-grid">
 				<!-- App Information Section -->
 				<div class="content-section">
 					<div class="content-header">
@@ -211,6 +216,22 @@
 								disabled={loading || saving}
 							/>
 							<div class="form-help">This name will appear in your mobile app</div>
+						</div>
+
+						<div class="testflight-info">
+							<div class="testflight-header">
+								<h4 class="testflight-title">📱 iOS Beta Testing</h4>
+							</div>
+							<div class="testflight-content">
+								<p class="testflight-text">Test the latest iOS app features with TestFlight</p>
+								<a 
+									href="https://testflight.apple.com/join/xRDEgUjR" 
+									target="_blank" 
+									class="btn btn-primary btn-sm testflight-link"
+								>
+									✈️ Join TestFlight Beta
+								</a>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -285,28 +306,27 @@
 						/>
 					</div>
 				</div>
+
 			</div>
 
-			<!-- Action Buttons -->
-			<div class="content-footer">
-				<div class="page-actions">
-					<button class="btn btn-ghost" onclick={handleResetToDefaults} disabled={saving}>
+				<!-- Web Preview Sidebar -->
+				<div class="web-preview-sidebar">
+					<div class="web-preview-header">
+						<h3 class="web-preview-title">🌐 Web Preview</h3>
+					</div>
+					<div class="web-preview-content">
+						<div class="preview-placeholder">
+							<div class="placeholder-icon">📱</div>
+							<p class="placeholder-text">Live preview will appear here in the future</p>
+						</div>
+					</div>
+				</div>
+				</div>
+
+				<!-- Reset Button -->
+				<div class="reset-section">
+					<button class="btn btn-ghost btn-sm" onclick={handleResetToDefaults} disabled={saving}>
 						🔄 Reset to Defaults
-					</button>
-					<button class="btn btn-secondary" onclick={handleTogglePreview} disabled={saving}>
-						👀 Preview
-					</button>
-					<button
-						class="btn btn-primary"
-						onclick={handleSave}
-						disabled={saving || !validation.isValid}
-					>
-						{#if saving}
-							<span class="loading-spinner loading-spinner-sm"></span>
-							Saving...
-						{:else}
-							💾 Save Configuration
-						{/if}
 					</button>
 				</div>
 			</div>
@@ -314,22 +334,44 @@
 	</div>
 </div>
 
-<!-- Preview Modal -->
-<MobileAppPreview 
-	isOpen={previewOpen}
-	config={config}
-	enabledTabs={enabledTabs}
-	onClose={handleClosePreview}
-/>
-
 <style>
+	/* Header save section */
+	.save-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-4);
+	}
+
+	.unsaved-indicator-header {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-2) var(--space-3);
+		background: var(--color-warning-bg);
+		color: var(--color-warning-text);
+		border-radius: var(--radius-full);
+		font-size: var(--font-size-xs);
+		font-weight: var(--font-weight-medium);
+	}
+
+	.last-save-header {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	/* Main layout with sidebar */
+	.main-layout {
+		display: grid;
+		grid-template-columns: 1fr 280px;
+		gap: var(--space-8);
+		align-items: start;
+	}
+
 	/* Content grid layout */
 	.content-grid {
 		display: grid;
 		grid-template-columns: 1fr;
 		gap: var(--space-6);
-		max-width: 800px;
-		margin: 0 auto;
 	}
 
 	.content-section {
@@ -369,41 +411,9 @@
 		margin-top: var(--space-6);
 	}
 
-	/* Page header styling */
-	.page-header-aside {
-		display: flex;
-		align-items: center;
-		gap: var(--space-4);
-	}
-
-	.unsaved-indicator {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		padding: var(--space-2) var(--space-3);
-		background: var(--color-warning-bg);
-		color: var(--color-warning-text);
-		border-radius: var(--radius-full);
-		font-size: var(--font-size-xs);
-		font-weight: var(--font-weight-medium);
-	}
-
-	.unsaved-dot {
-		width: 6px;
-		height: 6px;
-		background: var(--color-warning);
-		border-radius: var(--radius-full);
-		animation: pulse 2s ease-in-out infinite;
-	}
-
 	@keyframes pulse {
 		0%, 100% { opacity: 1; }
 		50% { opacity: 0.5; }
-	}
-
-	.last-save {
-		font-size: var(--font-size-xs);
-		color: var(--color-text-muted);
 	}
 
 	/* Alert styling */
@@ -423,6 +433,46 @@
 		margin-top: var(--space-1);
 	}
 
+	/* TestFlight info styling */
+	.testflight-info {
+		margin-top: var(--space-6);
+		padding: var(--space-4);
+		background: var(--color-primary-50);
+		border: 1px solid var(--color-primary-200);
+		border-radius: var(--radius-md);
+	}
+
+	.testflight-header {
+		margin-bottom: var(--space-3);
+	}
+
+	.testflight-title {
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
+		color: var(--color-primary);
+		margin: 0;
+	}
+
+	.testflight-content {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+	}
+
+	.testflight-text {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+		margin: 0;
+		flex: 1;
+	}
+
+	.testflight-link {
+		flex-shrink: 0;
+		font-size: var(--font-size-xs);
+		padding: var(--space-2) var(--space-3);
+	}
+
 	/* Loading spinner for save button */
 	.loading-spinner-sm {
 		width: 16px;
@@ -430,27 +480,117 @@
 		margin-right: var(--space-2);
 	}
 
+	/* Web Preview Sidebar */
+	.web-preview-sidebar {
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		height: fit-content;
+		position: sticky;
+		top: var(--space-6);
+		width: 280px;
+	}
+
+	.web-preview-header {
+		background: var(--color-surface-secondary);
+		padding: var(--space-3) var(--space-4);
+		border-bottom: 1px solid var(--color-border-light);
+		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+	}
+
+	.web-preview-title {
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
+		color: var(--color-text);
+		margin: 0;
+	}
+
+	.web-preview-content {
+		padding: var(--space-4);
+	}
+
+	.preview-placeholder {
+		/* iPhone-like aspect ratio: 19.5:9 (approximately 2.17:1) */
+		aspect-ratio: 9 / 19.5;
+		background: var(--color-surface-secondary);
+		border-radius: var(--radius-xl);
+		border: 3px solid var(--color-border);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: var(--space-6) var(--space-4);
+		position: relative;
+		overflow: hidden;
+	}
+
+	.preview-placeholder::before {
+		content: '';
+		position: absolute;
+		top: var(--space-2);
+		left: 50%;
+		transform: translateX(-50%);
+		width: 60px;
+		height: 4px;
+		background: var(--color-border-dark);
+		border-radius: var(--radius-full);
+	}
+
+	.placeholder-icon {
+		font-size: 24px;
+		margin-bottom: var(--space-2);
+		opacity: 0.6;
+	}
+
+	.placeholder-text {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		margin: 0;
+		line-height: 1.4;
+		text-align: center;
+	}
+
+	/* Reset section */
+	.reset-section {
+		margin-top: var(--space-6);
+		text-align: center;
+		padding-top: var(--space-4);
+		border-top: 1px solid var(--color-border);
+	}
+
 	/* Responsive adjustments */
-	@media (max-width: 768px) {
-		.content-grid {
-			max-width: 100%;
+	@media (max-width: 1200px) {
+		.main-layout {
+			grid-template-columns: 1fr;
+			gap: var(--space-6);
 		}
-		
-		.page-header-aside {
+
+		.web-preview-sidebar {
+			order: -1;
+			position: static;
+			width: 100%;
+			max-width: 400px;
+			margin: 0 auto;
+		}
+	}
+
+	@media (max-width: 768px) {
+		.save-actions {
 			flex-direction: column;
 			align-items: flex-end;
 			gap: var(--space-2);
 		}
-		
-		.page-actions {
-			flex-direction: column;
-			width: 100%;
-			gap: var(--space-2);
+
+		.main-layout {
+			gap: var(--space-4);
 		}
-		
-		.page-actions .btn {
-			width: 100%;
-			justify-content: center;
+
+		.web-preview-sidebar {
+			max-width: 280px;
+		}
+
+		.web-preview-content {
+			padding: var(--space-3);
 		}
 	}
 </style>
