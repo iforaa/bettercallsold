@@ -468,7 +468,6 @@
                                     bind:value={formData.usage_limit_per_customer}
                                     placeholder="1"
                                     min="1"
-                                    value="1"
                                 />
                             </div>
                         {/if}
