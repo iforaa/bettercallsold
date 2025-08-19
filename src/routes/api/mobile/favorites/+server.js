@@ -13,11 +13,12 @@ export async function GET() {
 				f.id as favorite_id,
 				f.product_id,
 				f.created_at,
-				p.name as product_name,
-				p.price,
-				p.images
+				COALESCE(p_new.title, p_old.name) as product_name,
+				COALESCE(p_old.price, 0) as price,
+				COALESCE(p_new.images, p_old.images) as images
 			FROM favorites f
-			LEFT JOIN products p ON f.product_id = p.id AND f.tenant_id = p.tenant_id
+			LEFT JOIN products_new p_new ON f.product_id = p_new.id AND f.tenant_id = p_new.tenant_id
+			LEFT JOIN products_old p_old ON f.product_id = p_old.id AND f.tenant_id = p_old.tenant_id
 			WHERE f.tenant_id = $1 AND f.user_id = $2
 			ORDER BY f.created_at DESC
 		`;
@@ -114,9 +115,13 @@ export async function POST({ request }) {
 		
 		// Get product details for plugin event
 		const productQuery = `
-			SELECT name, price, images 
-			FROM products 
-			WHERE id = $1 AND tenant_id = $2
+			SELECT 
+				COALESCE(p_new.title, p_old.name) as name,
+				COALESCE(p_old.price, 0) as price,
+				COALESCE(p_new.images, p_old.images) as images
+			FROM products_new p_new
+			FULL OUTER JOIN products_old p_old ON p_new.id = p_old.id
+			WHERE (p_new.id = $1 OR p_old.id = $1) AND (p_new.tenant_id = $2 OR p_old.tenant_id = $2)
 		`;
 		
 		const productResult = await query(productQuery, [product_id, DEFAULT_TENANT_ID]);

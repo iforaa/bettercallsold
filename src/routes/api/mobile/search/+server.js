@@ -79,18 +79,19 @@ export async function GET({ url }) {
       paramIndex++;
     }
 
-    // Add price filters
-    if (minPrice !== null) {
-      queryText += ` AND p.price >= $${paramIndex}`;
-      params.push(minPrice);
-      paramIndex++;
-    }
+    // Add price filters - TODO: Implement with product variants
+    // Price filtering disabled for new product structure compatibility
+    // if (minPrice !== null) {
+    //   queryText += ` AND p.price >= $${paramIndex}`;
+    //   params.push(minPrice);
+    //   paramIndex++;
+    // }
 
-    if (maxPrice !== null) {
-      queryText += ` AND p.price <= $${paramIndex}`;
-      params.push(maxPrice);
-      paramIndex++;
-    }
+    // if (maxPrice !== null) {
+    //   queryText += ` AND p.price <= $${paramIndex}`;
+    //   params.push(maxPrice);
+    //   paramIndex++;
+    // }
 
     // Group by for aggregation
     queryText += ` GROUP BY p.id`;
@@ -136,12 +137,12 @@ export async function GET({ url }) {
     // Get total count for pagination
     let countQuery = `
       SELECT COUNT(DISTINCT p.id) as total
-      FROM products p
+      FROM products_new p
       LEFT JOIN product_collections pc ON p.id = pc.product_id
       WHERE p.tenant_id = $1 
         AND p.status = 'active'
         AND (
-          p.name ILIKE $2 OR 
+          p.title ILIKE $2 OR 
           p.description ILIKE $2 OR
           EXISTS (
             SELECT 1 FROM unnest(p.tags) tag 
@@ -159,17 +160,18 @@ export async function GET({ url }) {
       countParamIndex++;
     }
 
-    if (minPrice !== null) {
-      countQuery += ` AND p.price >= $${countParamIndex}`;
-      countParams.push(minPrice);
-      countParamIndex++;
-    }
+    // Price filtering disabled for new product structure compatibility  
+    // if (minPrice !== null) {
+    //   countQuery += ` AND p.price >= $${countParamIndex}`;
+    //   countParams.push(minPrice);
+    //   countParamIndex++;
+    // }
 
-    if (maxPrice !== null) {
-      countQuery += ` AND p.price <= $${countParamIndex}`;
-      countParams.push(maxPrice);
-      countParamIndex++;
-    }
+    // if (maxPrice !== null) {
+    //   countQuery += ` AND p.price <= $${countParamIndex}`;
+    //   countParams.push(maxPrice);
+    //   countParamIndex++;
+    // }
 
     const countResult = await query(countQuery, countParams);
     const total = parseInt(countResult.rows[0]?.total || 0);
@@ -361,15 +363,15 @@ async function generateSearchSuggestions(searchTerm) {
     // Get popular products and tags for suggestions
     const suggestionsQuery = `
       SELECT DISTINCT 
-        p.name,
+        p.title as name,
         unnest(p.tags) as tag,
-        p.brand
-      FROM products p
+        p.vendor as brand
+      FROM products_new p
       WHERE p.tenant_id = $1 
         AND p.status = 'active'
         AND (
-          p.name ILIKE $2 OR
-          p.brand ILIKE $2 OR
+          p.title ILIKE $2 OR
+          p.vendor ILIKE $2 OR
           EXISTS (
             SELECT 1 FROM unnest(p.tags) tag 
             WHERE tag ILIKE $2

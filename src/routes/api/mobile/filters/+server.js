@@ -13,12 +13,13 @@ export async function GET({ url }) {
     // Build query to get products for filtering
     let queryText = `
       SELECT 
-        p.variants,
-        p.tags,
-        p.brand,
-        p.price,
-        p.name
-      FROM products p
+        COALESCE(p_old.variants, '[]') as variants,
+        COALESCE(p_new.tags, p_old.tags) as tags,
+        COALESCE(p_new.vendor, p_old.brand) as brand,
+        COALESCE(p_old.price, 0) as price,
+        COALESCE(p_new.title, p_old.name) as name
+      FROM products_new p_new
+      FULL OUTER JOIN products_old p_old ON p_new.id = p_old.id
     `;
 
     let params = [DEFAULT_TENANT_ID];
@@ -27,11 +28,11 @@ export async function GET({ url }) {
     // Add collection filter if specified
     if (collectionId) {
       queryText += `
-        INNER JOIN product_collections pc ON p.id = pc.product_id
+        INNER JOIN product_collections pc ON (p_new.id = pc.product_id OR p_old.id = pc.product_id)
       `;
     }
 
-    queryText += ` WHERE p.tenant_id = $1 AND p.status = 'active'`;
+    queryText += ` WHERE (p_new.tenant_id = $1 OR p_old.tenant_id = $1) AND (p_new.status = 'active' OR p_old.status = 'active')`;
 
     if (collectionId) {
       queryText += ` AND pc.collection_id = $${paramIndex}`;

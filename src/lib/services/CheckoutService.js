@@ -314,18 +314,19 @@ export class CheckoutService {
       // Use provided cart items
       cartItems = providedCartItems;
     } else {
-      // Get cart items from database
+      // Get cart items from database - support both old and new product structures
       const cartQuery = `
         SELECT 
           c.id as cart_id,
           c.product_id,
           c.quantity,
           c.variant_data,
-          p.name as product_name,
-          p.price,
-          p.images
+          COALESCE(p_new.title, p_old.name) as product_name,
+          COALESCE(p_old.price, 0) as price,
+          COALESCE(p_new.images, p_old.images) as images
         FROM cart_items c
-        LEFT JOIN products p ON c.product_id = p.id
+        LEFT JOIN products_new p_new ON c.product_id = p_new.id
+        LEFT JOIN products_old p_old ON c.product_id = p_old.id
         WHERE c.tenant_id = $1 AND c.user_id = $2
         ORDER BY c.created_at DESC
       `;
