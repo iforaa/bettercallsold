@@ -5,6 +5,7 @@ import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID } from '$lib/constants.js';
 export async function GET() {
 	try {
 		// Query waitlist items with product and inventory info for mobile format
+		// Note: inventory_id still references old inventory_old table
 		const waitlistQuery = `
 			SELECT 
 				w.id as waitlist_id,
@@ -16,15 +17,15 @@ export async function GET() {
 				w.coupon_id,
 				w.local_pickup,
 				w.location_id,
-				p.name as product_name,
-				p.price,
+				p.title as product_name,
+				COALESCE(i_old.price, 0) as price,
 				p.images,
-				i.color,
-				i.size,
-				i.quantity as stock_quantity
+				i_old.color,
+				i_old.size,
+				COALESCE(i_old.quantity, 0) as stock_quantity
 			FROM waitlist w
-			LEFT JOIN products p ON w.product_id = p.id
-			LEFT JOIN inventory i ON w.inventory_id = i.id
+			LEFT JOIN products_new p ON w.product_id = p.id
+			LEFT JOIN inventory_old i_old ON w.inventory_id = i_old.id
 			WHERE w.tenant_id = $1 AND w.user_id = $2
 			ORDER BY w.created_at DESC
 		`;

@@ -33,9 +33,9 @@ export async function GET({ url }) {
         -- Relevance scoring
         (
           CASE 
-            WHEN LOWER(p.name) = LOWER($2) THEN 100
-            WHEN LOWER(p.name) LIKE LOWER($2 || '%') THEN 90
-            WHEN LOWER(p.name) LIKE LOWER('%' || $2 || '%') THEN 80
+            WHEN LOWER(p.title) = LOWER($2) THEN 100
+            WHEN LOWER(p.title) LIKE LOWER($2 || '%') THEN 90
+            WHEN LOWER(p.title) LIKE LOWER('%' || $2 || '%') THEN 80
             ELSE 0
           END +
           CASE 
@@ -54,13 +54,13 @@ export async function GET({ url }) {
             ELSE 0
           END
         ) as relevance_score
-      FROM products p
+      FROM products_new p
       LEFT JOIN product_collections pc ON p.id = pc.product_id
       LEFT JOIN collections c ON pc.collection_id = c.id AND c.tenant_id = $1
       WHERE p.tenant_id = $1 
         AND p.status = 'active'
         AND (
-          p.name ILIKE $3 OR 
+          p.title ILIKE $3 OR 
           p.description ILIKE $3 OR
           EXISTS (
             SELECT 1 FROM unnest(p.tags) tag 

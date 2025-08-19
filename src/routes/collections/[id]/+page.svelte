@@ -171,7 +171,7 @@
 	let filteredAvailableProducts = $derived(
 		availableProducts.filter(product => 
 			!products.some(p => p.id === product.id) &&
-			product.name.toLowerCase().includes(searchTerm.toLowerCase())
+			(product.title || product.name || '').toLowerCase().includes(searchTerm.toLowerCase())
 		)
 	);
 	
@@ -209,6 +209,23 @@
 		} catch (e) {
 			return null;
 		}
+	}
+
+	function getProductPrice(product: any): number {
+		// For old products with direct price field
+		if (product.price !== undefined && product.price !== null) {
+			return product.price;
+		}
+		
+		// For new products, get price from first variant
+		if (product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
+			const firstVariant = product.variants[0];
+			if (firstVariant && firstVariant.price !== undefined) {
+				return firstVariant.price;
+			}
+		}
+		
+		return 0;
 	}
 </script>
 
@@ -350,7 +367,7 @@
 												{#if getFirstImage(product)}
 													<img 
 														src={getFirstImage(product)} 
-														alt={product.name}
+														alt={product.title || product.name}
 														loading="lazy"
 													/>
 												{:else}
@@ -358,7 +375,7 @@
 												{/if}
 											</div>
 											<div class="card-details">
-												<div class="card-title">{product.name}</div>
+												<div class="card-title">{product.title || product.name}</div>
 												<div class="card-subtitle">
 													<span class="badge badge-success">Active</span>
 												</div>
@@ -418,7 +435,7 @@
 																{#if getFirstImage(product)}
 																	<img 
 																		src={getFirstImage(product)} 
-																		alt={product.name}
+																		alt={product.title || product.name}
 																		loading="lazy"
 																	/>
 																{:else}
@@ -426,8 +443,8 @@
 																{/if}
 															</div>
 															<div class="card-details">
-																<div class="card-title">{product.name}</div>
-																<div class="card-subtitle">${product.price}</div>
+																<div class="card-title">{product.title || product.name}</div>
+																<div class="card-subtitle">${getProductPrice(product)}</div>
 															</div>
 															<button 
 																class="btn btn-primary btn-sm"

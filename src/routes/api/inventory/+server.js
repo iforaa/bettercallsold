@@ -13,61 +13,81 @@ export async function GET({ url }) {
 
     switch (action) {
       case 'low_stock':
-        const lowStockProducts = await query(`
-          SELECT p.id, p.name, p.price, p.images, p.status,
-                 COALESCE(SUM(i.quantity), 0) as total_quantity,
-                 COUNT(i.id) as variant_count
-          FROM products p
-          LEFT JOIN inventory i ON i.product_id = p.id AND i.tenant_id = p.tenant_id
-          WHERE p.tenant_id = $1
-          GROUP BY p.id, p.name, p.price, p.images, p.status
-          HAVING COALESCE(SUM(i.quantity), 0) <= $2
-          ORDER BY total_quantity ASC
-        `, [DEFAULT_TENANT_ID, threshold]);
-        return jsonResponse(lowStockProducts.rows);
+          // Use new location-based inventory system
+          const lowStockProductsNew = await query(`
+            SELECT p.id, p.title as name, p.status, p.images,
+                   COALESCE(SUM(il.available), 0) as total_quantity,
+                   COUNT(DISTINCT pv.id) as variant_count,
+                   COUNT(DISTINCT il.location_id) as location_count,
+                   COALESCE(ARRAY_AGG(
+                     json_build_object(
+                       'location_id', l.id,
+                       'location_name', l.name,
+                       'available', il.available,
+                       'committed', il.committed,
+                       'on_hand', il.on_hand
+                     ) ORDER BY l.name
+                   ) FILTER (WHERE il.id IS NOT NULL), ARRAY[]::json[]) as inventory_by_location
+            FROM products_new p
+            INNER JOIN product_variants_new pv ON pv.product_id = p.id
+            LEFT JOIN inventory_levels_new il ON il.variant_id = pv.id
+            LEFT JOIN locations l ON l.id = il.location_id
+            WHERE p.tenant_id = $1 AND p.status = 'active'
+            GROUP BY p.id, p.title, p.status, p.images
+            HAVING COALESCE(SUM(il.available), 0) <= $2
+            ORDER BY COALESCE(SUM(il.available), 0) ASC
+          `, [DEFAULT_TENANT_ID, threshold]);
+          return jsonResponse(lowStockProductsNew.rows);
 
       case 'value':
-        const inventoryValue = await query(`
-          SELECT 
-            COUNT(DISTINCT p.id) as total_products,
-            COUNT(i.id) as total_variants,
-            COALESCE(SUM(i.quantity), 0) as total_quantity,
-            COALESCE(SUM(i.quantity * COALESCE(i.price, p.price)), 0) as total_value,
-            COALESCE(SUM(i.quantity * COALESCE(i.cost, 0)), 0) as total_cost
-          FROM products p
-          LEFT JOIN inventory i ON i.product_id = p.id AND i.tenant_id = p.tenant_id
-          WHERE p.tenant_id = $1
-        `, [DEFAULT_TENANT_ID]);
-        return jsonResponse(inventoryValue.rows[0] || {});
+          // Use new location-based inventory system
+          const inventoryValueNew = await query(`
+            SELECT 
+              COUNT(DISTINCT p.id) as total_products,
+              COUNT(DISTINCT pv.id) as total_variants,
+              COALESCE(SUM(il.available), 0) as total_quantity,
+              COALESCE(SUM(il.available * COALESCE(pv.price, 0)), 0) as total_retail_value,
+              COALESCE(SUM(il.available * COALESCE(pv.cost, 0)), 0) as total_cost_value
+            FROM products_new p
+            LEFT JOIN product_variants_new pv ON pv.product_id = p.id
+            LEFT JOIN inventory_levels_new il ON il.variant_id = pv.id
+            WHERE p.tenant_id = $1
+          `, [DEFAULT_TENANT_ID]);
+          return jsonResponse(inventoryValueNew.rows[0] || {});
 
       case 'search':
         if (!search) {
           return jsonResponse([]);
         }
-        const searchResults = await query(`
-          SELECT p.id, p.name, p.description, p.price, p.images, p.status,
-                 COALESCE(SUM(i.quantity), 0) as total_quantity,
-                 COUNT(i.id) as variant_count,
-                 COALESCE(ARRAY_AGG(
-                   json_build_object(
-                     'id', i.id,
-                     'quantity', i.quantity,
-                     'variant_combination', i.variant_combination,
-                     'price', i.price,
-                     'sku', i.sku,
-                     'cost', i.cost,
-                     'location', i.location,
-                     'position', i.position
-                   ) ORDER BY i.position
-                 ) FILTER (WHERE i.id IS NOT NULL), ARRAY[]::json[]) as inventory
-          FROM products p
-          LEFT JOIN inventory i ON i.product_id = p.id AND i.tenant_id = p.tenant_id
-          WHERE p.tenant_id = $1 AND p.name ILIKE $2
-          GROUP BY p.id, p.name, p.description, p.price, p.images, p.status
-          ORDER BY p.created_at DESC
-          LIMIT $3
-        `, [DEFAULT_TENANT_ID, `%${search}%`, limit]);
-        return jsonResponse(searchResults.rows);
+          // Use new location-based inventory system
+          const searchResultsNew = await query(`
+            SELECT p.id, p.title as name, p.description, p.images, p.status,
+                   COALESCE(SUM(il.available), 0) as total_quantity,
+                   COUNT(DISTINCT pv.id) as variant_count,
+                   COALESCE(ARRAY_AGG(
+                     json_build_object(
+                       'id', pv.id,
+                       'title', pv.title,
+                       'available', il.available,
+                       'on_hand', il.on_hand,
+                       'committed', il.committed,
+                       'price', pv.price,
+                       'sku', pv.sku,
+                       'cost', pv.cost,
+                       'location_name', l.name,
+                       'position', pv.position
+                     ) ORDER BY pv.position
+                   ) FILTER (WHERE pv.id IS NOT NULL), ARRAY[]::json[]) as inventory
+            FROM products_new p
+            LEFT JOIN product_variants_new pv ON pv.product_id = p.id
+            LEFT JOIN inventory_levels_new il ON il.variant_id = pv.id
+            LEFT JOIN locations l ON l.id = il.location_id
+            WHERE p.tenant_id = $1 AND p.title ILIKE $2
+            GROUP BY p.id, p.title, p.description, p.images, p.status
+            ORDER BY p.created_at DESC
+            LIMIT $3
+          `, [DEFAULT_TENANT_ID, `%${search}%`, limit]);
+          return jsonResponse(searchResultsNew.rows);
 
       case 'product':
         const productId = searchParams.get('product_id');
@@ -117,30 +137,35 @@ export async function GET({ url }) {
 
       default:
         // Default: get all products with inventory
-        const products = await query(`
-          SELECT p.*, 
-                 COALESCE(SUM(i.quantity), 0) as total_quantity,
-                 COUNT(i.id) as variant_count,
-                 COALESCE(ARRAY_AGG(
-                   json_build_object(
-                     'id', i.id,
-                     'quantity', i.quantity,
-                     'variant_combination', i.variant_combination,
-                     'price', i.price,
-                     'sku', i.sku,
-                     'cost', i.cost,
-                     'location', i.location,
-                     'position', i.position
-                   ) ORDER BY i.position
-                 ) FILTER (WHERE i.id IS NOT NULL), ARRAY[]::json[]) as inventory
-          FROM products p
-          LEFT JOIN inventory i ON i.product_id = p.id AND i.tenant_id = p.tenant_id
-          WHERE p.tenant_id = $1
-          GROUP BY p.id
-          ORDER BY p.created_at DESC
-          LIMIT $2 OFFSET $3
-        `, [DEFAULT_TENANT_ID, limit, offset]);
-        return jsonResponse(products.rows);
+          // Use new location-based inventory system
+          const productsNew = await query(`
+            SELECT p.*, 
+                   COALESCE(SUM(il.available), 0) as total_quantity,
+                   COUNT(DISTINCT pv.id) as variant_count,
+                   COALESCE(ARRAY_AGG(
+                     json_build_object(
+                       'id', pv.id,
+                       'title', pv.title,
+                       'available', il.available,
+                       'on_hand', il.on_hand,
+                       'committed', il.committed,
+                       'price', pv.price,
+                       'sku', pv.sku,
+                       'cost', pv.cost,
+                       'location_name', l.name,
+                       'position', pv.position
+                     ) ORDER BY pv.position
+                   ) FILTER (WHERE pv.id IS NOT NULL), ARRAY[]::json[]) as inventory
+            FROM products_new p
+            LEFT JOIN product_variants_new pv ON pv.product_id = p.id
+            LEFT JOIN inventory_levels_new il ON il.variant_id = pv.id
+            LEFT JOIN locations l ON l.id = il.location_id
+            WHERE p.tenant_id = $1
+            GROUP BY p.id
+            ORDER BY p.created_at DESC
+            LIMIT $2 OFFSET $3
+          `, [DEFAULT_TENANT_ID, limit, offset]);
+          return jsonResponse(productsNew.rows);
     }
   } catch (error) {
     console.error('Get inventory error:', error);

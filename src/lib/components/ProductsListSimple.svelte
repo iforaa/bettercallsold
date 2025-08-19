@@ -38,7 +38,7 @@
     $effect(() => {
         if (searchQuery.trim()) {
             filteredProducts = allProducts.filter(product => 
-                product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (product.title || product.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                 product.description?.toLowerCase().includes(searchQuery.toLowerCase())
             );
         } else {
@@ -63,6 +63,23 @@
             }
         }
         return null;
+    }
+    
+    function getProductPrice(product) {
+        // For old products with direct price field
+        if (product.price !== undefined && product.price !== null) {
+            return product.price;
+        }
+        
+        // For new products, get price from first variant
+        if (product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
+            const firstVariant = product.variants[0];
+            if (firstVariant && firstVariant.price !== undefined) {
+                return firstVariant.price;
+            }
+        }
+        
+        return 0;
     }
     
     function addProduct(product) {
@@ -196,7 +213,7 @@
                                 {#if getFirstImage(product)}
                                     <img 
                                         src={getFirstImage(product)} 
-                                        alt={product.name}
+                                        alt={product.title || product.name}
                                         loading="lazy"
                                         onerror={(e) => {
                                             e.target.style.display = 'none';
@@ -209,10 +226,10 @@
                                 {/if}
                             </div>
                             <div class="product-details">
-                                <div class="product-title" title={product.name}>
-                                    {truncateText(product.name)}
+                                <div class="product-title" title={product.title || product.name}>
+                                    {truncateText(product.title || product.name)}
                                 </div>
-                                <div class="product-price">${product.price}</div>
+                                <div class="product-price">${getProductPrice(product)}</div>
                             </div>
                         </div>
                     </div>
@@ -260,7 +277,7 @@
                                         {#if getFirstImage(product)}
                                             <img 
                                                 src={getFirstImage(product)} 
-                                                alt={product.name}
+                                                alt={product.title || product.name}
                                                 loading="lazy"
                                                 onerror={(e) => {
                                                     e.target.style.display = 'none';
@@ -273,8 +290,8 @@
                                         {/if}
                                     </div>
                                     <div class="product-details">
-                                        <div class="product-title">{product.name}</div>
-                                        <div class="product-price">${product.price}</div>
+                                        <div class="product-title">{product.title || product.name}</div>
+                                        <div class="product-price">${getProductPrice(product)}</div>
                                     </div>
                                 </div>
                                 <div class="product-actions">

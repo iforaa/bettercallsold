@@ -1,6 +1,7 @@
 /**
- * ProductService - Stateless business logic for product operations
+ * ProductService - Client-side product operations
  * Handles all product-related API calls and data transformations
+ * Note: All server-side logic (feature flags, database operations) handled in API endpoints
  */
 
 import { MediaService } from './MediaService.js';
@@ -30,7 +31,7 @@ export class ProductService {
   }
 
   /**
-   * Get single product by ID
+   * Get a single product by ID
    */
   static async getProduct(id) {
     const response = await fetch(`/api/products/${id}`);
@@ -46,7 +47,7 @@ export class ProductService {
   }
 
   /**
-   * Create new product
+   * Create a new product
    */
   static async createProduct(productData) {
     const response = await fetch('/api/products', {
@@ -56,31 +57,33 @@ export class ProductService {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to create product: HTTP ${response.status}`);
+      const error = await response.json();
+      throw new Error(error.error || `Failed to create product: HTTP ${response.status}`);
     }
     
     return await response.json();
   }
 
   /**
-   * Update existing product
+   * Update an existing product
    */
   static async updateProduct(id, updates) {
     const response = await fetch(`/api/products/${id}`, {
-      method: 'PATCH',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to update product: HTTP ${response.status}`);
+      const error = await response.json();
+      throw new Error(error.error || `Failed to update product: HTTP ${response.status}`);
     }
     
     return await response.json();
   }
 
   /**
-   * Delete product
+   * Delete a product
    */
   static async deleteProduct(id) {
     const response = await fetch(`/api/products/${id}`, {
@@ -88,58 +91,54 @@ export class ProductService {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to delete product: HTTP ${response.status}`);
+      const error = await response.json();
+      throw new Error(error.error || `Failed to delete product: HTTP ${response.status}`);
     }
     
-    return true;
+    return await response.json();
   }
 
   /**
-   * Bulk delete multiple products
+   * Bulk delete products
    */
   static async bulkDeleteProducts(productIds) {
-    const results = {
-      successful: [],
-      failed: []
-    };
-    
-    // Delete products one by one to handle individual failures
-    for (const productId of productIds) {
-      try {
-        await this.deleteProduct(productId);
-        results.successful.push(productId);
-      } catch (error) {
-        results.failed.push({ id: productId, error: error.message });
-      }
-    }
-    
-    return results;
-  }
-
-  /**
-   * Export products to CSV/Excel
-   */
-  static async exportProducts(exportParams) {
-    const response = await fetch('/api/products/export', {
-      method: 'POST',
+    const response = await fetch('/api/products/bulk', {
+      method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(exportParams)
+      body: JSON.stringify({ product_ids: productIds })
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to export products: HTTP ${response.status}`);
+      const error = await response.json();
+      throw new Error(error.error || `Failed to bulk delete products: HTTP ${response.status}`);
     }
     
-    // Return blob for download
-    const blob = await response.blob();
-    const filename = response.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'products-export.csv';
-    
-    return { blob, filename };
+    return await response.json();
   }
 
+  /**
+   * Upload product images
+   */
+  static async uploadImages(images) {
+    if (!images || images.length === 0) return [];
+    
+    const imageUrls = [];
+    
+    for (const image of images) {
+      try {
+        const url = await MediaService.uploadImage(image);
+        imageUrls.push(url);
+      } catch (error) {
+        console.error('Failed to upload image:', error);
+        throw new Error(`Failed to upload image: ${error.message}`);
+      }
+    }
+    
+    return imageUrls;
+  }
 
   /**
-   * Get collections for product organization
+   * Get product collections
    */
   static async getCollections() {
     const response = await fetch('/api/collections');
@@ -151,271 +150,171 @@ export class ProductService {
     return await response.json();
   }
 
-  // =====================================
-  // Business Logic Methods
-  // =====================================
+  /**
+   * Export products to CSV/Excel
+   */
+  static async exportProducts(params = {}) {
+    const searchParams = new URLSearchParams();
+    
+    if (params.format) searchParams.set('format', params.format);
+    if (params.status) searchParams.set('status', params.status);
+    if (params.collection) searchParams.set('collection', params.collection);
+    
+    const url = `/api/products/export${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to export products: HTTP ${response.status}`);
+    }
+    
+    const blob = await response.blob();
+    const filename = response.headers.get('content-disposition')?.split('filename=')[1] || 'products.csv';
+    
+    return { blob, filename };
+  }
+
+  // Client-side helper methods for data transformation and validation
 
   /**
    * Format product data for display
    */
   static formatProduct(product) {
+    if (!product) return null;
+    
     return {
       ...product,
-      formattedPrice: this.formatPrice(product.price),
-      formattedComparePrice: product.compare_price ? this.formatPrice(product.compare_price) : null,
-      statusInfo: this.getStatusInfo(product.status),
-      inventoryStatus: this.getInventoryStatus(product.total_inventory || 0),
-      firstImage: this.getFirstImage(product.images),
-      totalVariants: product.variant_count || 0,
-      isActive: product.status === 'active',
-      isDraft: product.status === 'draft',
-      isArchived: product.status === 'archived'
+      formattedPrice: this.formatCurrency(product.price || 0),
+      formattedImages: this.formatImages(product.images),
+      statusLabel: this.getStatusLabel(product.status),
+      tagsArray: this.parseTags(product.tags),
+      hasInventory: product.inventory && product.inventory.length > 0,
+      totalQuantity: this.calculateTotalQuantity(product.inventory)
     };
   }
 
   /**
-   * Get product status information
-   */
-  static getStatusInfo(status) {
-    const statusMap = {
-      'active': { label: 'Active', color: 'success', class: 'status-active' },
-      'draft': { label: 'Draft', color: 'default', class: 'status-draft' },
-      'archived': { label: 'Archived', color: 'default', class: 'status-archived' }
-    };
-    
-    return statusMap[status] || { label: 'Unknown', color: 'default', class: 'status-unknown' };
-  }
-
-  /**
-   * Get inventory status information
-   */
-  static getInventoryStatus(count) {
-    if (count === 0) {
-      return { label: 'Out of Stock', class: 'out-of-stock', variant: 'error' };
-    }
-    if (count < 10) {
-      return { label: 'Low Stock', class: 'low-stock', variant: 'warning' };
-    }
-    return { label: 'In Stock', class: 'in-stock', variant: 'success' };
-  }
-
-  /**
-   * Format price for display
-   */
-  static formatPrice(price) {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(price);
-  }
-
-  /**
-   * Get first image from product images
-   */
-  static getFirstImage(images) {
-    try {
-      if (!images) return null;
-      
-      let imageArray = images;
-      if (typeof images === 'string') {
-        imageArray = JSON.parse(images);
-      }
-      
-      if (Array.isArray(imageArray) && imageArray.length > 0) {
-        const firstImage = imageArray[0];
-        if (typeof firstImage === 'string') {
-          return firstImage;
-        } else if (firstImage && typeof firstImage === 'object' && firstImage.url) {
-          return firstImage.url;
-        }
-      }
-      
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  /**
-   * Calculate product metrics from products array
+   * Calculate metrics from products array
    */
   static calculateMetrics(products) {
-    if (!Array.isArray(products)) {
-      return {
-        total: 0,
-        active: 0,
-        draft: 0,
-        archived: 0,
-        totalInventory: 0,
-        outOfStock: 0,
-        lowStock: 0
-      };
-    }
-
-    const metrics = products.reduce((acc, product) => {
-      acc.total++;
-      
-      // Status counts
-      if (product.status === 'active') acc.active++;
-      else if (product.status === 'draft') acc.draft++;
-      else if (product.status === 'archived') acc.archived++;
-      
-      // Inventory counts
-      const inventory = product.total_inventory || 0;
-      acc.totalInventory += inventory;
-      
-      if (inventory === 0) acc.outOfStock++;
-      else if (inventory < 10) acc.lowStock++;
-      
-      return acc;
-    }, {
-      total: 0,
+    if (!Array.isArray(products)) return { total: 0, active: 0, draft: 0, archived: 0, totalValue: 0 };
+    
+    const metrics = {
+      total: products.length,
       active: 0,
       draft: 0,
       archived: 0,
-      totalInventory: 0,
-      outOfStock: 0,
-      lowStock: 0
+      totalValue: 0
+    };
+    
+    products.forEach(product => {
+      switch (product.status) {
+        case 'active':
+          metrics.active++;
+          break;
+        case 'draft':
+          metrics.draft++;
+          break;
+        case 'archived':
+          metrics.archived++;
+          break;
+      }
+      
+      // Calculate total value using price and inventory quantity
+      const quantity = this.calculateTotalQuantity(product.inventory);
+      metrics.totalValue += (product.price || 0) * quantity;
     });
-
+    
     return metrics;
   }
 
   /**
-   * Validate product data
+   * Validate product data before submission
    */
   static validateProduct(productData) {
     const errors = [];
     
-    if (!productData.name || productData.name.trim().length === 0) {
-      errors.push('Product name is required');
+    if (!productData.title?.trim()) {
+      errors.push('Product title is required');
     }
     
-    if (productData.price !== undefined && (isNaN(productData.price) || productData.price < 0)) {
-      errors.push('Price must be a valid positive number');
+    if (!productData.price || productData.price < 0) {
+      errors.push('Valid price is required');
     }
     
-    if (productData.compare_price !== undefined && productData.compare_price !== null) {
-      if (isNaN(productData.compare_price) || productData.compare_price < 0) {
-        errors.push('Compare price must be a valid positive number');
-      }
-      if (productData.price && productData.compare_price <= productData.price) {
-        errors.push('Compare price must be higher than the regular price');
-      }
-    }
-    
-    if (productData.status && !['active', 'draft', 'archived'].includes(productData.status)) {
-      errors.push('Status must be one of: active, draft, archived');
+    if (!productData.status) {
+      errors.push('Product status is required');
     }
     
     return {
-      isValid: errors.length === 0,
+      valid: errors.length === 0,
       errors
     };
   }
 
   /**
-   * Upload images using centralized MediaService
-   */
-  static async uploadImages(images) {
-    if (!images || images.length === 0) {
-      return [];
-    }
-
-    try {
-      const { results, errors } = await MediaService.uploadFiles(images, {
-        provider: 'cloudflare',
-        cache: true,
-        parallel: true
-      });
-      
-      if (errors.length > 0) {
-        console.warn('Some images failed to upload:', errors);
-      }
-      
-      return results.map(result => result.url);
-      
-    } catch (error) {
-      console.error('Failed to upload images:', error);
-      throw new Error(`Failed to upload images: ${error.message}`);
-    }
-  }
-
-  /**
-   * Download media from URL and upload using centralized MediaService
-   * Used for importing media from external sources (e.g., CommentSold)
-   */
-  static async downloadAndUploadMedia(mediaUrls, productName = 'product') {
-    if (!mediaUrls || mediaUrls.length === 0) {
-      return [];
-    }
-
-    try {
-      const { results, errors } = await MediaService.downloadAndUpload(mediaUrls, {
-        provider: 'cloudflare',
-        productName,
-        stopOnError: false,
-        cache: false // Don't cache external downloads
-      });
-      
-      if (errors.length > 0) {
-        console.warn(`Failed to upload ${errors.length} media files:`, errors);
-      }
-      
-      return results.map(result => result.url);
-      
-    } catch (error) {
-      console.error('Failed to download and upload media:', error);
-      throw new Error(`Failed to download and upload media: ${error.message}`);
-    }
-  }
-
-  /**
    * Prepare product data for API submission
    */
-  static prepareProductData(formData, images = []) {
-    return {
-      name: formData.title || formData.name,
-      description: formData.description || '',
+  static prepareProductData(formData, imageUrls = []) {
+    const productData = {
+      title: formData.title?.trim(),
+      description: formData.description?.trim(),
       price: parseFloat(formData.price) || 0,
-      compare_price: formData.comparePrice ? parseFloat(formData.comparePrice) : null,
-      status: formData.status?.toLowerCase() || 'draft',
-      images: images,
-      tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
-      collections: formData.collections || [],
-      charges_tax: Boolean(formData.chargesTax),
-      variants: formData.variants || []
+      status: formData.status || 'draft',
+      tags: formData.tags?.trim(),
+      vendor: formData.vendor?.trim(),
+      product_type: formData.product_type?.trim(),
+      images: imageUrls
     };
+    
+    // Remove empty values
+    Object.keys(productData).forEach(key => {
+      if (productData[key] === '' || productData[key] === null || productData[key] === undefined) {
+        delete productData[key];
+      }
+    });
+    
+    return productData;
   }
 
-  /**
-   * Get export parameters based on scope and selection
-   */
-  static getExportParams(scope, selection, filters = {}) {
-    const params = {
-      format: 'csv-excel',
-      scope: scope
-    };
+  // Helper methods for data formatting
 
-    switch (scope) {
-      case 'selected':
-        if (!selection || selection.length === 0) {
-          throw new Error('No products selected for export');
-        }
-        params.productIds = selection;
-        break;
-      
-      case 'current-page':
-        if (filters.status && filters.status !== 'all') {
-          params.status = filters.status;
-        }
-        break;
-      
-      case 'all-products':
-        // Export all products without filters
-        break;
+  static formatCurrency(amount, currency = 'USD') {
+    return new Intl.NumberFormat('en-US', { 
+      style: 'currency', 
+      currency 
+    }).format(amount || 0);
+  }
+
+  static formatImages(images) {
+    if (!images) return [];
+    
+    try {
+      if (typeof images === 'string') {
+        return JSON.parse(images);
+      }
+      return Array.isArray(images) ? images : [];
+    } catch {
+      return [];
     }
+  }
 
-    return params;
+  static getStatusLabel(status) {
+    const labels = {
+      'active': 'Active',
+      'draft': 'Draft',
+      'archived': 'Archived'
+    };
+    return labels[status] || 'Unknown';
+  }
+
+  static parseTags(tags) {
+    if (!tags) return [];
+    if (Array.isArray(tags)) return tags;
+    return tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+  }
+
+  static calculateTotalQuantity(inventory) {
+    if (!inventory || !Array.isArray(inventory)) return 0;
+    return inventory.reduce((total, item) => total + (item.quantity || 0), 0);
   }
 }

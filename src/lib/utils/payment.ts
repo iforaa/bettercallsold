@@ -10,6 +10,12 @@ export const PAYMENT_METHODS = {
   paypal: { name: 'PayPal', emoji: '💙' },
   venmo: { name: 'Venmo', emoji: '💸' },
   
+  // Stripe Payment Methods
+  stripe_card: { name: 'Stripe Card', emoji: '💳' },
+  stripe_apple_pay: { name: 'Apple Pay (Stripe)', emoji: '🍎' },
+  stripe_google_pay: { name: 'Google Pay (Stripe)', emoji: '🟢' },
+  stripe: { name: 'Stripe', emoji: '💳' },
+  
   // Credit Cards
   visa: { name: 'Visa', emoji: '💳' },
   mastercard: { name: 'Mastercard', emoji: '💳' },

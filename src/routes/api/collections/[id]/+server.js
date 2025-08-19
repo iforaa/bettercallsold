@@ -18,13 +18,52 @@ export async function GET({ params }) {
     
     const collection = collectionResult.rows[0];
     
-    // Get products in this collection - handle case where product_collections table might not exist
+    // Get products in this collection - handle both old and new product structures
     try {
       const productsResult = await query(`
-        SELECT p.*, pc.created_at as added_to_collection_at
-        FROM products p
-        JOIN product_collections pc ON p.id = pc.product_id
-        WHERE pc.collection_id = $1 AND p.tenant_id = $2
+        SELECT 
+          COALESCE(p_new.id, p_old.id) as id,
+          COALESCE(p_new.title, p_old.name) as name,
+          COALESCE(p_new.title, p_old.name) as title,
+          COALESCE(p_new.description, p_old.description) as description,
+          COALESCE(p_new.images, p_old.images) as images,
+          COALESCE(p_new.status, p_old.status) as status,
+          COALESCE(p_new.created_at, p_old.created_at) as created_at,
+          COALESCE(p_new.updated_at, p_old.updated_at) as updated_at,
+          COALESCE(p_old.price, first_variant.price, 0) as price,
+          pc.created_at as added_to_collection_at,
+          CASE 
+            WHEN p_new.id IS NOT NULL THEN 
+              COALESCE(ARRAY_AGG(
+                json_build_object(
+                  'id', pv.id,
+                  'title', pv.title,
+                  'sku', pv.sku,
+                  'price', pv.price,
+                  'option1', pv.option1,
+                  'option2', pv.option2
+                ) ORDER BY pv.position
+              ) FILTER (WHERE pv.id IS NOT NULL), ARRAY[]::json[])
+            ELSE NULL
+          END as variants
+        FROM product_collections pc
+        LEFT JOIN products_new p_new ON pc.product_id = p_new.id
+        LEFT JOIN products_old p_old ON pc.product_id = p_old.id
+        LEFT JOIN product_variants_new pv ON pv.product_id = p_new.id
+        LEFT JOIN (
+          SELECT product_id, price
+          FROM product_variants_new
+          WHERE position = 1 OR id IN (
+            SELECT id FROM product_variants_new pv2 
+            WHERE pv2.product_id = product_variants_new.product_id 
+            ORDER BY position LIMIT 1
+          )
+        ) first_variant ON first_variant.product_id = p_new.id
+        WHERE pc.collection_id = $1 
+        AND (p_new.tenant_id = $2 OR p_old.tenant_id = $2)
+        GROUP BY p_new.id, p_old.id, p_new.title, p_old.name, p_new.description, p_old.description, 
+                 p_new.images, p_old.images, p_new.status, p_old.status, p_new.created_at, p_old.created_at,
+                 p_new.updated_at, p_old.updated_at, p_old.price, first_variant.price, pc.created_at
         ORDER BY pc.created_at ASC
       `, [collectionId, DEFAULT_TENANT_ID]);
       

@@ -496,7 +496,9 @@
 						<div class="variant-item" onclick={() => goto(`/products/${currentProduct.id}/variants/${variant.id}`)}>
 							<div class="variant-info">
 								<div class="variant-title">
-									{#if variant.variant_combination?.color && variant.variant_combination?.size}
+									{#if variant.title && variant.title !== 'Default Title'}
+										{variant.title}
+									{:else if variant.variant_combination?.color && variant.variant_combination?.size}
 										{variant.variant_combination.color} / {variant.variant_combination.size}
 									{:else if variant.variant_combination?.color}
 										{variant.variant_combination.color}

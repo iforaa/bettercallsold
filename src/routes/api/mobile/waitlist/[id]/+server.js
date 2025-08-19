@@ -13,15 +13,16 @@ export async function DELETE({ params }) {
 			return badRequestResponse('Invalid waitlist ID format');
 		}
 
-		// Get waitlist item data before deletion for plugin event
+		// Get waitlist item data before deletion for plugin event using new table structure
 		const checkQuery = `
 			SELECT w.id, w.product_id, w.inventory_id, w.user_id,
-			       p.name as product_name, i.size, i.color, i.price,
-			       p.price as product_price
+			       p.title as product_name, pv.option2 as size, pv.option1 as color, pv.price,
+			       pv.price as product_price
 			FROM waitlist w
-			LEFT JOIN products p ON w.product_id = p.id
-			LEFT JOIN inventory i ON w.inventory_id = i.id
+			LEFT JOIN products_new p ON w.product_id = p.id
+			LEFT JOIN product_variants_new pv ON p.id = pv.product_id
 			WHERE w.id = $1 AND w.tenant_id = $2
+			LIMIT 1
 		`;
 		
 		const checkResult = await query(checkQuery, [waitlistId, DEFAULT_TENANT_ID]);

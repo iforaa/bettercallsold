@@ -25,26 +25,38 @@ export async function GET({ params }) {
 
     console.log(`🔍 Cache miss for ${cacheKey}, fetching from database`);
 
-    // Get product with inventory
+    // Get product with variants using new Shopify-style database structure
     const productResult = await query(
       `
       SELECT p.*,
-             COALESCE(SUM(i.quantity), 0) as total_inventory,
-             COUNT(i.id) as variant_count,
+             COALESCE(SUM(il.available), 0) as total_inventory,
+             COUNT(DISTINCT pv.id) as variant_count,
              COALESCE(ARRAY_AGG(
                json_build_object(
-                 'id', i.id,
-                 'quantity', i.quantity,
-                 'variant_combination', i.variant_combination,
-                 'price', i.price,
-                 'sku', i.sku,
-                 'cost', i.cost,
-                 'location', i.location,
-                 'position', i.position
-               ) ORDER BY i.position
-             ) FILTER (WHERE i.id IS NOT NULL), ARRAY[]::json[]) as inventory_items
-      FROM products p
-      LEFT JOIN inventory i ON i.product_id = p.id AND i.tenant_id = p.tenant_id
+                 'id', pv.id,
+                 'quantity', COALESCE(il.available, 0),
+                 'variant_combination', json_build_object(
+                   'color', pv.option1,
+                   'size', pv.option2,
+                   'option3', pv.option3
+                 ),
+                 'price', pv.price,
+                 'sku', pv.sku,
+                 'cost', pv.cost,
+                 'location', l.name,
+                 'position', pv.position,
+                 'title', pv.title,
+                 'option1', pv.option1,
+                 'option2', pv.option2,
+                 'option3', pv.option3,
+                 'available', COALESCE(il.available, 0),
+                 'on_hand', COALESCE(il.on_hand, 0)
+               ) ORDER BY pv.position
+             ) FILTER (WHERE pv.id IS NOT NULL), ARRAY[]::json[]) as inventory_items
+      FROM products_new p
+      LEFT JOIN product_variants_new pv ON pv.product_id = p.id
+      LEFT JOIN inventory_levels_new il ON il.variant_id = pv.id
+      LEFT JOIN locations l ON l.id = il.location_id
       WHERE p.id = $1 AND p.tenant_id = $2
       GROUP BY p.id
     `,

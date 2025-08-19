@@ -12,10 +12,28 @@
 	// Derived values using $derived
 	let locations = $derived(getFilteredLocations());
 	let metrics = $derived(getLocationMetrics());
+	
+	// New state for inventory data
+	let inventoryByLocation = $state([]);
+	let loadingInventory = $state(false);
+
+	// Load inventory data for locations
+	async function loadInventoryData() {
+		loadingInventory = true;
+		try {
+			const response = await fetch('/api/test-migration?test=inventory_levels');
+			const data = await response.json();
+			inventoryByLocation = data.inventory_levels || [];
+		} catch (error) {
+			console.error('Error loading inventory data:', error);
+		}
+		loadingInventory = false;
+	}
 
 	// Load data on mount
 	onMount(() => {
 		locationsActions.loadLocations();
+		loadInventoryData(); // Load inventory data too
 	});
 
 	// Event handlers
@@ -35,6 +53,15 @@
 			AddLocationModal = module.default;
 		}
 		locationsActions.showModal();
+	}
+
+	async function handleEditLocation(location) {
+		// Dynamic import the modal component
+		if (!AddLocationModal) {
+			const module = await import('$lib/components/locations/AddLocationModal.svelte');
+			AddLocationModal = module.default;
+		}
+		locationsActions.startEdit(location.id);
 	}
 
 	async function handleToggleLocationStatus(location) {
@@ -71,20 +98,26 @@
 <div class="page">
 	<div class="page-header">
 		<div class="page-header-content">
-			<h1 class="page-title">
-				<span class="page-icon">📍</span>
-				Locations
-			</h1>
+			<div class="page-header-nav">
+				<div class="breadcrumb">
+					<span class="breadcrumb-item">Settings</span>
+					<span class="breadcrumb-separator">›</span>
+					<span class="breadcrumb-item current">📍 Locations</span>
+				</div>
+			</div>
 			<div class="page-actions">
 				<button 
-					class="btn-primary"
+					class="btn btn-primary"
 					onclick={handleAddLocation}
 					disabled={locationsState.operationLoading.creating}
 				>
-					Add location
+					+ Add Location
 				</button>
 			</div>
 		</div>
+		<p class="page-description">
+			Manage your business locations and configure fulfillment settings.
+		</p>
 	</div>
 
 	<div class="page-content-padded">
@@ -99,23 +132,30 @@
 			<LoadingState message="Loading locations..." size="lg" />
 		{:else if locations && locations.length > 0}
 			<div class="content-section">
-				<!-- Location metrics using reactive derived values -->
+				<div class="content-header">
+					<div class="content-header-main">
+						<h3 class="content-title">Business Locations</h3>
+						<p class="content-description">Manage your physical locations and fulfillment capabilities</p>
+					</div>
+				</div>
+				
+				<!-- Location Summary Stats -->
 				<div class="metrics-grid">
-					<div class="metric-card metric-card-bordered metric-card-accent">
+					<div class="metric-card">
 						<div class="metric-card-value">{metrics.total}</div>
 						<div class="metric-card-label">Total Locations</div>
 					</div>
-					<div class="metric-card metric-card-bordered metric-card-success">
+					<div class="metric-card metric-card-success">
 						<div class="metric-card-value">{metrics.active}</div>
-						<div class="metric-card-label">Active Locations</div>
+						<div class="metric-card-label">Active</div>
 					</div>
-					<div class="metric-card metric-card-bordered metric-card-warning">
+					<div class="metric-card metric-card-warning">
 						<div class="metric-card-value">{metrics.fulfillmentCenters}</div>
-						<div class="metric-card-label">Fulfillment Centers</div>
+						<div class="metric-card-label">Fulfillment</div>
 					</div>
-					<div class="metric-card metric-card-bordered metric-card-info">
+					<div class="metric-card metric-card-accent">
 						<div class="metric-card-value">{metrics.pickupLocations}</div>
-						<div class="metric-card-label">Pickup Locations</div>
+						<div class="metric-card-label">Pickup</div>
 					</div>
 				</div>
 
@@ -126,8 +166,10 @@
 								<th>Location</th>
 								<th>Address</th>
 								<th>Type</th>
-								<th>Status</th>
-								<th>Actions</th>
+								<th>Inventory</th>
+								<th class="actions-header">Status</th>
+								<th class="actions-header">Default</th>
+								<th class="actions-header">Edit</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -138,9 +180,6 @@
 											<div class="table-cell-details">
 												<div class="table-cell-title">
 													{location.name}
-													{#if location.is_default}
-														<span class="status-badge status-info">Default</span>
-													{/if}
 												</div>
 												<div class="table-cell-subtitle">{location.description || ''}</div>
 											</div>
@@ -162,30 +201,55 @@
 										</div>
 									</td>
 									<td>
-										<span class="status-badge {location.status === 'active' ? 'status-success' : 'status-error'}">
-											{location.status}
-										</span>
-									</td>
-									<td>
-										<div class="table-actions">
-											{#if !location.is_default}
-												<button 
-													class="btn-ghost btn-sm"
-													onclick={() => handleSetDefault(location)}
-													disabled={locationsState.operationLoading.settingDefault}
-													title="Set as default"
-												>
-													Set Default
-												</button>
+										{#if loadingInventory}
+											<span class="loading-text">Loading...</span>
+										{:else}
+											{@const locationInventory = inventoryByLocation.filter(item => item.location_name === location.name)}
+											{@const totalInventory = locationInventory.reduce((sum, item) => sum + (item.available || 0), 0)}
+											{#if locationInventory.length > 0}
+												<div class="inventory-summary">
+													<div class="inventory-total">{totalInventory} items</div>
+													<div class="inventory-subtitle">{locationInventory.length} products</div>
+												</div>
+											{:else}
+												<span class="text-muted">No inventory</span>
 											{/if}
+										{/if}
+									</td>
+									<td class="action-cell">
+										<button 
+											class="btn btn-ghost btn-sm status-toggle {location.status === 'active' ? 'status-active' : 'status-inactive'}"
+											onclick={() => handleToggleLocationStatus(location)}
+											disabled={locationsState.operationLoading.updating}
+											title={location.status === 'active' ? 'Click to deactivate' : 'Click to activate'}
+										>
+											{location.status === 'active' ? 'Active' : 'Inactive'}
+										</button>
+									</td>
+									<td class="action-cell">
+										{#if !location.is_default}
 											<button 
-												class="btn-ghost btn-sm"
-												onclick={() => handleToggleLocationStatus(location)}
-												disabled={locationsState.operationLoading.updating}
+												class="btn btn-ghost btn-sm"
+												onclick={() => handleSetDefault(location)}
+												disabled={locationsState.operationLoading.settingDefault}
+												title="Set as default location"
 											>
-												{location.status === 'active' ? 'Deactivate' : 'Activate'}
+												☆ Set Default
 											</button>
-										</div>
+										{:else}
+											<span class="default-indicator" title="This is the default location">
+												⭐ Default
+											</span>
+										{/if}
+									</td>
+									<td class="action-cell">
+										<button 
+											class="btn btn-ghost btn-sm"
+											onclick={() => handleEditLocation(location)}
+											title="Edit location details"
+										>
+											✏️ Edit
+										</button>
 									</td>
 								</tr>
 							{/each}
@@ -226,6 +290,42 @@
 {/if}
 
 <style>
+	/* Page description styling */
+	.page-description {
+		margin: var(--space-2) 0 0 0;
+		color: var(--color-text-muted);
+		font-size: var(--font-size-sm);
+		padding: 0 var(--space-8);
+	}
+	
+	/* Content header */
+	.content-header {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: var(--space-4);
+		margin-bottom: var(--space-6);
+	}
+	
+	.content-header-main {
+		flex: 1;
+	}
+	
+	.content-title {
+		font-size: var(--font-size-lg);
+		font-weight: var(--font-weight-semibold);
+		color: var(--color-text);
+		margin: 0 0 var(--space-2) 0;
+	}
+	
+	.content-description {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-muted);
+		margin: 0;
+	}
+	
+	
+	/* Table styling */
 	.capability-badges {
 		display: flex;
 		flex-direction: column;
@@ -235,8 +335,55 @@
 
 	.table-actions {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-1);
+		justify-content: center;
 		align-items: center;
+	}
+	
+	.actions-header {
+		text-align: center;
+		width: 120px;
+	}
+	
+	.default-indicator {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-1);
+		padding: var(--space-1) var(--space-2);
+		color: var(--color-text-muted);
+		font-size: var(--font-size-sm);
+		opacity: 0.7;
+		cursor: default;
+	}
+	
+	.action-cell {
+		text-align: center;
+	}
+	
+	/* Status toggle button styling */
+	.status-toggle {
+		min-width: 80px;
+		font-weight: var(--font-weight-medium);
+	}
+	
+	.status-toggle.status-active {
+		color: var(--color-success);
+		border-color: var(--color-success);
+	}
+	
+	.status-toggle.status-active:hover:not(:disabled) {
+		background: var(--color-success-bg);
+	}
+	
+	.status-toggle.status-inactive {
+		color: var(--color-text-muted);
+		border-color: var(--color-border);
+	}
+	
+	.status-toggle.status-inactive:hover:not(:disabled) {
+		background: var(--color-surface);
+		color: var(--color-text);
 	}
 
 	/* Modal styles */
@@ -292,5 +439,33 @@
 		padding: 2rem;
 		text-align: center;
 		color: #6d7175;
+	}
+
+	/* Inventory display styles */
+	.inventory-summary {
+		text-align: center;
+	}
+	
+	.inventory-total {
+		font-weight: var(--font-weight-medium);
+		color: var(--color-text);
+		font-size: var(--font-size-sm);
+	}
+	
+	.inventory-subtitle {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		margin-top: 0.125rem;
+	}
+	
+	.loading-text {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+		font-style: italic;
+	}
+	
+	.text-muted {
+		color: var(--color-text-muted);
+		font-size: var(--font-size-xs);
 	}
 </style>

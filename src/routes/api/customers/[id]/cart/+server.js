@@ -31,12 +31,26 @@ export async function GET({ params }) {
     let cartItems = [];
     
     if (customerId === '44444444-4444-4444-4444-444444444444') {
-      // Get a sample product to show in cart
+      // Get a sample product to show in cart using new table structure
       const productResult = await query(`
-        SELECT p.id, p.name, p.price, p.images, i.id as variant_id, i.variant_combination
-        FROM products p 
-        LEFT JOIN inventory i ON p.id = i.product_id 
+        SELECT p.id, p.title as name, pv.price, 
+               COALESCE(json_agg(
+                 DISTINCT jsonb_build_object(
+                   'id', pi.id,
+                   'src', pi.src,
+                   'alt', pi.alt
+                 )
+               ) FILTER (WHERE pi.id IS NOT NULL), '[]') as images, 
+               pv.id as variant_id,
+               jsonb_build_object(
+                 'color', pv.option1,
+                 'size', pv.option2
+               ) as variant_combination
+        FROM products_new p 
+        LEFT JOIN product_variants_new pv ON p.id = pv.product_id 
+        LEFT JOIN product_images_new pi ON p.id = pi.product_id
         WHERE p.tenant_id = $1 
+        GROUP BY p.id, p.title, pv.price, pv.id, pv.option1, pv.option2
         LIMIT 1
       `, [DEFAULT_TENANT_ID]);
 

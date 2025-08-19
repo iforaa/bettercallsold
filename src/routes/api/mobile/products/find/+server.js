@@ -38,10 +38,29 @@ export async function GET({ url }) {
             'name', c.name
           )
         ) FILTER (WHERE c.id IS NOT NULL), '[]') as collections,
-        COALESCE(COUNT(DISTINCT pc.collection_id), 0) as collection_count
-      FROM products p
+        COALESCE(COUNT(DISTINCT pc.collection_id), 0) as collection_count,
+        -- Get variant price information
+        MIN(pv.price) as min_price,
+        MAX(pv.price) as max_price,
+        COUNT(DISTINCT pv.id) as variant_count,
+        -- Get variants info for inventory
+        COALESCE(json_agg(
+          DISTINCT jsonb_build_object(
+            'id', pv.id,
+            'title', pv.title,
+            'price', pv.price,
+            'option1', pv.option1,
+            'option2', pv.option2,
+            'option3', pv.option3,
+            'sku', pv.sku,
+            'barcode', pv.barcode,
+            'position', pv.position
+          )
+        ) FILTER (WHERE pv.id IS NOT NULL), '[]') as variants
+      FROM products_new p
       LEFT JOIN product_collections pc ON p.id = pc.product_id
       LEFT JOIN collections c ON pc.collection_id = c.id AND c.tenant_id = $1
+      LEFT JOIN product_variants_new pv ON pv.product_id = p.id
       WHERE p.tenant_id = $1
     `;
 
@@ -68,9 +87,8 @@ export async function GET({ url }) {
     // Add search filter
     if (search && search.trim()) {
       queryText += ` AND (
-        p.name ILIKE $${paramIndex} OR 
+        p.title ILIKE $${paramIndex} OR 
         p.description ILIKE $${paramIndex} OR
-        p.sku ILIKE $${paramIndex} OR
         EXISTS (
           SELECT 1 FROM unnest(p.tags) tag 
           WHERE tag ILIKE $${paramIndex}
@@ -120,7 +138,7 @@ export async function GET({ url }) {
     const validSortFields = {
       'created_at': 'p.created_at',
       'updated_at': 'p.updated_at',
-      'name': 'p.name',
+      'name': 'p.title',
       'price': 'p.price',
       'inventory_count': 'p.inventory_count'
     };
@@ -143,7 +161,7 @@ export async function GET({ url }) {
     // Get total count for pagination info
     let totalCountQuery = `
       SELECT COUNT(DISTINCT p.id) as total
-      FROM products p
+      FROM products_new p
       LEFT JOIN product_collections pc ON p.id = pc.product_id
       WHERE p.tenant_id = $1
     `;
@@ -167,9 +185,8 @@ export async function GET({ url }) {
 
     if (search && search.trim()) {
       totalCountQuery += ` AND (
-        p.name ILIKE $${totalParamIndex} OR 
+        p.title ILIKE $${totalParamIndex} OR 
         p.description ILIKE $${totalParamIndex} OR
-        p.sku ILIKE $${totalParamIndex} OR
         EXISTS (
           SELECT 1 FROM unnest(p.tags) tag 
           WHERE tag ILIKE $${totalParamIndex}
@@ -249,12 +266,12 @@ function transformProductForMobile(product) {
     post_id: product.id, // Use internal ID
     created_at: Math.floor(new Date(product.created_at).getTime() / 1000),
     updated_at: Math.floor(new Date(product.updated_at).getTime() / 1000),
-    product_name: product.name,
+    product_name: product.title,
     description: product.description,
     store_description: product.description, // Same as description
     quantity: product.inventory_count || 0,
-    price: product.price || 0,
-    price_label: product.price ? `$${product.price}` : null,
+    price: product.min_price || 0,
+    price_label: product.min_price ? (product.min_price === product.max_price ? `$${product.min_price}` : `$${product.min_price} - $${product.max_price}`) : null,
     product_type: product.product_type || 'physical',
     style: product.style || null,
     brand: product.brand || null,
@@ -271,14 +288,14 @@ function transformProductForMobile(product) {
       position: index + 1
     })),
     
-    // Inventory and variants
+    // Inventory and variants - now using the variants from the query
     inventory: variants.map(variant => ({
-      size: variant.size || variant.option1_value || 'One Size',
-      color: variant.color || variant.option2_value || 'Default',
+      size: variant.option2 || variant.size || 'One Size',
+      color: variant.option1 || variant.color || 'Default',
       quantity: variant.inventory_count || variant.quantity || 0,
-      price: variant.price || product.price || 0,
-      sku: variant.sku || product.sku || null,
-      barcode: variant.barcode || product.barcode || null
+      price: variant.price || 0,
+      sku: variant.sku || null,
+      barcode: variant.barcode || null
     })),
     
     // Additional mobile-friendly fields
@@ -303,7 +320,7 @@ function transformProductForMobile(product) {
     
     // Compatibility with existing mobile apps
     is_available: product.status === 'active' && product.inventory_count > 0,
-    formatted_price: product.price ? `$${parseFloat(product.price).toFixed(2)}` : 'Price on request',
+    formatted_price: product.min_price ? (product.min_price === product.max_price ? `$${parseFloat(product.min_price).toFixed(2)}` : `$${parseFloat(product.min_price).toFixed(2)} - $${parseFloat(product.max_price).toFixed(2)}`) : 'Price on request',
     short_description: product.description ? product.description.substring(0, 100) + (product.description.length > 100 ? '...' : '') : null
   };
 }

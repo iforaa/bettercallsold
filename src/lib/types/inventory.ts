@@ -64,6 +64,7 @@ export interface InventoryItem extends BaseEntity {
 // Formatted inventory item with computed properties
 export interface InventoryItemFormatted extends InventoryItem {
   formattedTitle: string;
+  formattedVariantCombination: string;
   formattedSKU: string;
   formattedLocation: string;
   availableCount: number;

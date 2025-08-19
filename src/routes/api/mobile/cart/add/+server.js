@@ -11,20 +11,21 @@ export async function POST({ request }) {
 			return badRequestResponse('Missing required fields: product_id, inventory_id');
 		}
 
-		// Get inventory record directly - this is the source of truth
+		// Get inventory record directly - sum across all locations
 		const inventoryQuery = `
 			SELECT 
-				i.id as inventory_id,
-				i.product_id,
-				i.quantity,
-				i.color,
-				i.size,
-				i.price,
-				p.name as product_name,
-				p.price as product_price
-			FROM inventory i
-			LEFT JOIN products p ON i.product_id = p.id
-			WHERE i.id = $1 AND i.tenant_id = $2
+				pv.id as inventory_id,
+				pv.product_id,
+				COALESCE(SUM(il.available), 0) as quantity,
+				pv.option1 as color,
+				pv.option2 as size,
+				pv.price,
+				p.title as product_name
+			FROM product_variants_new pv
+			LEFT JOIN inventory_levels_new il ON pv.id = il.variant_id
+			LEFT JOIN products_new p ON pv.product_id = p.id
+			WHERE pv.id = $1 AND p.tenant_id = $2
+			GROUP BY pv.id, pv.product_id, pv.option1, pv.option2, pv.price, p.title
 		`;
 		
 		const inventoryResult = await query(inventoryQuery, [inventory_id, DEFAULT_TENANT_ID]);
@@ -114,16 +115,29 @@ export async function POST({ request }) {
 				variantData
 			]);
 
-			// Reduce inventory quantity by 1
+			// Reduce inventory quantity by 1 from the first available location
 			const updateInventoryQuery = `
-				UPDATE inventory 
-				SET quantity = quantity - 1, updated_at = CURRENT_TIMESTAMP
-				WHERE id = $1 AND tenant_id = $2
-				RETURNING quantity
+				UPDATE inventory_levels_new 
+				SET available = available - 1, updated_at = CURRENT_TIMESTAMP
+				WHERE id = (
+					SELECT id FROM inventory_levels_new
+					WHERE variant_id = $1 AND available > 0
+					ORDER BY available DESC
+					LIMIT 1
+				)
+				RETURNING available
 			`;
 			
-			const inventoryUpdateResult = await query(updateInventoryQuery, [inventory_id, DEFAULT_TENANT_ID]);
-			const newQuantity = inventoryUpdateResult.rows[0]?.quantity || 0;
+			const inventoryUpdateResult = await query(updateInventoryQuery, [inventory_id]);
+			
+			// Get new total quantity across all locations
+			const totalQuantityQuery = `
+				SELECT COALESCE(SUM(available), 0) as total_quantity
+				FROM inventory_levels_new
+				WHERE variant_id = $1
+			`;
+			const totalQuantityResult = await query(totalQuantityQuery, [inventory_id]);
+			const newQuantity = totalQuantityResult.rows[0]?.total_quantity || 0;
 
 			// Trigger plugin event for cart addition
 			try {

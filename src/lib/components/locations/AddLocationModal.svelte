@@ -5,7 +5,10 @@
 
 	// Reactive values from global state
 	let creating = $derived(locationsState.operationLoading.creating);
-	let errors = $derived(locationsState.operationErrors.creating);
+	let updating = $derived(locationsState.operationLoading.updating);
+	let errors = $derived(locationsState.operationErrors.creating || locationsState.operationErrors.updating);
+	let isEditing = $derived(locationsState.form.isEditing);
+	let editingId = $derived(locationsState.form.editingId);
 
 	// Form state
 	let formData = $state({
@@ -27,6 +30,38 @@
 	});
 
 	let validationErrors = $state([]);
+
+	// Get current location for editing
+	let currentLocation = $derived(
+		isEditing && editingId 
+			? locationsState.locations?.find(loc => loc.id === editingId)
+			: null
+	);
+
+	// Effect to populate form when editing a location
+	$effect(() => {
+		if (isEditing && currentLocation) {
+			// Populate form with existing location data
+			formData.name = currentLocation.name || '';
+			formData.description = currentLocation.description || '';
+			formData.location_type = currentLocation.location_type || 'store';
+			formData.address_line_1 = currentLocation.address_line_1 || '';
+			formData.address_line_2 = currentLocation.address_line_2 || '';
+			formData.city = currentLocation.city || '';
+			formData.state_province = currentLocation.state_province || '';
+			formData.postal_code = currentLocation.postal_code || '';
+			formData.country = currentLocation.country || 'United States';
+			formData.phone = currentLocation.phone || '';
+			formData.email = currentLocation.email || '';
+			formData.status = currentLocation.status || 'active';
+			formData.is_default = currentLocation.is_default || false;
+			formData.is_pickup_location = currentLocation.is_pickup_location || false;
+			formData.is_fulfillment_center = currentLocation.is_fulfillment_center || false;
+		} else if (!isEditing) {
+			// Reset form for adding new location
+			resetForm();
+		}
+	});
 
 	// Get form options
 	const locationTypes = [
@@ -54,11 +89,17 @@
 		}
 
 		try {
-			await locationsActions.createLocation(formData);
-			toastService.show('Location created successfully!', 'success');
+			if (isEditing && editingId) {
+				await locationsActions.updateLocation(editingId, formData);
+				toastService.show('Location updated successfully!', 'success');
+			} else {
+				await locationsActions.createLocation(formData);
+				toastService.show('Location created successfully!', 'success');
+			}
 			handleClose();
 		} catch (error) {
-			toastService.show(`Error creating location: ${error.message}`, 'error');
+			const action = isEditing ? 'updating' : 'creating';
+			toastService.show(`Error ${action} location: ${error.message}`, 'error');
 		}
 	}
 
@@ -106,66 +147,67 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="modal-backdrop" onclick={handleBackdropClick}>
-	<div class="modal-container">
+<div class="modal-overlay" onclick={handleBackdropClick}>
+	<div class="modal-content modal-content-lg modal-form" onclick={(e) => e.stopPropagation()}>
 		<div class="modal-header">
-			<h2 class="modal-title">Add location</h2>
-			<button class="btn-ghost btn-sm modal-close" onclick={handleClose}>×</button>
+			<h3 class="modal-title">{isEditing ? 'Edit Location' : 'Add Location'}</h3>
+			<button class="modal-close" onclick={handleClose}>×</button>
 		</div>
 
-		<div class="modal-content">
-			<div class="form-layout">
+		<div class="modal-body">
+			<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
 				<!-- Basic Information -->
 				<div class="form-section">
-					<h3 class="form-section-title">Basic Information</h3>
+					<h4 class="form-section-title">Basic Information</h4>
 					
 					<div class="form-field">
-						<label class="form-field-label" for="location-name">Location name *</label>
+						<label class="form-label form-label-required" for="location-name">Location name</label>
 						<input 
 							id="location-name"
 							type="text"
-							class="form-field-input"
+							class="form-input"
 							bind:value={formData.name}
 							placeholder="e.g., Main Store, Downtown Location"
 							required
 						/>
 					</div>
 
-					<div class="form-field">
-						<label class="form-field-label" for="location-type">Location type</label>
-						<select 
-							id="location-type"
-							class="form-field-input"
-							bind:value={formData.location_type}
-						>
-							{#each locationTypes as type}
-								<option value={type.value}>{type.label} - {type.description}</option>
-							{/each}
-						</select>
-					</div>
-
-					<div class="form-field">
-						<label class="form-field-label" for="description">Description</label>
-						<textarea 
-							id="description"
-							class="form-field-input form-field-textarea"
-							bind:value={formData.description}
-							placeholder="Brief description of this location..."
-							rows="3"
-						></textarea>
+					<div class="form-field-group">
+						<div class="form-field">
+							<label class="form-label" for="location-type">Location type</label>
+							<select 
+								id="location-type"
+								class="form-select"
+								bind:value={formData.location_type}
+							>
+								{#each locationTypes as type}
+									<option value={type.value}>{type.label} - {type.description}</option>
+								{/each}
+							</select>
+						</div>
+						
+						<div class="form-field">
+							<label class="form-label" for="description">Description</label>
+							<textarea 
+								id="description"
+								class="form-textarea form-textarea-sm"
+								bind:value={formData.description}
+								placeholder="Brief description..."
+							></textarea>
+						</div>
 					</div>
 				</div>
 
 				<!-- Address Information -->
 				<div class="form-section">
-					<h3 class="form-section-title">Address</h3>
+					<h4 class="form-section-title">Address</h4>
 					
 					<div class="form-field">
-						<label class="form-field-label" for="address-line-1">Street address *</label>
+						<label class="form-label form-label-required" for="address-line-1">Street address</label>
 						<input 
 							id="address-line-1"
 							type="text"
-							class="form-field-input"
+							class="form-input"
 							bind:value={formData.address_line_1}
 							placeholder="123 Main Street"
 							required
@@ -173,23 +215,23 @@
 					</div>
 
 					<div class="form-field">
-						<label class="form-field-label" for="address-line-2">Apartment, suite, etc.</label>
+						<label class="form-label" for="address-line-2">Apartment, suite, etc.</label>
 						<input 
 							id="address-line-2"
 							type="text"
-							class="form-field-input"
+							class="form-input"
 							bind:value={formData.address_line_2}
 							placeholder="Suite 100"
 						/>
 					</div>
 
-					<div class="form-field-grid">
+					<div class="form-field-group">
 						<div class="form-field">
-							<label class="form-field-label" for="city">City *</label>
+							<label class="form-label form-label-required" for="city">City</label>
 							<input 
 								id="city"
 								type="text"
-								class="form-field-input"
+								class="form-input"
 								bind:value={formData.city}
 								placeholder="New York"
 								required
@@ -197,11 +239,11 @@
 						</div>
 
 						<div class="form-field">
-							<label class="form-field-label" for="state-province">State/Province</label>
+							<label class="form-label" for="state-province">State/Province</label>
 							{#if formData.country === 'United States'}
 								<select 
 									id="state-province"
-									class="form-field-input"
+									class="form-select"
 									bind:value={formData.state_province}
 								>
 									<option value="">Select state</option>
@@ -213,64 +255,62 @@
 								<input 
 									id="state-province"
 									type="text"
-									class="form-field-input"
+									class="form-input"
 									bind:value={formData.state_province}
 									placeholder="State or Province"
 								/>
 							{/if}
 						</div>
-					</div>
 
-					<div class="form-field-grid">
 						<div class="form-field">
-							<label class="form-field-label" for="postal-code">Postal code</label>
+							<label class="form-label" for="postal-code">Postal code</label>
 							<input 
 								id="postal-code"
 								type="text"
-								class="form-field-input"
+								class="form-input"
 								bind:value={formData.postal_code}
 								placeholder="10001"
 							/>
 						</div>
+					</div>
 
-						<div class="form-field">
-							<label class="form-field-label" for="country">Country *</label>
-							<select 
-								id="country"
-								class="form-field-input"
-								bind:value={formData.country}
-								required
-							>
-								{#each countries as country}
-									<option value={country}>{country}</option>
-								{/each}
-							</select>
-						</div>
+					<div class="form-field">
+						<label class="form-label form-label-required" for="country">Country</label>
+						<select 
+							id="country"
+							class="form-select"
+							bind:value={formData.country}
+							required
+						>
+							{#each countries as country}
+								<option value={country}>{country}</option>
+							{/each}
+						</select>
 					</div>
 				</div>
 
 				<!-- Contact & Settings -->
 				<div class="form-section">
-					<h3 class="form-section-title">Contact & Settings</h3>
+					<h4 class="form-section-title">Contact & Settings</h4>
 					
-					<div class="form-field-grid">
+					<div class="form-field-group">
 						<div class="form-field">
-							<label class="form-field-label" for="phone">Phone number</label>
+							<label class="form-label" for="phone">Phone number</label>
 							<input 
 								id="phone"
 								type="tel"
-								class="form-field-input"
+								class="form-input"
 								bind:value={formData.phone}
 								placeholder="+1 (555) 123-4567"
 							/>
 						</div>
 
 						<div class="form-field">
-							<label class="form-field-label" for="email">Email address</label>
+							<label class="form-label" for="email">Email address</label>
 							<input 
 								id="email"
 								type="email"
-								class="form-field-input"
+								class="form-input"
 								bind:value={formData.email}
 								placeholder="store@example.com"
 							/>
@@ -278,42 +318,39 @@
 					</div>
 
 					<div class="form-field">
-						<label class="form-field-label">Location capabilities</label>
-						<div class="form-field-checkboxes">
-							<label class="form-field-checkbox">
-								<input 
-									type="checkbox"
-									class="form-checkbox"
-									bind:checked={formData.is_pickup_location}
-								/>
-								<div class="form-checkbox-content">
-									<span class="form-checkbox-label">Customer pickup location</span>
-									<span class="form-checkbox-help">Customers can pick up orders from this location</span>
-								</div>
+						<label class="form-label">Location capabilities</label>
+						<div class="form-help">Select the services this location will provide</div>
+						
+						<div class="form-checkbox">
+							<input 
+								type="checkbox"
+								id="pickup-location"
+								bind:checked={formData.is_pickup_location}
+							/>
+							<label class="form-checkbox-label" for="pickup-location">
+								Customer pickup location
 							</label>
-
-							<label class="form-field-checkbox">
-								<input 
-									type="checkbox"
-									class="form-checkbox"
-									bind:checked={formData.is_fulfillment_center}
-								/>
-								<div class="form-checkbox-content">
-									<span class="form-checkbox-label">Fulfillment center</span>
-									<span class="form-checkbox-help">This location can fulfill online orders</span>
-								</div>
+						</div>
+						
+						<div class="form-checkbox">
+							<input 
+								type="checkbox"
+								id="fulfillment-center"
+								bind:checked={formData.is_fulfillment_center}
+							/>
+							<label class="form-checkbox-label" for="fulfillment-center">
+								Fulfillment center
 							</label>
-
-							<label class="form-field-checkbox">
-								<input 
-									type="checkbox"
-									class="form-checkbox"
-									bind:checked={formData.is_default}
-								/>
-								<div class="form-checkbox-content">
-									<span class="form-checkbox-label">Set as default location</span>
-									<span class="form-checkbox-help">Use this location when no other is specified</span>
-								</div>
+						</div>
+						
+						<div class="form-checkbox">
+							<input 
+								type="checkbox"
+								id="default-location"
+								bind:checked={formData.is_default}
+							/>
+							<label class="form-checkbox-label" for="default-location">
+								Set as default location
 							</label>
 						</div>
 					</div>
@@ -321,277 +358,49 @@
 
 				<!-- Validation Errors -->
 				{#if validationErrors.length > 0}
-					<div class="alert alert-error">
-						<h4 class="alert-title">Please fix the following errors:</h4>
-						<ul class="alert-list">
+					<div class="form-field-error">
+						<div class="form-error">
+							<strong>Please fix the following errors:</strong>
 							{#each validationErrors as error}
-								<li>{error}</li>
+								<div>{error}</div>
 							{/each}
-						</ul>
+						</div>
 					</div>
 				{/if}
 
 				<!-- General Error -->
 				{#if errors}
-					<div class="alert alert-error">
-						{errors}
+					<div class="form-field-error">
+						<div class="form-error">{errors}</div>
 					</div>
 				{/if}
-			</div>
+			</form>
 		</div>
 
 		<div class="modal-footer">
 			<div class="modal-actions">
 				<button 
-					class="btn-secondary"
+					type="button"
+					class="btn btn-secondary"
 					onclick={handleClose}
-					disabled={creating}
+					disabled={creating || updating}
 				>
 					Cancel
 				</button>
 				<button 
-					class="btn-primary"
+					type="button"
+					class="btn btn-primary"
 					onclick={handleSubmit}
-					disabled={creating || !formData.name.trim() || !formData.address_line_1.trim() || !formData.city.trim()}
+					disabled={(creating || updating) || !formData.name.trim() || !formData.address_line_1.trim() || !formData.city.trim()}
 				>
-					{#if creating}
-						<span class="loading-spinner loading-spinner-sm"></span>
+					{#if creating || updating}
+						{isEditing ? 'Updating...' : 'Creating...'}
+					{:else}
+						{isEditing ? 'Update Location' : 'Add Location'}
 					{/if}
-					Create Location
 				</button>
 			</div>
 		</div>
 	</div>
 </div>
 
-<style>
-	/* Modal base styles */
-	.modal-backdrop {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background: rgba(0, 0, 0, 0.5);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 1000;
-		padding: 1rem;
-	}
-
-	.modal-container {
-		background: white;
-		border-radius: 12px;
-		box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
-		width: 100%;
-		max-width: 700px;
-		max-height: 90vh;
-		overflow-y: auto;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.modal-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 1.5rem 2rem;
-		border-bottom: 1px solid #e1e1e1;
-		flex-shrink: 0;
-	}
-
-	.modal-title {
-		margin: 0;
-		font-size: 1.25rem;
-		font-weight: 600;
-		color: #202223;
-	}
-
-	.modal-close {
-		font-size: 1.25rem;
-		width: auto;
-		height: auto;
-		padding: 0.25rem;
-	}
-
-	.modal-content {
-		padding: 0 2rem 1.5rem 2rem;
-		flex: 1;
-		overflow-y: auto;
-	}
-
-	.form-layout {
-		display: flex;
-		flex-direction: column;
-		gap: 2rem;
-	}
-
-	.form-section {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
-	.form-section-title {
-		margin: 0;
-		font-size: 1rem;
-		font-weight: 600;
-		color: #202223;
-		padding-bottom: 0.5rem;
-		border-bottom: 1px solid #f0f0f0;
-	}
-
-	.form-field {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.form-field-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 1rem;
-	}
-
-	.form-field-label {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: #202223;
-	}
-
-	.form-field-input {
-		width: 100%;
-		padding: 0.75rem;
-		border: 1px solid #d1d5db;
-		border-radius: 6px;
-		font-size: 0.875rem;
-		color: #202223;
-		background: white;
-		transition: border-color 0.15s ease, box-shadow 0.15s ease;
-		box-sizing: border-box;
-	}
-
-	.form-field-input:focus {
-		outline: none;
-		border-color: #1a73e8;
-		box-shadow: 0 0 0 2px #e1e7f5;
-	}
-
-	.form-field-textarea {
-		resize: vertical;
-		min-height: 80px;
-	}
-
-	.form-field-checkboxes {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
-	.form-field-checkbox {
-		display: flex;
-		align-items: flex-start;
-		gap: 0.75rem;
-		cursor: pointer;
-	}
-
-	.form-checkbox {
-		margin-top: 0.125rem;
-		flex-shrink: 0;
-	}
-
-	.form-checkbox-content {
-		display: flex;
-		flex-direction: column;
-		gap: 0.125rem;
-	}
-
-	.form-checkbox-label {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: #202223;
-		line-height: 1.4;
-	}
-
-	.form-checkbox-help {
-		font-size: 0.75rem;
-		color: #6d7175;
-		line-height: 1.4;
-	}
-
-	.alert {
-		padding: 1rem;
-		border-radius: 8px;
-		border: 1px solid;
-	}
-
-	.alert-error {
-		background: #fef2f2;
-		border-color: #fecaca;
-		color: #dc2626;
-	}
-
-	.alert-title {
-		margin: 0 0 0.5rem 0;
-		font-size: 0.875rem;
-		font-weight: 600;
-	}
-
-	.alert-list {
-		margin: 0;
-		padding-left: 1.25rem;
-	}
-
-	.alert-list li {
-		font-size: 0.8125rem;
-		line-height: 1.4;
-	}
-
-	.modal-footer {
-		display: flex;
-		justify-content: flex-end;
-		align-items: center;
-		padding: 1.5rem 2rem;
-		border-top: 1px solid #e1e1e1;
-		flex-shrink: 0;
-	}
-
-	.modal-actions {
-		display: flex;
-		gap: 0.75rem;
-		align-items: center;
-	}
-
-	/* Responsive */
-	@media (max-width: 768px) {
-		.modal-backdrop {
-			padding: 0.5rem;
-		}
-
-		.modal-header,
-		.modal-content,
-		.modal-footer {
-			padding-left: 1.5rem;
-			padding-right: 1.5rem;
-		}
-
-		.form-field-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.modal-footer {
-			flex-direction: column;
-			gap: 1rem;
-		}
-
-		.modal-actions {
-			width: 100%;
-			flex-direction: column;
-		}
-
-		.modal-actions button {
-			width: 100%;
-		}
-	}
-</style>

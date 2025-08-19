@@ -7,7 +7,7 @@ export async function GET({ params }) {
     const productId = params.id;
     console.log('🔍 BetterCallSold API: Product details requested for ID:', productId, 'Type:', typeof productId);
 
-    // Create cache key for mobile product details
+    // Always use the new Shopify-style database structure
     const cacheKey = `mobile_product_details_${productId}_${DEFAULT_TENANT_ID}`;
     
     // Try to get from cache first
@@ -17,9 +17,8 @@ export async function GET({ params }) {
       return jsonResponse(cachedProduct);
     }
     
-    console.log(`🔍 Cache miss for mobile product details ${productId}, fetching from database`);
+    console.log(`🔍 Cache miss for mobile product details ${productId}, fetching from new database structure`);
 
-    // Search by product ID (UUID) and include inventory
     const productQuery = `
       SELECT 
         p.*,
@@ -31,25 +30,33 @@ export async function GET({ params }) {
         ) FILTER (WHERE c.id IS NOT NULL), '[]') as collections,
         COALESCE(json_agg(
           DISTINCT jsonb_build_object(
-            'id', i.id,
-            'quantity', i.quantity,
-            'variant_combination', i.variant_combination,
-            'color', COALESCE(i.variant_combination->>'color', i.color),
-            'size', COALESCE(i.variant_combination->>'size', i.size),
-            'price', i.price,
-            'sku', i.sku,
-            'position', i.position
+            'id', pv.id,
+            'title', pv.title,
+            'quantity', COALESCE(il.available, 0),
+            'variant_combination', jsonb_build_object(
+              'color', pv.option1,
+              'size', pv.option2
+            ),
+            'color', pv.option1,
+            'size', pv.option2,
+            'price', pv.price,
+            'sku', pv.sku,
+            'position', pv.position,
+            'available', COALESCE(il.available, 0),
+            'location_name', l.name
           )
-        ) FILTER (WHERE i.id IS NOT NULL), '[]') as inventory_items
-      FROM products p
+        ) FILTER (WHERE pv.id IS NOT NULL), '[]') as inventory_items
+      FROM products_new p
       LEFT JOIN product_collections pc ON p.id = pc.product_id
       LEFT JOIN collections c ON pc.collection_id = c.id AND c.tenant_id = $1
-      LEFT JOIN inventory i ON p.id = i.product_id AND i.tenant_id = $1
+      LEFT JOIN product_variants_new pv ON p.id = pv.product_id
+      LEFT JOIN inventory_levels_new il ON pv.id = il.variant_id
+      LEFT JOIN locations l ON il.location_id = l.id
       WHERE p.tenant_id = $1 AND p.id::text = $2
       GROUP BY p.id
       LIMIT 1
     `;
-
+    
     console.log('🔍 BetterCallSold API: Executing query with params:', [DEFAULT_TENANT_ID, productId]);
     const result = await query(productQuery, [DEFAULT_TENANT_ID, productId]);
 
@@ -59,10 +66,11 @@ export async function GET({ params }) {
     }
 
     const product = result.rows[0];
-    console.log('✅ BetterCallSold API: Found product:', product.name, 'ID:', product.id);
+    const productName = product.title || product.name; // Handle both new (title) and old (name) field names
+    console.log('✅ BetterCallSold API: Found product:', productName, 'ID:', product.id);
 
     // Transform to mobile format (similar to CommentSold individual product response)
-    const mobileProduct = transformProductDetailsForMobile(product);
+    const mobileProduct = transformProductDetailsForMobile(product, true); // Always use new API format
     console.log('✅ BetterCallSold API: Transformed product for mobile');
 
     // Return as array (matching CommentSold format)
@@ -80,7 +88,7 @@ export async function GET({ params }) {
   }
 }
 
-function transformProductDetailsForMobile(product) {
+function transformProductDetailsForMobile(product, useNewApi = false) {
   // Parse JSON fields safely
   let images = [];
   let tags = [];
@@ -115,6 +123,8 @@ function transformProductDetailsForMobile(product) {
   const totalInventory = inventoryItems.reduce((total, item) => total + (item.quantity || 0), 0);
 
   // Enhanced transform for detailed view
+  const productName = product.title || product.name; // Handle both new (title) and old (name) field names
+  
   return {
     id: product.id, // Our internal database UUID
     external_id: null, // CommentSold product ID (not available yet)
@@ -122,12 +132,18 @@ function transformProductDetailsForMobile(product) {
     post_id: product.id,
     created_at: Math.floor(new Date(product.created_at).getTime() / 1000),
     updated_at: Math.floor(new Date(product.updated_at).getTime() / 1000),
-    product_name: product.name,
+    product_name: productName,
     description: product.description,
     store_description: product.description,
     quantity: totalInventory,
-    price: product.price || 0,
-    price_label: product.price ? `$${product.price}` : null,
+    price: inventoryItems.length > 0 ? Math.min(...inventoryItems.map(item => parseFloat(item.price) || 0)) : 0,
+    price_label: inventoryItems.length > 0 ? 
+      (() => {
+        const prices = inventoryItems.map(item => parseFloat(item.price) || 0);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        return minPrice === maxPrice ? `$${minPrice}` : `$${minPrice} - $${maxPrice}`;
+      })() : null,
     product_type: product.product_type || 'physical',
     style: product.style || null,
     brand: product.brand || null,
@@ -160,7 +176,7 @@ function transformProductDetailsForMobile(product) {
     // Inventory from real inventory table
     inventory: inventoryItems.length > 0 ? inventoryItems.map((item, index) => ({
       position: item.position || index + 1,
-      price: parseFloat(item.price) || parseFloat(product.price) || 0,
+      price: parseFloat(item.price) || 0,
       inventory_id: item.id, // Real inventory UUID
       quantity: item.quantity || 0,
       allow_oversell: false,
@@ -206,7 +222,13 @@ function transformProductDetailsForMobile(product) {
     
     // Availability and pricing
     is_available: product.status === 'active' && totalInventory > 0,
-    formatted_price: product.price ? `$${parseFloat(product.price).toFixed(2)}` : 'Price on request',
+    formatted_price: inventoryItems.length > 0 ? 
+      (() => {
+        const prices = inventoryItems.map(item => parseFloat(item.price) || 0);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        return minPrice === maxPrice ? `$${minPrice.toFixed(2)}` : `$${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}`;
+      })() : 'Price on request',
     compare_at_price: null, // Can be enhanced
     formatted_compare_at_price: null,
     

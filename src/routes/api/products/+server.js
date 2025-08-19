@@ -7,6 +7,7 @@ import {
 import { DEFAULT_TENANT_ID, QUERIES, PLUGIN_EVENTS } from "$lib/constants.js";
 import { PluginService } from "$lib/services/PluginService.js";
 import { MediaService } from "$lib/services/MediaService.js";
+import { FeatureFlags } from "$lib/services/FeatureFlags.js";
 
 export async function GET({ url }) {
   try {
@@ -15,8 +16,11 @@ export async function GET({ url }) {
     const offset = parseInt(searchParams.get("offset")) || 0;
     const status = searchParams.get("status"); // Get status filter
 
-    // Create cache key based on query parameters
-    const cacheKey = `products_${DEFAULT_TENANT_ID}_${limit}_${offset}_${status || "all"}`;
+    // Check if we should use the new product API
+    const useNewApi = await FeatureFlags.isEnabled(FeatureFlags.FLAGS.USE_NEW_PRODUCT_API);
+    
+    // Create cache key based on query parameters and API version
+    const cacheKey = `products_${useNewApi ? 'new' : 'old'}_${DEFAULT_TENANT_ID}_${limit}_${offset}_${status || "all"}`;
 
     // Try to get from cache first
     const cachedProducts = await getCached(cacheKey);
@@ -25,47 +29,17 @@ export async function GET({ url }) {
       return jsonResponse(cachedProducts);
     }
 
-    console.log(`🔍 Cache miss for ${cacheKey}, fetching from database`);
+    console.log(`🔍 Cache miss for ${cacheKey}, fetching from database using ${useNewApi ? 'NEW' : 'OLD'} API`);
 
-    // Build query with status filtering
-    let whereClause = "WHERE p.tenant_id = $1";
-    const params = [DEFAULT_TENANT_ID];
-    let paramIndex = 2;
+    let productsData;
 
-    if (status) {
-      whereClause += ` AND p.status = $${paramIndex}`;
-      params.push(status);
-      paramIndex++;
+    if (useNewApi) {
+      // Use new Shopify-style database structure
+      productsData = await getProductsNew(limit, offset, status);
+    } else {
+      // Use old database structure
+      productsData = await getProductsOld(limit, offset, status);
     }
-
-    const products = await query(
-      `
-      SELECT p.*,
-             COALESCE(SUM(i.quantity), 0) as total_inventory,
-             COUNT(i.id) as variant_count,
-             COALESCE(ARRAY_AGG(
-               json_build_object(
-                 'id', i.id,
-                 'quantity', i.quantity,
-                 'variant_combination', i.variant_combination,
-                 'price', i.price,
-                 'sku', i.sku,
-                 'cost', i.cost,
-                 'location', i.location,
-                 'position', i.position
-               ) ORDER BY i.position
-             ) FILTER (WHERE i.id IS NOT NULL), ARRAY[]::json[]) as inventory_items
-      FROM products p
-      LEFT JOIN inventory i ON i.product_id = p.id AND i.tenant_id = p.tenant_id
-      ${whereClause}
-      GROUP BY p.id
-      ORDER BY p.created_at DESC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `,
-      [...params, limit, offset],
-    );
-
-    const productsData = products.rows;
 
     // Cache the results for 5 minutes (300 seconds)
     await setCache(cacheKey, productsData, 300);
@@ -190,6 +164,93 @@ export async function POST({ request }) {
     console.error("Create product error:", error);
     return internalServerErrorResponse("Failed to create product");
   }
+}
+
+// Helper function to get products using old database structure
+async function getProductsOld(limit, offset, status) {
+  // Build query with status filtering
+  let whereClause = "WHERE p.tenant_id = $1";
+  const params = [DEFAULT_TENANT_ID];
+  let paramIndex = 2;
+
+  if (status) {
+    whereClause += ` AND p.status = $${paramIndex}`;
+    params.push(status);
+    paramIndex++;
+  }
+
+  const products = await query(
+    `
+    SELECT p.*,
+           COALESCE(SUM(i.quantity), 0) as total_inventory,
+           COUNT(i.id) as variant_count,
+           COALESCE(ARRAY_AGG(
+             json_build_object(
+               'id', i.id,
+               'quantity', i.quantity,
+               'variant_combination', i.variant_combination,
+               'price', i.price,
+               'sku', i.sku,
+               'cost', i.cost,
+               'location', i.location,
+               'position', i.position
+             ) ORDER BY i.position
+           ) FILTER (WHERE i.id IS NOT NULL), ARRAY[]::json[]) as inventory_items
+    FROM products p
+    LEFT JOIN inventory i ON i.product_id = p.id AND i.tenant_id = p.tenant_id
+    ${whereClause}
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+    LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+  `,
+    [...params, limit, offset],
+  );
+
+  return products.rows;
+}
+
+// Helper function to get products using new Shopify-style database structure
+async function getProductsNew(limit, offset, status) {
+  // Build query with status filtering
+  let whereClause = "WHERE p.tenant_id = $1";
+  const params = [DEFAULT_TENANT_ID];
+  let paramIndex = 2;
+
+  if (status) {
+    whereClause += ` AND p.status = $${paramIndex}`;
+    params.push(status);
+    paramIndex++;
+  }
+
+  const products = await query(
+    `
+    SELECT p.*,
+           COALESCE(SUM(il.available), 0) as total_inventory,
+           COUNT(DISTINCT pv.id) as variant_count,
+           COUNT(DISTINCT il.location_id) as location_count,
+           COALESCE(ARRAY_AGG(
+             json_build_object(
+               'id', pv.id,
+               'title', pv.title,
+               'sku', pv.sku,
+               'price', pv.price,
+               'option1', pv.option1,
+               'option2', pv.option2,
+               'available', COALESCE(il.available, 0)
+             ) ORDER BY pv.position
+           ) FILTER (WHERE pv.id IS NOT NULL), ARRAY[]::json[]) as variants
+    FROM products_new p
+    LEFT JOIN product_variants_new pv ON pv.product_id = p.id
+    LEFT JOIN inventory_levels_new il ON il.variant_id = pv.id
+    ${whereClause}
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+    LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+  `,
+    [...params, limit, offset],
+  );
+
+  return products.rows;
 }
 
 // Helper function to update product-collection relationships

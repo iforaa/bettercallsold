@@ -14,6 +14,7 @@ export async function GET({ params }) {
     }
 
     // Query to get waitlist details with user, product, and inventory info
+    // Note: inventory_id still references old inventory_old table
     const waitlistQuery = `
       SELECT 
         w.id, w.tenant_id, w.user_id, w.product_id, w.inventory_id,
@@ -21,13 +22,17 @@ export async function GET({ params }) {
         w.authorized_at, w.coupon_id, w.local_pickup, w.location_id,
         w.position, w.created_at, w.updated_at,
         u.name as user_name, u.email as user_email,
-        p.name as product_name, p.description as product_description,
-        p.price as product_price, p.images as product_images,
-        i.quantity as inventory_quantity, i.color, i.size
+        p.title as product_name, p.description as product_description,
+        p.images as product_images,
+        COALESCE(i_old.price, 0) as product_price,
+        COALESCE(i_old.quantity, 0) as inventory_quantity,
+        i_old.color, 
+        i_old.size,
+        CONCAT(COALESCE(i_old.color, ''), ' / ', COALESCE(i_old.size, '')) as variant_title
       FROM waitlist w
       LEFT JOIN users u ON w.user_id = u.id
-      LEFT JOIN products p ON w.product_id = p.id
-      LEFT JOIN inventory i ON w.inventory_id = i.id
+      LEFT JOIN products_new p ON w.product_id = p.id
+      LEFT JOIN inventory_old i_old ON w.inventory_id = i_old.id
       WHERE w.id = $1 AND w.tenant_id = $2
     `;
     

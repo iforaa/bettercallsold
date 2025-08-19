@@ -1,6 +1,7 @@
 /**
  * Inventory Service - Stateless business logic for inventory management
  * Follows the Services + Runes + Context architecture pattern
+ * Note: Feature flags are handled server-side in API endpoints
  */
 
 export class InventoryService {
@@ -128,6 +129,7 @@ export class InventoryService {
 		return {
 			...item,
 			formattedTitle: InventoryService.formatProductTitle(item),
+			formattedVariantCombination: InventoryService.formatVariantCombination(item),
 			formattedSKU: InventoryService.formatSKU(item),
 			formattedLocation: InventoryService.formatLocation(item),
 			availableCount: InventoryService.getAvailableCount(item),
@@ -151,21 +153,100 @@ export class InventoryService {
 	 * @returns {string} Formatted title
 	 */
 	static formatProductTitle(item) {
-		let title = item.product_name || 'Unknown Product';
-		
+		// Just return the product name - variant info will be shown separately
+		return item.product_name || item.title || 'Unknown Product';
+	}
+	
+	/**
+	 * Business logic: Format variant combination for display (Shopify-style)
+	 * @param {Object} item - Inventory item
+	 * @returns {string} Formatted variant combination
+	 */
+	static formatVariantCombination(item) {
 		const variants = [];
-		if (item.color?.Valid && item.color.String) {
-			variants.push(item.color.String);
+		
+		// Handle Shopify option1, option2, option3 format (new format)
+		if (item.option1 && typeof item.option1 === 'string' && item.option1.trim()) {
+			variants.push(item.option1.trim());
 		}
-		if (item.size?.Valid && item.size.String) {
-			variants.push(item.size.String);
+		if (item.option2 && typeof item.option2 === 'string' && item.option2.trim()) {
+			variants.push(item.option2.trim());
+		}
+		if (item.option3 && typeof item.option3 === 'string' && item.option3.trim()) {
+			variants.push(item.option3.trim());
 		}
 		
+		// If we found options, return them
 		if (variants.length > 0) {
-			title += ` | ${variants.join(' / ')}`;
+			return variants.join(' / ');
 		}
 		
-		return title;
+		// Fallback to old size/color format
+		let legacyVariants = [];
+		
+		// Safely extract color - handle different data structures
+		let color = '';
+		if (item.color) {
+			if (typeof item.color === 'string') {
+				color = item.color;
+			} else if (item.color.Valid && item.color.String) {
+				color = item.color.String;
+			}
+		} else if (item.variant_color && typeof item.variant_color === 'string') {
+			color = item.variant_color;
+		}
+		
+		// Safely extract size - handle different data structures  
+		let size = '';
+		if (item.size) {
+			if (typeof item.size === 'string') {
+				size = item.size;
+			} else if (item.size.Valid && item.size.String) {
+				size = item.size.String;
+			}
+		} else if (item.variant_size && typeof item.variant_size === 'string') {
+			size = item.variant_size;
+		}
+		
+		// Add to variants if they exist and are not empty
+		if (color && color.trim && color.trim()) {
+			legacyVariants.push(color.trim());
+		}
+		if (size && size.trim && size.trim()) {
+			legacyVariants.push(size.trim());
+		}
+		
+		if (legacyVariants.length > 0) {
+			return legacyVariants.join(' / ');
+		}
+		
+		// Check variant title
+		const variantTitle = item.variant_title || item.title;
+		if (variantTitle && typeof variantTitle === 'string' && variantTitle.trim() && variantTitle !== 'Default Title' && variantTitle.trim() !== '') {
+			return variantTitle.trim();
+		}
+		
+		// Fallback: create a meaningful identifier from available data
+		// This helps distinguish variants when no proper option data exists
+		const identifiers = [];
+		
+		// Add SKU if it exists
+		if (item.sku?.Valid && item.sku.String && item.sku.String.trim()) {
+			identifiers.push(`SKU: ${item.sku.String.trim()}`);
+		}
+		
+		// Add position if it's meaningful (not 1 or if there are multiple variants)
+		if (item.position && item.position > 1) {
+			identifiers.push(`Variant ${item.position}`);
+		}
+		
+		// If we have at least one identifier, return it
+		if (identifiers.length > 0) {
+			return identifiers.join(' • ');
+		}
+		
+		// Return empty string when there's truly no distinguishing information
+		return '';
 	}
 
 	/**

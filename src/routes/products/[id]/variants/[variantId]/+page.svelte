@@ -10,7 +10,9 @@
     let product = $state(null);
     let variants = $state([]);
     let currentVariant = $state(null);
+    let locations = $state([]);
     let loading = $state(true);
+    let loadingLocations = $state(true);
     let error = $state("");
     let retrying = $state(false);
 
@@ -59,6 +61,7 @@
     // Adjustment modal state
     let showAdjustModal = $state(false);
     let adjustingField = $state(null);
+    let adjustingLocation = $state(null);
     let adjustBy = $state(0);
     let newQuantity = $state(0);
     let adjustReason = $state("Correction (default)");
@@ -71,10 +74,11 @@
             loading = true;
             error = "";
 
-            // Make both API calls in parallel for better performance
-            const [variantsResponse, variantResponse] = await Promise.all([
+            // Make all API calls in parallel for better performance
+            const [variantsResponse, variantResponse, locationsResponse] = await Promise.all([
                 fetch(`/api/products/${productId}/variants`),
                 fetch(`/api/products/${productId}/variants/${variantId}`),
+                fetch('/api/locations'),
             ]);
 
             // Check for 404 errors
@@ -89,22 +93,25 @@
                 return;
             }
 
-            // Check if both requests succeeded
-            if (!variantsResponse.ok || !variantResponse.ok) {
-                throw new Error("Failed to fetch variant data");
+            // Check if all requests succeeded
+            if (!variantsResponse.ok || !variantResponse.ok || !locationsResponse.ok) {
+                throw new Error("Failed to fetch variant or location data");
             }
 
             // Parse responses
             const variantsData = await variantsResponse.json();
             const variantData = await variantResponse.json();
+            const locationsData = await locationsResponse.json();
 
             // Set data
             product = variantsData.product;
             variants = variantsData.variants || [];
             currentVariant = variantData;
+            locations = locationsData || [];
 
             // Initialize form data with the loaded variant
             initializeFormData(variantData);
+            loadingLocations = false;
         } catch (err) {
             console.error("Load variant data error:", err);
             error = "Failed to load variant data. Please try again.";
@@ -250,21 +257,40 @@
     }
 
     // Open adjustment modal
-    function openAdjustModal(field: "available" | "on_hand") {
+    function openAdjustModal(field: "available" | "on_hand", location = null) {
         adjustingField = field;
-        newQuantity = inventoryQuantity;
+        adjustingLocation = location;
+        
+        // Get current quantity for the specific location or total if no location
+        let currentQuantity = inventoryQuantity;
+        if (location && currentVariant?.inventory_levels) {
+            const locationInventory = currentVariant.inventory_levels.find(inv => inv.location_id === location.id);
+            currentQuantity = locationInventory ? locationInventory[field] : 0;
+        }
+        
+        newQuantity = currentQuantity;
         adjustBy = 0;
         showAdjustModal = true;
     }
 
     // Update adjust by value
     function updateAdjustBy() {
-        newQuantity = inventoryQuantity + adjustBy;
+        let currentQuantity = inventoryQuantity;
+        if (adjustingLocation && currentVariant?.inventory_levels) {
+            const locationInventory = currentVariant.inventory_levels.find(inv => inv.location_id === adjustingLocation.id);
+            currentQuantity = locationInventory ? locationInventory[adjustingField] : 0;
+        }
+        newQuantity = currentQuantity + adjustBy;
     }
 
     // Update new quantity value
     function updateNewQuantity() {
-        adjustBy = newQuantity - inventoryQuantity;
+        let currentQuantity = inventoryQuantity;
+        if (adjustingLocation && currentVariant?.inventory_levels) {
+            const locationInventory = currentVariant.inventory_levels.find(inv => inv.location_id === adjustingLocation.id);
+            currentQuantity = locationInventory ? locationInventory[adjustingField] : 0;
+        }
+        adjustBy = newQuantity - currentQuantity;
     }
 
     // Save adjustment
@@ -273,6 +299,15 @@
 
         saving = true;
         try {
+            const updateData = {
+                inventory_quantity: newQuantity,
+            };
+
+            // If adjusting for a specific location, include location_id
+            if (adjustingLocation) {
+                updateData.location_id = adjustingLocation.id;
+            }
+
             const response = await fetch(
                 `/api/products/${productId}/variants/${variantId}`,
                 {
@@ -280,17 +315,54 @@
                     headers: {
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify({
-                        inventory_quantity: newQuantity,
-                    }),
+                    body: JSON.stringify(updateData),
                 },
             );
 
             if (response.ok) {
                 showToast("Quantity updated successfully!", "success");
-                inventoryQuantity = newQuantity;
+                
+                // Update the appropriate inventory values
+                if (adjustingLocation) {
+                    // Update location-specific inventory in currentVariant
+                    if (currentVariant?.inventory_levels) {
+                        const locationIndex = currentVariant.inventory_levels.findIndex(
+                            inv => inv.location_id === adjustingLocation.id
+                        );
+                        if (locationIndex >= 0) {
+                            currentVariant.inventory_levels[locationIndex][adjustingField] = newQuantity;
+                            // Also update on_hand if adjusting available (keep them in sync for now)
+                            if (adjustingField === 'available') {
+                                currentVariant.inventory_levels[locationIndex].on_hand = newQuantity;
+                            }
+                        } else {
+                            // Add new inventory level for this location
+                            currentVariant.inventory_levels.push({
+                                location_id: adjustingLocation.id,
+                                location_name: adjustingLocation.name,
+                                [adjustingField]: newQuantity,
+                                available: adjustingField === 'available' ? newQuantity : 0,
+                                on_hand: adjustingField === 'on_hand' ? newQuantity : (adjustingField === 'available' ? newQuantity : 0),
+                                committed: 0,
+                                reserved: 0
+                            });
+                        }
+                    }
+                    
+                    // Recalculate total inventory quantity
+                    if (currentVariant?.inventory_levels) {
+                        inventoryQuantity = currentVariant.inventory_levels.reduce(
+                            (total, level) => total + (level.available || 0), 0
+                        );
+                    }
+                } else {
+                    // Update total inventory quantity for backward compatibility
+                    inventoryQuantity = newQuantity;
+                }
+
                 showAdjustModal = false;
                 adjustingField = null;
+                adjustingLocation = null;
             } else {
                 throw new Error("Failed to update quantity");
             }
@@ -305,6 +377,7 @@
     function cancelAdjustment() {
         showAdjustModal = false;
         adjustingField = null;
+        adjustingLocation = null;
         adjustBy = 0;
         newQuantity = 0;
     }
@@ -722,50 +795,46 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <tr class="table-row">
-                                                <td class="table-cell-main">
-                                                    <span
-                                                        class="table-cell-text"
-                                                        >Shop location</span
-                                                    >
-                                                </td>
-                                                <td class="table-cell-numeric">
-                                                    <select
-                                                        class="form-select form-select-sm"
-                                                    >
-                                                        <option>0</option>
-                                                    </select>
-                                                </td>
-                                                <td class="table-cell-numeric">
-                                                    <select
-                                                        class="form-select form-select-sm"
-                                                    >
-                                                        <option>0</option>
-                                                    </select>
-                                                </td>
-                                                <td class="table-cell-numeric">
-                                                    <button
-                                                        class="btn-ghost btn-sm"
-                                                        onclick={() =>
-                                                            openAdjustModal(
-                                                                "available",
-                                                            )}
-                                                    >
-                                                        {inventoryQuantity}
-                                                    </button>
-                                                </td>
-                                                <td class="table-cell-numeric">
-                                                    <button
-                                                        class="btn-ghost btn-sm"
-                                                        onclick={() =>
-                                                            openAdjustModal(
-                                                                "on_hand",
-                                                            )}
-                                                    >
-                                                        {inventoryQuantity}
-                                                    </button>
-                                                </td>
-                                            </tr>
+                                            {#if locations.length > 0 && currentVariant?.inventory_levels}
+                                                {#each locations as location}
+                                                    {@const locationInventory = currentVariant.inventory_levels.find(inv => inv.location_id === location.id)}
+                                                    <tr class="table-row">
+                                                        <td class="table-cell-main">
+                                                            <span class="table-cell-text">{location.name}</span>
+                                                        </td>
+                                                        <td class="table-cell-numeric">
+                                                            <span class="table-cell-text">{locationInventory ? (locationInventory.on_hand - locationInventory.available) : 0}</span>
+                                                        </td>
+                                                        <td class="table-cell-numeric">
+                                                            <span class="table-cell-text">{locationInventory ? locationInventory.committed : 0}</span>
+                                                        </td>
+                                                        <td class="table-cell-numeric">
+                                                            <button
+                                                                class="btn-ghost btn-sm"
+                                                                onclick={() => openAdjustModal("available", location)}
+                                                            >
+                                                                {locationInventory ? locationInventory.available : 0}
+                                                            </button>
+                                                        </td>
+                                                        <td class="table-cell-numeric">
+                                                            <button
+                                                                class="btn-ghost btn-sm"
+                                                                onclick={() => openAdjustModal("on_hand", location)}
+                                                            >
+                                                                {locationInventory ? locationInventory.on_hand : 0}
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                {/each}
+                                            {:else}
+                                                <tr class="table-row">
+                                                    <td colspan="5" class="table-cell-main">
+                                                        <span class="table-cell-text table-cell-muted">
+                                                            {loadingLocations ? 'Loading locations...' : 'No locations found'}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            {/if}
                                         </tbody>
                                     </table>
                                 </div>
@@ -874,7 +943,7 @@
                 <h3 class="modal-title">
                     Adjust {adjustingField === "available"
                         ? "Available"
-                        : "On hand"}
+                        : "On hand"}{adjustingLocation ? ` - ${adjustingLocation.name}` : ""}
                 </h3>
                 <button class="modal-close" onclick={cancelAdjustment}>×</button
                 >

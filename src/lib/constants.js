@@ -94,7 +94,8 @@ export const QUERIES = {
   // Stats
   STATS_QUERY: `
     SELECT
-      (SELECT COUNT(*) FROM products WHERE tenant_id = $1) as total_products,
+      (SELECT COALESCE((SELECT COUNT(*) FROM products_new WHERE tenant_id = $1), 0) + 
+               COALESCE((SELECT COUNT(*) FROM products_old WHERE tenant_id = $1), 0)) as total_products,
       (SELECT COUNT(*) FROM users WHERE tenant_id = $1 AND role = 'customer') as total_customers,
       (SELECT COUNT(*) FROM orders WHERE tenant_id = $1) as total_orders,
       (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE tenant_id = $1) as total_revenue,
@@ -139,27 +140,27 @@ export const QUERIES = {
   GET_PRODUCTS: `
     SELECT id, tenant_id, name, description, price, inventory_count,
            images, variants, tags, status, created_at, updated_at
-    FROM products
+    FROM products_old
     WHERE tenant_id = $1
   `,
   GET_PRODUCT_BY_ID: `
     SELECT id, tenant_id, name, description, price, inventory_count,
            images, variants, tags, status, created_at, updated_at
-    FROM products
+    FROM products_old
     WHERE id = $1 AND tenant_id = $2
   `,
   CREATE_PRODUCT: `
-    INSERT INTO products (id, tenant_id, name, description, price, inventory_count, images, variants, tags, status)
+    INSERT INTO products_old (id, tenant_id, name, description, price, inventory_count, images, variants, tags, status)
     VALUES (uuid_generate_v4(), $1, $2, $3, $4, 0, $5::jsonb, '[]', $6, $7)
     RETURNING id
   `,
   UPDATE_PRODUCT: `
-    UPDATE products
+    UPDATE products_old
     SET name = $3, description = $4, price = $5, images = $6::jsonb, tags = $7,
         status = $8, updated_at = NOW()
     WHERE id = $1 AND tenant_id = $2
   `,
-  DELETE_PRODUCT: "DELETE FROM products WHERE id = $1 AND tenant_id = $2",
+  DELETE_PRODUCT: "DELETE FROM products_old WHERE id = $1 AND tenant_id = $2",
 
   // Orders with customer info
   GET_ORDERS_WITH_CUSTOMERS: `
@@ -190,9 +191,12 @@ export const QUERIES = {
   GET_ORDER_ITEMS: `
     SELECT
       oi.id, oi.order_id, oi.product_id, oi.quantity, oi.price, oi.variant_data,
-      p.name as product_name, p.description as product_description, p.images as product_images
+      COALESCE(p_new.title, p_old.name) as product_name, 
+      COALESCE(p_new.description, p_old.description) as product_description, 
+      COALESCE(p_new.images, p_old.images) as product_images
     FROM order_items oi
-    LEFT JOIN products p ON oi.product_id = p.id
+    LEFT JOIN products_new p_new ON oi.product_id = p_new.id
+    LEFT JOIN products_old p_old ON oi.product_id = p_old.id
     WHERE oi.order_id = $1
     ORDER BY oi.id
   `,

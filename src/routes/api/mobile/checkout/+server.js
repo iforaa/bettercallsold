@@ -1,328 +1,150 @@
-import { query } from '$lib/database.js';
-import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
-import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, PLUGIN_EVENTS } from '$lib/constants.js';
-import { PluginService } from '$lib/services/PluginService.js';
+import { CheckoutService } from '$lib/services/CheckoutService.js';
+import { jsonResponse, badRequestResponse, internalServerErrorResponse } from '$lib/response.js';
 
+/**
+ * Multi-Provider Checkout API
+ * 
+ * Unified checkout endpoint supporting multiple payment providers.
+ * Currently optimized for Stripe with infrastructure ready for PayPal, Klarna, etc.
+ * 
+ * Replaces the previous Stripe-only implementation with a provider-agnostic system.
+ */
 export async function POST({ request }) {
-	try {
-		const body = await request.json();
-		const { 
-			payment_method = 'apple_pay',
-			shipping_address,
-			billing_address,
-			customer_info = {},
-			apple_pay_token,
-			payment_nonce // For other payment methods
-		} = body;
+  try {
+    const body = await request.json();
+    console.log('🛒 Multi-provider checkout called with payment method:', body.payment_method);
 
-		// Validate required fields
-		if (!shipping_address) {
-			return badRequestResponse('Shipping address is required');
-		}
+    const {
+      payment_method,
+      payment_data = {},
+      shipping_address,
+      billing_address,
+      customer_info = {},
+      pricing = {},
+      cart_items = [],
+      // Legacy support for backward compatibility
+      payment_intent_id,
+      apple_pay_token,
+      payment_nonce
+    } = body;
 
-		// Get current cart items
-		const cartQuery = `
-			SELECT 
-				c.id as cart_id,
-				c.product_id,
-				c.quantity,
-				c.variant_data,
-				c.created_at,
-				c.user_id,
-				p.name as product_name,
-				p.price,
-				p.images
-			FROM cart_items c
-			LEFT JOIN products p ON c.product_id = p.id
-			WHERE c.tenant_id = $1 AND c.user_id = $2
-			ORDER BY c.created_at DESC
-		`;
-		
-		const cartResult = await query(cartQuery, [DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID]);
-		
-		if (cartResult.rows.length === 0) {
-			return badRequestResponse('Cart is empty');
-		}
+    // ==========================================
+    // Input validation
+    // ==========================================
+    
+    if (!payment_method) {
+      return badRequestResponse('payment_method is required');
+    }
 
-		// Calculate order totals
-		let subtotal = 0;
-		const orderItems = [];
+    if (!payment_data || typeof payment_data !== 'object') {
+      // Handle legacy format where specific payment data was at root level
+      if (payment_intent_id) {
+        body.payment_data = { payment_intent_id };
+      } else if (apple_pay_token) {
+        body.payment_data = { apple_pay_token };
+      } else if (payment_nonce) {
+        body.payment_data = { payment_nonce };
+      } else {
+        return badRequestResponse('payment_data is required and must be an object');
+      }
+    }
 
-		for (const item of cartResult.rows) {
-			// Parse variant data
-			let variantData = {};
-			try {
-				variantData = item.variant_data ? (typeof item.variant_data === 'string' ? JSON.parse(item.variant_data) : item.variant_data) : {};
-			} catch (e) {
-				variantData = {};
-			}
+    if (!shipping_address) {
+      return badRequestResponse('shipping_address is required');
+    }
 
-			// Handle price - ensure it's a number
-			let variantPrice = 0;
-			if (variantData.price) {
-				variantPrice = typeof variantData.price === 'string' ? parseFloat(variantData.price) : variantData.price;
-			} else if (item.price) {
-				variantPrice = typeof item.price === 'string' ? parseFloat(item.price) : item.price;
-			}
+    // ==========================================
+    // Normalize payment method for provider system
+    // ==========================================
+    
+    let normalizedPaymentMethod = payment_method;
+    
+    // Map legacy payment methods to provider system
+    const methodMapping = {
+      'apple_pay': 'apple_pay',
+      'google_pay': 'google_pay', 
+      'card': 'stripe_card',
+      'credit_card': 'stripe_card'
+    };
 
-			subtotal += variantPrice * item.quantity;
-			
-			orderItems.push({
-				product_id: item.product_id,
-				quantity: item.quantity,
-				price: variantPrice,
-				variant_data: variantData
-			});
-		}
+    if (methodMapping[payment_method]) {
+      normalizedPaymentMethod = methodMapping[payment_method];
+      console.log(`🔄 Mapped '${payment_method}' to '${normalizedPaymentMethod}'`);
+    }
 
-		const shipping = 0; // Free shipping
-		const tax = subtotal * 0.08; // 8% tax
-		const total = subtotal + shipping + tax;
+    // Default to Stripe for any unrecognized methods (backward compatibility)
+    if (!normalizedPaymentMethod.includes('stripe') && !normalizedPaymentMethod.includes('paypal') && !normalizedPaymentMethod.includes('klarna')) {
+      normalizedPaymentMethod = 'stripe_card';
+      console.log(`🔄 Defaulting unrecognized method '${payment_method}' to 'stripe_card'`);
+    }
 
-		// Generate unique order ID
-		const orderId = crypto.randomUUID();
+    // ==========================================
+    // Process checkout using new multi-provider service
+    // ==========================================
+    
+    const result = await CheckoutService.processCheckout({
+      payment_method: normalizedPaymentMethod,
+      payment_data: body.payment_data,
+      shipping_address,
+      billing_address,
+      customer_info,
+      pricing,
+      cart_items
+    });
 
-		// Prepare customer information
-		const customerName = customer_info.name || 'Guest Customer';
-		const customerEmail = customer_info.email || '';
-		const customerPhone = customer_info.phone || '';
+    console.log(`✅ Checkout completed successfully: ${result.order_id} via ${result.payment_provider}`);
 
-		// Create shipping address JSON
-		const shippingAddressJson = JSON.stringify({
-			name: shipping_address.name || customerName,
-			address_line_1: shipping_address.address_line_1,
-			address_line_2: shipping_address.address_line_2 || '',
-			city: shipping_address.city,
-			state: shipping_address.state,
-			postal_code: shipping_address.postal_code,
-			country: shipping_address.country || 'US',
-			phone: shipping_address.phone || customerPhone
-		});
+    // ==========================================
+    // Return response in expected format
+    // ==========================================
+    
+    return jsonResponse({
+      success: result.success,
+      order_id: result.order_id,
+      status: result.status,
+      total_amount: result.total_amount,
+      subtotal_amount: result.subtotal_amount,
+      tax_amount: result.tax_amount,
+      shipping_amount: result.shipping_amount,
+      free_returns: pricing.freeReturns || 0,
+      payment_id: result.payment_id,
+      payment_method: result.payment_method,
+      payment_provider: result.payment_provider,
+      payment_status: 'succeeded',
+      created_at: new Date().toISOString(),
+      message: result.message,
+      processing_time_ms: result.processing_time_ms,
+      
+      // Provider-specific fields for backward compatibility
+      ...(result.payment_provider === 'stripe' && {
+        stripe_payment_intent_id: result.payment_id,
+        stripe_customer_id: result.customer_id,
+        receipt_url: result.receipt_url
+      }),
+      
+      ...(result.payment_provider === 'paypal' && {
+        paypal_payment_id: result.payment_id,
+        paypal_payer_id: result.customer_id
+      }),
+      
+      ...(result.payment_provider === 'klarna' && {
+        klarna_order_id: result.payment_id,
+        klarna_session_id: result.customer_id
+      })
+    });
 
-		// Create billing address JSON (use shipping if not provided)
-		const billingAddressJson = JSON.stringify(billing_address || shipping_address);
-
-		// Generate payment ID (in production, this would come from payment processor)
-		const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-		// Trigger checkout started event
-		try {
-			const checkoutStartedPayload = {
-				user_id: DEFAULT_MOBILE_USER_ID,
-				item_count: cartResult.rows.length,
-				subtotal: subtotal,
-				tax: tax,
-				shipping: shipping,
-				total: total,
-				payment_method: payment_method,
-				started_at: new Date().toISOString()
-			};
-			
-			await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.CHECKOUT_STARTED, checkoutStartedPayload);
-			console.log('📤 Checkout started event triggered');
-		} catch (pluginError) {
-			console.error('Error triggering checkout started plugin event:', pluginError);
-		}
-
-		// Begin transaction
-		await query('BEGIN');
-
-		try {
-			// Create order
-			const createOrderQuery = `
-				INSERT INTO orders (
-					id, 
-					tenant_id, 
-					user_id, 
-					status, 
-					total_amount, 
-					subtotal_amount,
-					tax_amount,
-					shipping_amount,
-					shipping_address, 
-					billing_address,
-					payment_method, 
-					payment_id,
-					customer_name,
-					customer_email,
-					customer_phone,
-					created_at,
-					updated_at
-				) VALUES (
-					$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW()
-				)
-				RETURNING id, created_at
-			`;
-
-			const orderResult = await query(createOrderQuery, [
-				orderId,
-				DEFAULT_TENANT_ID,
-				DEFAULT_MOBILE_USER_ID,
-				'pending_payment', // Status
-				total,
-				subtotal,
-				tax,
-				shipping,
-				shippingAddressJson,
-				billingAddressJson,
-				payment_method,
-				paymentId,
-				customerName,
-				customerEmail,
-				customerPhone
-			]);
-
-			// Create order items
-			for (const item of orderItems) {
-				const createOrderItemQuery = `
-					INSERT INTO order_items (
-						id,
-						order_id,
-						product_id,
-						quantity,
-						price,
-						variant_data,
-						created_at
-					) VALUES (
-						uuid_generate_v4(),
-						$1,
-						$2,
-						$3,
-						$4,
-						$5,
-						NOW()
-					)
-				`;
-
-				await query(createOrderItemQuery, [
-					orderId,
-					item.product_id,
-					item.quantity,
-					item.price,
-					JSON.stringify(item.variant_data)
-				]);
-
-				// Reduce inventory if available
-				if (item.variant_data.inventory_id) {
-					const updateInventoryQuery = `
-						UPDATE inventory 
-						SET quantity = GREATEST(0, quantity - $1),
-							updated_at = NOW()
-						WHERE id = $2 AND tenant_id = $3
-					`;
-					
-					await query(updateInventoryQuery, [
-						item.quantity,
-						item.variant_data.inventory_id,
-						DEFAULT_TENANT_ID
-					]);
-				}
-			}
-
-			// Clear cart after successful order creation
-			const clearCartQuery = `
-				DELETE FROM cart_items 
-				WHERE tenant_id = $1 AND user_id = $2
-			`;
-			
-			await query(clearCartQuery, [DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID]);
-
-			// In a real implementation, process payment here
-			// For now, we'll simulate successful payment processing
-			let orderStatus = 'pending_payment';
-			
-			if (payment_method === 'apple_pay' && apple_pay_token) {
-				// Simulate Apple Pay processing
-				console.log('Processing Apple Pay payment:', { apple_pay_token, amount: total });
-				orderStatus = 'paid';
-			} else if (payment_nonce) {
-				// Simulate other payment processing
-				console.log('Processing payment:', { payment_nonce, amount: total });
-				orderStatus = 'paid';
-			}
-
-			// Update order status if payment processed
-			if (orderStatus === 'paid') {
-				const updateOrderStatusQuery = `
-					UPDATE orders 
-					SET status = $1, updated_at = NOW()
-					WHERE id = $2 AND tenant_id = $3
-				`;
-				
-				await query(updateOrderStatusQuery, [orderStatus, orderId, DEFAULT_TENANT_ID]);
-			}
-
-			// Commit transaction
-			await query('COMMIT');
-
-			// Trigger checkout completed event
-			try {
-				const checkoutCompletedPayload = {
-					order_id: orderId,
-					user_id: DEFAULT_MOBILE_USER_ID,
-					status: orderStatus,
-					total_amount: total,
-					subtotal_amount: subtotal,
-					tax_amount: tax,
-					shipping_amount: shipping,
-					payment_method: payment_method,
-					payment_id: paymentId,
-					item_count: orderItems.length,
-					customer_name: customerName,
-					customer_email: customerEmail,
-					customer_phone: customerPhone,
-					shipping_address: JSON.parse(shippingAddressJson),
-					completed_at: new Date().toISOString()
-				};
-				
-				await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.CHECKOUT_COMPLETED, checkoutCompletedPayload);
-				console.log('📤 Checkout completed event triggered for order:', orderId);
-			} catch (pluginError) {
-				console.error('Error triggering checkout completed plugin event:', pluginError);
-			}
-
-			// Return success response
-			const response = {
-				success: true,
-				order_id: orderId,
-				status: orderStatus,
-				total_amount: total,
-				subtotal_amount: subtotal,
-				tax_amount: tax,
-				shipping_amount: shipping,
-				payment_id: paymentId,
-				payment_method: payment_method,
-				created_at: orderResult.rows[0].created_at,
-				message: orderStatus === 'paid' ? 'Order placed successfully!' : 'Order created, payment pending'
-			};
-
-			return jsonResponse(response);
-
-		} catch (error) {
-			// Rollback transaction on error
-			await query('ROLLBACK');
-			
-			// Trigger checkout failed event
-			try {
-				const checkoutFailedPayload = {
-					user_id: DEFAULT_MOBILE_USER_ID,
-					error_message: error.message,
-					payment_method: payment_method,
-					total: total,
-					failed_at: new Date().toISOString()
-				};
-				
-				await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.CHECKOUT_FAILED, checkoutFailedPayload);
-				console.log('📤 Checkout failed event triggered:', error.message);
-			} catch (pluginError) {
-				console.error('Error triggering checkout failed plugin event:', pluginError);
-			}
-			
-			throw error;
-		}
-
-	} catch (error) {
-		console.error('Checkout error:', error);
-		return internalServerErrorResponse('Failed to process checkout: ' + error.message);
-	}
+  } catch (error) {
+    console.error('❌ Multi-provider checkout failed:', error);
+    
+    return internalServerErrorResponse({
+      message: `Checkout failed: ${error.message}`,
+      error_type: error.constructor.name,
+      timestamp: new Date().toISOString(),
+      
+      // Include stack trace in development
+      ...(process.env.NODE_ENV === 'development' && {
+        stack: error.stack
+      })
+    });
+  }
 }

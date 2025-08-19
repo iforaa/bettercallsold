@@ -5,39 +5,37 @@ import { DEFAULT_TENANT_ID } from '$lib/constants.js';
 export async function GET({ params }) {
   try {
     const productId = params.id;
+    console.log('DEBUG: Getting variants for product:', productId);
     
-    // Get product with inventory records (single source of truth)
-    const inventoryResult = await query(`
+    // Get product with variants using new Shopify-style database structure
+    // First try a simple query to debug
+    const variantsResult = await query(`
       SELECT 
-        inv.id,
-        inv.product_id,
-        inv.quantity,
-        inv.variant_combination,
-        inv.sku,
-        inv.shopify_barcode as barcode,
-        inv.location,
-        inv.price as variant_price,
-        inv.cost,
-        inv.position,
-        inv.weight,
-        inv.created_at,
-        inv.updated_at,
-        p.name as product_name,
-        p.description,
-        p.price as base_price,
-        p.images,
-        p.status
-      FROM inventory inv
-      INNER JOIN products p ON inv.product_id = p.id
-      WHERE inv.product_id = $1 AND inv.tenant_id = $2
-      ORDER BY inv.position, inv.created_at
-    `, [productId, DEFAULT_TENANT_ID]);
+        pv.id,
+        pv.product_id,
+        pv.title,
+        pv.option1,
+        pv.option2,
+        pv.option3,
+        pv.sku,
+        pv.barcode,
+        pv.price as variant_price,
+        pv.cost,
+        pv.position,
+        pv.weight,
+        pv.weight_unit,
+        pv.created_at,
+        pv.updated_at
+      FROM product_variants_new pv
+      WHERE pv.product_id = $1
+      ORDER BY pv.position, pv.created_at
+    `, [productId]);
     
-    if (inventoryResult.rows.length === 0) {
-      // Check if product exists but has no inventory
+    if (variantsResult.rows.length === 0) {
+      // Check if product exists but has no variants
       const productResult = await query(`
-        SELECT id, name, description, price, images, status, created_at, updated_at
-        FROM products 
+        SELECT id, title, description, price, images, status, created_at, updated_at
+        FROM products_new 
         WHERE id = $1 AND tenant_id = $2
       `, [productId, DEFAULT_TENANT_ID]);
       
@@ -49,7 +47,7 @@ export async function GET({ params }) {
       return jsonResponse({
         product: {
           id: product.id,
-          name: product.name,
+          name: product.title,
           description: product.description,
           images: product.images,
           status: product.status
@@ -58,63 +56,57 @@ export async function GET({ params }) {
       });
     }
     
-    const firstRecord = inventoryResult.rows[0];
+    // Get product info separately since we simplified the variants query
+    const productResult = await query(`
+      SELECT id, title, description, images, status
+      FROM products_new 
+      WHERE id = $1 AND tenant_id = $2
+    `, [productId, DEFAULT_TENANT_ID]);
+
     const product = {
-      id: firstRecord.product_id,
-      name: firstRecord.product_name,
-      description: firstRecord.description,
-      images: firstRecord.images,
-      status: firstRecord.status
+      id: productResult.rows[0].id,
+      name: productResult.rows[0].title,
+      description: productResult.rows[0].description,
+      images: productResult.rows[0].images,
+      status: productResult.rows[0].status
     };
     
-    // Transform inventory records to variant format
-    const variants = inventoryResult.rows.map(record => {
-      let variantTitle = 'Default Title';
-      let color = '';
-      let size = '';
-      
-      // Parse variant combination
-      if (record.variant_combination) {
-        try {
-          const combo = typeof record.variant_combination === 'string' 
-            ? JSON.parse(record.variant_combination) 
-            : record.variant_combination;
-          
-          color = combo.color || '';
-          size = combo.size || '';
-          
-          if (color || size) {
-            const parts = [];
-            if (color) parts.push(color);
-            if (size) parts.push(size);
-            variantTitle = parts.join(' / ');
-          }
-        } catch (error) {
-          console.error('Error parsing variant_combination:', error);
-        }
+    // Transform variant records to variant format
+    const variants = variantsResult.rows.map(record => {
+      // Use the existing title if it's not empty or default, otherwise build from options
+      let variantTitle = record.title;
+      if (!variantTitle || variantTitle === 'Default Title') {
+        const parts = [];
+        if (record.option1) parts.push(record.option1);
+        if (record.option2) parts.push(record.option2);
+        if (record.option3) parts.push(record.option3);
+        variantTitle = parts.length > 0 ? parts.join(' / ') : 'Default Title';
       }
       
       return {
-        id: record.id, // Use real inventory record ID
+        id: record.id, // Use real variant ID
         product_id: record.product_id,
-        color,
-        size,
+        color: record.option1 || '', // Map option1 to color for backward compatibility
+        size: record.option2 || '',  // Map option2 to size for backward compatibility
+        option1: record.option1,
+        option2: record.option2,
+        option3: record.option3,
         title: variantTitle,
-        price: record.variant_price || firstRecord.base_price,
+        price: record.variant_price || 0,
         compare_at_price: null,
         sku: record.sku || '',
         barcode: record.barcode || '',
-        inventory_quantity: record.quantity || 0,
-        available: record.quantity || 0,
-        on_hand: record.quantity || 0,
+        inventory_quantity: 0, // Will be calculated separately
+        available: 0,
+        on_hand: 0,
         committed: 0,
         unavailable: 0,
         track_quantity: true,
         continue_selling_when_out_of_stock: false,
         requires_shipping: true,
         weight: record.weight || 0,
-        weight_unit: 'lb',
-        location: record.location || '',
+        weight_unit: record.weight_unit || 'lb',
+        location: '', // Location is now handled via inventory_levels
         created_at: record.created_at,
         updated_at: record.updated_at
       };

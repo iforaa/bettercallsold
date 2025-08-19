@@ -1,22 +1,17 @@
 import { query, getCached, setCache, deleteCache } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, notFoundResponse, badRequestResponse, successResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID, QUERIES } from '$lib/constants.js';
+import { CacheService } from '$lib/services/CacheService.js';
 
 export async function GET({ url }) {
   try {
     const searchParams = url.searchParams;
     
-    // Create cache key for locations
-    const cacheKey = `locations_${DEFAULT_TENANT_ID}_${searchParams.toString()}`;
-    
-    // Try to get from cache first
-    const cachedLocations = await getCached(cacheKey);
+    // Try to get from cache first using new CacheService
+    const cachedLocations = await CacheService.getLocations(DEFAULT_TENANT_ID);
     if (cachedLocations) {
-      console.log(`🚀 Cache hit for ${cacheKey}`);
       return jsonResponse(cachedLocations);
     }
-    
-    console.log(`🔍 Cache miss for ${cacheKey}, fetching from database`);
     
     // Build query based on filters
     let queryText = QUERIES.GET_LOCATIONS;
@@ -74,8 +69,8 @@ export async function GET({ url }) {
     const result = await query(queryText, queryParams);
     const locations = result.rows || [];
     
-    // Cache the result for 5 minutes (300 seconds)
-    await setCache(cacheKey, locations, 300);
+    // Cache the result using CacheService
+    await CacheService.setLocations(DEFAULT_TENANT_ID, locations);
     
     return jsonResponse(locations);
   } catch (error) {

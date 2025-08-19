@@ -25,7 +25,7 @@ export const inventoryState = $state({
 	// Filters and search
 	filters: {
 		search: '',
-		location: 'all',
+		location: '', // Will be set to first location automatically
 		stockStatus: 'all', // 'all', 'in_stock', 'low_stock', 'out_of_stock'
 		limit: 50,
 		offset: 0

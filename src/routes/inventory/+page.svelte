@@ -9,6 +9,7 @@
 	import EmptyState from '$lib/components/states/EmptyState.svelte';
 	import QuantityAdjustModal from '$lib/components/inventory/QuantityAdjustModal.svelte';
 	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import { onMount } from 'svelte';
 
 	let { data }: { data: PageData } = $props();
 	
@@ -21,11 +22,15 @@
 	let selectedItems = $derived(inventoryState.selection.selectedItems);
 	let selectAll = $derived(inventoryState.selection.selectAll);
 
+	// Locations state
+	let locations = $state([]);
+	let loadingLocations = $state(true);
+
 	// URL parameter values
 	let currentPage = $derived(data.currentPage || 1);
 	let currentLimit = $derived(data.currentLimit || 50);
 	let currentSearch = $derived(data.currentSearch || '');
-	let currentLocation = $derived(data.currentLocation || 'all');
+	let currentLocation = $derived(data.currentLocation || '');
 	let currentStockStatus = $derived(data.currentStockStatus || 'all');
 
 	// Sync URL parameters with state
@@ -50,6 +55,45 @@
 			inventoryActions.loadInventory();
 		}
 	});
+
+	// Load locations on mount
+	onMount(async () => {
+		await loadLocations();
+	});
+
+	async function loadLocations() {
+		try {
+			loadingLocations = true;
+			const response = await fetch('/api/locations');
+			if (response.ok) {
+				locations = await response.json();
+				
+				// Auto-select first location if no location is selected or invalid location
+				const validLocation = locations.find(loc => loc.name === currentLocation);
+				if (locations.length > 0 && (!currentLocation || !validLocation)) {
+					const url = new URL($page.url);
+					url.searchParams.set('location', locations[0].name);
+					url.searchParams.delete('page'); // Reset to first page
+					goto(url.toString(), { replaceState: true });
+				}
+			}
+		} catch (error) {
+			console.error('Failed to load locations:', error);
+		} finally {
+			loadingLocations = false;
+		}
+	}
+
+	function handleLocationChange(event: Event) {
+		const target = event.target as HTMLSelectElement;
+		const newLocation = target.value;
+		
+		// Update URL with new location filter
+		const url = new URL($page.url);
+		url.searchParams.set('location', newLocation);
+		url.searchParams.delete('page'); // Reset to first page
+		goto(url.toString());
+	}
 
 	function toggleSelectAll() {
 		inventoryActions.toggleSelectAll();
@@ -97,6 +141,32 @@
 		inventoryActions.openAdjustModal(item, field);
 	}
 
+	// Handle bulk transfer creation
+	function createTransfer() {
+		if (selectedItems.length === 0) return;
+		
+		// Get selected inventory items with their details
+		const selectedInventoryItems = inventory.filter(item => selectedItems.includes(item.id));
+		
+		// Navigate to transfer creation page with pre-selected items
+		const searchParams = new URLSearchParams();
+		const transferItems = selectedInventoryItems.map(item => ({
+			variant_id: item.id,
+			product_id: item.product_id,
+			product_name: item.formattedTitle || item.product_name || 'Unknown Product',
+			variant_title: item.formattedVariantCombination || item.variant_title || '',
+			sku: item.formattedSKU || item.variant_sku || '',
+			location_id: item.location_id,
+			location_name: item.formattedLocation || item.location_name || '',
+			available_quantity: Math.max(0, parseInt(item.availableCount) || 0),
+			on_hand_quantity: Math.max(0, parseInt(item.onHandCount) || 0),
+			image: getFirstImage(item)
+		}));
+		
+		searchParams.set('items', JSON.stringify(transferItems));
+		goto(`/transfers/new?${searchParams.toString()}`);
+	}
+
 	// Get first product image
 	function getFirstImage(item: any): string | null {
 		try {
@@ -140,14 +210,24 @@
 			<div class="page-header-aside">
 				<div class="form-field form-field-inline" style="margin-bottom: 0;">
 					<label class="form-label form-label-sm">Shop location</label>
-					<select class="form-select form-select-sm">
-						<option>All locations</option>
-						<option>Warehouse A</option>
-						<option>Warehouse B</option>
-						<option>Electronics</option>
+					<select class="form-select form-select-sm" value={currentLocation} onchange={handleLocationChange} disabled={loadingLocations}>
+						{#if loadingLocations}
+							<option value="">Loading locations...</option>
+						{:else if locations.length === 0}
+							<option value="">No locations available</option>
+						{:else}
+							{#each locations as location}
+								<option value={location.name}>{location.name}</option>
+							{/each}
+						{/if}
 					</select>
 				</div>
 				<div class="page-actions">
+					{#if selectedItems.length > 0}
+						<button class="btn btn-primary" onclick={createTransfer}>
+							Create Transfer ({selectedItems.length})
+						</button>
+					{/if}
 					<button class="btn btn-secondary">Export</button>
 				</div>
 			</div>
@@ -221,7 +301,9 @@
 										</div>
 										<div class="table-cell-details">
 											<div class="table-cell-title">{item.formattedTitle}</div>
-											<div class="table-cell-subtitle">{item.formattedLocation}</div>
+											{#if item.formattedVariantCombination}
+												<div class="table-cell-subtitle">{item.formattedVariantCombination}</div>
+											{/if}
 										</div>
 									</div>
 								</td>

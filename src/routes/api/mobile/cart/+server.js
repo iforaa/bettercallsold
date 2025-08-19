@@ -4,7 +4,7 @@ import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID } from '$lib/constants.js';
 
 export async function GET({ url }) {
 	try {
-		// Use constant mobile user ID for all cart requests
+		// Use constant mobile user ID for all cart requests with new table structure
 		const cartQuery = `
 			SELECT 
 				c.id as cart_id,
@@ -13,12 +13,21 @@ export async function GET({ url }) {
 				c.variant_data,
 				c.created_at,
 				c.user_id,
-				p.name as product_name,
-				p.price,
-				p.images
+				p.title as product_name,
+				pv.price,
+				COALESCE(json_agg(
+					DISTINCT jsonb_build_object(
+						'id', pi.id,
+						'src', pi.src,
+						'alt', pi.alt
+					)
+				) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
 			FROM cart_items c
-			LEFT JOIN products p ON c.product_id = p.id
+			LEFT JOIN products_new p ON c.product_id = p.id
+			LEFT JOIN product_variants_new pv ON p.id = pv.product_id
+			LEFT JOIN product_images_new pi ON p.id = pi.product_id
 			WHERE c.tenant_id = $1 AND c.user_id = $2
+			GROUP BY c.id, c.product_id, c.quantity, c.variant_data, c.created_at, c.user_id, p.title, pv.price
 			ORDER BY c.created_at DESC
 		`;
 		

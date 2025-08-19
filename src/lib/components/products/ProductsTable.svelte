@@ -138,7 +138,7 @@
 									{#if getFirstImage(product)}
 										<img 
 											src={getFirstImage(product)} 
-											alt={product.name}
+											alt={product.title || product.name}
 											loading="lazy"
 											onerror={(e) => {
 												e.target.style.display = 'none';
@@ -156,7 +156,7 @@
 									{/if}
 								</div>
 								<div class="table-product-details">
-									<div class="table-product-title">{product.name}</div>
+									<div class="table-product-title">{product.title || product.name}</div>
 								</div>
 							</div>
 						</td>
