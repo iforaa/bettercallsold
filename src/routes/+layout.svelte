@@ -119,6 +119,16 @@
         },
         {
             items: [
+                {
+                    path: "/discounts",
+                    label: "Discounts",
+                    icon: "🏷️",
+                    functional: true,
+                },
+            ],
+        },
+        {
+            items: [
                 { path: "/live", label: "Live", icon: "📺", functional: true },
                 {
                     path: "/replays",

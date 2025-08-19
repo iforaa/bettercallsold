@@ -2,6 +2,7 @@ import { PaymentProviderFactory } from './payments/PaymentProviderFactory.js';
 import { query } from '$lib/database.js';
 import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, PLUGIN_EVENTS } from '$lib/constants.js';
 import { PluginService } from './PluginService.js';
+import crypto from 'crypto';
 
 /**
  * Multi-Provider Checkout Service
@@ -23,7 +24,8 @@ export class CheckoutService {
     billing_address,
     customer_info = {},
     pricing = {},
-    cart_items = []
+    cart_items = [],
+    discount_code = null
   }) {
     const startTime = Date.now();
     let orderId = null;
@@ -48,7 +50,8 @@ export class CheckoutService {
       
       const { cartItems, calculatedPricing } = await this.getCartDataAndCalculateTotals(
         cart_items, 
-        pricing
+        pricing,
+        discount_code
       );
 
       if (cartItems.length === 0) {
@@ -109,6 +112,17 @@ export class CheckoutService {
 
         // Create order items and update inventory
         await this.createOrderItems(orderId, cartItems);
+        
+        // Record discount usage if applicable
+        if (calculatedPricing.appliedDiscount) {
+          await this.recordDiscountUsage({
+            orderId,
+            discountId: calculatedPricing.appliedDiscount.id,
+            discountCodeId: calculatedPricing.appliedDiscount.code_id,
+            discountAmount: calculatedPricing.appliedDiscount.discount_amount,
+            userId: DEFAULT_MOBILE_USER_ID
+          });
+        }
         
         // Log payment transaction
         await this.logPaymentTransaction({
@@ -307,7 +321,7 @@ export class CheckoutService {
    * Get cart data and calculate totals
    * @private
    */
-  static async getCartDataAndCalculateTotals(providedCartItems = [], providedPricing = {}) {
+  static async getCartDataAndCalculateTotals(providedCartItems = [], providedPricing = {}, discountCode = null) {
     let cartItems = [];
     
     if (providedCartItems.length > 0) {
@@ -356,7 +370,107 @@ export class CheckoutService {
     const shipping = providedPricing.shipping || 0;
     const tax = providedPricing.tax || (subtotal * 0.08); // 8% default tax
     const freeReturns = providedPricing.freeReturns || 0;
-    const total = subtotal + shipping + tax + freeReturns;
+    let discountAmount = 0;
+    let appliedDiscount = null;
+    
+    // Check if mobile app already provided complete pricing calculation
+    if (providedPricing.total !== undefined && providedPricing.discountAmount !== undefined) {
+      // Mobile app has already calculated totals server-side, use those values
+      console.log('📱 Using mobile app provided pricing calculations');
+      console.log('📱 Provided pricing:', JSON.stringify(providedPricing, null, 2));
+      discountAmount = providedPricing.discountAmount;
+      
+      // If there was a discount, create a basic applied discount object for record keeping
+      if (discountAmount > 0 && discountCode) {
+        appliedDiscount = {
+          code: discountCode,
+          discount_amount: discountAmount
+        };
+      }
+      
+      const total = providedPricing.total;
+      
+      return {
+        cartItems,
+        calculatedPricing: {
+          subtotal,
+          tax,
+          shipping,
+          freeReturns,
+          discountAmount,
+          appliedDiscount,
+          total
+        }
+      };
+    }
+    
+    // Otherwise, calculate discount from scratch (for non-mobile requests)
+    // Validate and apply discount code if provided
+    if (discountCode) {
+      try {
+        const discountQuery = `
+          SELECT 
+            d.*,
+            dc.id as code_id,
+            dc.code,
+            dc.usage_count as code_usage_count
+          FROM discounts d
+          JOIN discount_codes dc ON d.id = dc.discount_id
+          WHERE UPPER(dc.code) = UPPER($1) 
+          AND d.tenant_id = $2 
+          AND d.status = 'active'
+          AND d.starts_at <= NOW()
+          AND (d.ends_at IS NULL OR d.ends_at > NOW())
+        `;
+        
+        const discountResult = await query(discountQuery, [discountCode, DEFAULT_TENANT_ID]);
+        
+        if (discountResult.rows.length > 0) {
+          const discount = discountResult.rows[0];
+          
+          // Check minimum requirements
+          let isValid = true;
+          
+          if (discount.minimum_requirement_type === 'minimum_amount' && discount.minimum_amount) {
+            if (subtotal < parseFloat(discount.minimum_amount)) {
+              isValid = false;
+            }
+          }
+          
+          // Check usage limits
+          if (isValid && discount.usage_limit && discount.total_usage_count >= discount.usage_limit) {
+            isValid = false;
+          }
+          
+          if (isValid) {
+            // Calculate discount amount
+            if (discount.value_type === 'percentage') {
+              discountAmount = (subtotal * parseFloat(discount.value)) / 100;
+            } else if (discount.value_type === 'fixed_amount') {
+              discountAmount = Math.min(parseFloat(discount.value), subtotal);
+            }
+            
+            discountAmount = Math.round(discountAmount * 100) / 100; // Round to 2 decimal places
+            
+            appliedDiscount = {
+              id: discount.id,
+              code_id: discount.code_id,
+              code: discount.code,
+              title: discount.title,
+              discount_type: discount.discount_type,
+              value_type: discount.value_type,
+              value: parseFloat(discount.value),
+              discount_amount: discountAmount
+            };
+          }
+        }
+      } catch (discountError) {
+        console.error('Error validating discount code in checkout:', discountError);
+        // Continue without discount if validation fails
+      }
+    }
+    
+    const total = subtotal + shipping + tax + freeReturns - discountAmount;
 
     return {
       cartItems,
@@ -365,6 +479,8 @@ export class CheckoutService {
         tax,
         shipping,
         freeReturns,
+        discountAmount,
+        appliedDiscount,
         total
       }
     };
@@ -576,6 +692,39 @@ export class CheckoutService {
       console.log('📤 Checkout failed event triggered');
     } catch (pluginError) {
       console.error('Error triggering checkout failed event:', pluginError);
+    }
+  }
+
+  /**
+   * Record discount usage in database
+   * @private
+   */
+  static async recordDiscountUsage({ orderId, discountId, discountCodeId, discountAmount, userId }) {
+    try {
+      // Insert discount usage record
+      await query(`
+        INSERT INTO discount_usage (
+          id, tenant_id, discount_id, discount_code_id, 
+          order_id, user_id, discount_amount, used_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, NOW()
+        )
+      `, [
+        crypto.randomUUID(), DEFAULT_TENANT_ID, discountId, discountCodeId,
+        orderId, userId, discountAmount
+      ]);
+
+      // Update discount code usage count
+      await query(`
+        UPDATE discount_codes 
+        SET usage_count = usage_count + 1
+        WHERE id = $1
+      `, [discountCodeId]);
+
+      console.log(`✅ Recorded discount usage: ${discountAmount} for order ${orderId}`);
+    } catch (error) {
+      console.error('❌ Failed to record discount usage:', error);
+      throw error;
     }
   }
 }

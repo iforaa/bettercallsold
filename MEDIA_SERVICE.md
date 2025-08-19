@@ -62,7 +62,7 @@ const optimizedUrl = MediaService.getOptimizedUrl(originalUrl, {
 // In /src/lib/config/media.js
 export const MEDIA_CONFIG = {
   defaultProvider: 'cloudflare',
-  
+
   providers: {
     cloudflare: {
       uploadUrl: 'https://quartergate.org/upload',
@@ -72,7 +72,7 @@ export const MEDIA_CONFIG = {
         videoProcessing: true
       }
     },
-    
+
     local: {
       uploadUrl: '/api/upload',
       maxFileSize: 10 * 1024 * 1024 // 10MB
@@ -168,7 +168,7 @@ const result = await MediaService.uploadFile(image, {
 
 Test the MediaService:
 ```bash
-curl http://localhost:5175/api/test/media
+curl http://localhost:5173/api/test/media
 ```
 
 ## Benefits of Centralization
