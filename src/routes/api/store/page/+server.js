@@ -20,23 +20,30 @@ async function buildLiveStoreContext(tenantId, pageType = 'home', additionalData
 
     const storeSettings = storeSettingsQuery.rows[0] || {};
 
-    // Get all products for the store
+    // Get all products for the store - support both old and new product structures
     const productsQuery = await query(`
       SELECT 
-        id, name, description, price, images, status, tags,
+        COALESCE(p_new.id, p_old.id) as id,
+        COALESCE(p_new.title, p_old.name) as name,
+        COALESCE(p_new.description, p_old.description) as description,
+        COALESCE(p_old.price, 0) as price,
+        COALESCE(p_new.images, p_old.images) as images,
+        COALESCE(p_new.status, p_old.status) as status,
+        COALESCE(p_new.tags, p_old.tags) as tags,
         COALESCE(
           (SELECT json_agg(json_build_object(
-            'id', i.id,
-            'quantity', i.quantity,
-            'variant_combination', i.variant_combination,
-            'price', i.price,
-            'sku', i.sku
-          )) FROM inventory i WHERE i.product_id = p.id),
+            'id', i_old.id,
+            'quantity', i_old.quantity,
+            'variant_combination', i_old.variant_combination,
+            'price', i_old.price,
+            'sku', i_old.sku
+          )) FROM inventory_old i_old WHERE i_old.product_id = COALESCE(p_new.id, p_old.id)),
           '[]'::json
         ) as variants
-      FROM products p 
-      WHERE p.tenant_id = $1 AND p.status = 'active'
-      ORDER BY p.created_at DESC
+      FROM products_new p_new
+      FULL OUTER JOIN products_old p_old ON p_new.id = p_old.id
+      WHERE (p_new.tenant_id = $1 OR p_old.tenant_id = $1) AND (p_new.status = 'active' OR p_old.status = 'active')
+      ORDER BY COALESCE(p_new.created_at, p_old.created_at) DESC
     `, [tenantId]);
 
     const products = productsQuery.rows.map(product => {
@@ -66,21 +73,24 @@ async function buildLiveStoreContext(tenantId, pageType = 'home', additionalData
         COALESCE(
           json_agg(
             json_build_object(
-              'id', p.id,
-              'name', p.name,
-              'price', p.price,
-              'images', p.images
+              'id', COALESCE(p_new.id, p_old.id),
+              'name', COALESCE(p_new.title, p_old.name),
+              'price', COALESCE(p_old.price, 0),
+              'images', COALESCE(p_new.images, p_old.images)
             )
-          ) FILTER (WHERE p.id IS NOT NULL),
+          ) FILTER (WHERE p_new.id IS NOT NULL OR p_old.id IS NOT NULL),
           '[]'::json
         ) as products
       FROM collections c
       LEFT JOIN product_collections prc ON c.id = prc.collection_id
-      LEFT JOIN products p ON prc.product_id = p.id AND p.status = 'active'
+      LEFT JOIN products_new p_new ON prc.product_id = p_new.id AND p_new.status = 'active'
+      LEFT JOIN products_old p_old ON prc.product_id = p_old.id AND p_old.status = 'active'
       LEFT JOIN (
         SELECT collection_id, COUNT(*) as product_count
         FROM product_collections pc2
-        JOIN products p2 ON pc2.product_id = p2.id AND p2.status = 'active'
+        LEFT JOIN products_new p2_new ON pc2.product_id = p2_new.id AND p2_new.status = 'active'
+        LEFT JOIN products_old p2_old ON pc2.product_id = p2_old.id AND p2_old.status = 'active'
+        WHERE p2_new.id IS NOT NULL OR p2_old.id IS NOT NULL
         GROUP BY collection_id
       ) pc ON c.id = pc.collection_id
       WHERE c.tenant_id = $1
@@ -258,18 +268,19 @@ export async function POST({ request }) {
           COALESCE(
             json_agg(
               json_build_object(
-                'id', p.id,
-                'name', p.name,
-                'price', p.price,
-                'images', p.images,
-                'description', p.description
+                'id', COALESCE(p_new.id, p_old.id),
+                'name', COALESCE(p_new.title, p_old.name),
+                'price', COALESCE(p_old.price, 0),
+                'images', COALESCE(p_new.images, p_old.images),
+                'description', COALESCE(p_new.description, p_old.description)
               )
-            ) FILTER (WHERE p.id IS NOT NULL),
+            ) FILTER (WHERE p_new.id IS NOT NULL OR p_old.id IS NOT NULL),
             '[]'::json
           ) as products
         FROM collections c
         LEFT JOIN product_collections pc ON c.id = pc.collection_id
-        LEFT JOIN products p ON pc.product_id = p.id AND p.status = 'active'
+        LEFT JOIN products_new p_new ON pc.product_id = p_new.id AND p_new.status = 'active'
+        LEFT JOIN products_old p_old ON pc.product_id = p_old.id AND p_old.status = 'active'
         WHERE c.id = $1 AND c.tenant_id = $2
         GROUP BY c.id
       `, [collection_id, DEFAULT_TENANT_ID]);
@@ -288,19 +299,29 @@ export async function POST({ request }) {
     } else if (page_type === 'product' && product_id) {
       // Get specific product data
       const productQuery = await query(`
-        SELECT p.*,
+        SELECT 
+          COALESCE(p_new.id, p_old.id) as id,
+          COALESCE(p_new.title, p_old.name) as name,
+          COALESCE(p_new.description, p_old.description) as description,
+          COALESCE(p_old.price, 0) as price,
+          COALESCE(p_new.images, p_old.images) as images,
+          COALESCE(p_new.status, p_old.status) as status,
+          COALESCE(p_new.tags, p_old.tags) as tags,
+          COALESCE(p_new.created_at, p_old.created_at) as created_at,
+          COALESCE(p_new.updated_at, p_old.updated_at) as updated_at,
           COALESCE(
             (SELECT json_agg(json_build_object(
-              'id', i.id,
-              'quantity', i.quantity,
-              'variant_combination', i.variant_combination,
-              'price', i.price,
-              'sku', i.sku
-            )) FROM inventory i WHERE i.product_id = p.id),
+              'id', i_old.id,
+              'quantity', i_old.quantity,
+              'variant_combination', i_old.variant_combination,
+              'price', i_old.price,
+              'sku', i_old.sku
+            )) FROM inventory_old i_old WHERE i_old.product_id = COALESCE(p_new.id, p_old.id)),
             '[]'::json
           ) as variants
-        FROM products p 
-        WHERE p.id = $1 AND p.tenant_id = $2 AND p.status = 'active'
+        FROM products_new p_new
+        FULL OUTER JOIN products_old p_old ON p_new.id = p_old.id
+        WHERE (p_new.id = $1 OR p_old.id = $1) AND (p_new.tenant_id = $2 OR p_old.tenant_id = $2) AND (p_new.status = 'active' OR p_old.status = 'active')
       `, [product_id, DEFAULT_TENANT_ID]);
 
       if (productQuery.rows.length > 0) {
