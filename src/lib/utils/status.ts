@@ -5,6 +5,7 @@
 import type { OrderStatus } from '$lib/types/orders';
 import type { WaitlistStatus, OrderSource } from '$lib/types/waitlists';
 import type { ProductStatus } from '$lib/types/products';
+import type { DiscountStatus, DiscountType } from '$lib/types/discounts';
 
 export const STATUS_COLORS = {
   // Orders
@@ -25,6 +26,11 @@ export const STATUS_COLORS = {
   // Collections
   visible: 'success',
   hidden: 'warning',
+  // Discounts
+  enabled: 'success',
+  disabled: 'warning',
+  expired: 'error',
+  scheduled: 'info',
   // Generic
   default: 'secondary'
 } as const;
@@ -130,4 +136,39 @@ export const getInventoryStatusInfo = (count: number) => {
     class: 'in-stock',
     variant: 'success' as const
   };
+};
+
+// =====================================
+// Discount-specific utilities
+// =====================================
+
+export const DISCOUNT_STATUS_COLORS = {
+  enabled: 'success',
+  disabled: 'warning',
+  expired: 'error',
+  scheduled: 'info'
+} as const;
+
+export const DISCOUNT_TYPE_DISPLAYS = {
+  amount_off_order: 'Amount off order',
+  percentage_off_order: 'Percentage off order',
+  buy_x_get_y: 'Buy X get Y',
+  free_shipping: 'Free shipping'
+} as const;
+
+export const getDiscountStatusColor = (status: DiscountStatus): string => 
+  DISCOUNT_STATUS_COLORS[status] || STATUS_COLORS.default;
+
+export const getDiscountStatusDisplay = (status: DiscountStatus): string => {
+  const displays: Record<DiscountStatus, string> = {
+    enabled: 'Active',
+    disabled: 'Disabled',
+    expired: 'Expired',
+    scheduled: 'Scheduled'
+  };
+  return displays[status];
+};
+
+export const getDiscountTypeDisplay = (type: DiscountType): string => {
+  return DISCOUNT_TYPE_DISPLAYS[type] || type;
 };

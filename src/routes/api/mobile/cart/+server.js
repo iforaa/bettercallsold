@@ -1,172 +1,16 @@
-import { query } from '$lib/database.js';
-import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
-import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID } from '$lib/constants.js';
+import { CartService } from '$lib/services/CartService.js';
+import { jsonResponse, internalServerErrorResponse } from '$lib/response.js';
+import { DEFAULT_MOBILE_USER_ID } from '$lib/constants.js';
 
 export async function GET({ url }) {
 	try {
-		// Get optional discount code from query params
-		const discountCode = url.searchParams.get('discount_code');
+		// Get cart using new CartService - eliminates all duplicate logic!
+		const cart = await CartService.getCart(DEFAULT_MOBILE_USER_ID);
 		
-		// Use constant mobile user ID for all cart requests with new table structure
-		const cartQuery = `
-			SELECT 
-				c.id as cart_id,
-				c.product_id,
-				c.quantity,
-				c.variant_data,
-				c.created_at,
-				c.user_id,
-				p.title as product_name,
-				pv.price,
-				COALESCE(json_agg(
-					DISTINCT jsonb_build_object(
-						'id', pi.id,
-						'src', pi.src,
-						'alt', pi.alt
-					)
-				) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
-			FROM cart_items c
-			LEFT JOIN products_new p ON c.product_id = p.id
-			LEFT JOIN product_variants_new pv ON p.id = pv.product_id
-			LEFT JOIN product_images_new pi ON p.id = pi.product_id
-			WHERE c.tenant_id = $1 AND c.user_id = $2
-			GROUP BY c.id, c.product_id, c.quantity, c.variant_data, c.created_at, c.user_id, p.title, pv.price
-			ORDER BY c.created_at DESC
-		`;
-		
-		const cartResult = await query(cartQuery, [DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID]);
-		
-		// Transform cart data to match mobile app expectations
-		const cartProducts = cartResult.rows.map(item => {
-			// Parse images JSON safely, similar to waitlist and product detail API
-			let images = [];
-			try {
-				images = item.images ? (typeof item.images === 'string' ? JSON.parse(item.images) : item.images) : [];
-			} catch (e) {
-				images = [];
-			}
-			
-			// Extract thumbnail URL properly - handle both string URLs and objects with url property
-			const thumbnail = images.length > 0 ? (typeof images[0] === 'string' ? images[0] : images[0]?.url || images[0]) : '';
-			
-			// Parse variant data
-			let variantData = {};
-			try {
-				variantData = item.variant_data ? (typeof item.variant_data === 'string' ? JSON.parse(item.variant_data) : item.variant_data) : {};
-			} catch (e) {
-				variantData = {};
-			}
-			
-			// Handle price - ensure it's a number
-			let variantPrice = 0;
-			if (variantData.price) {
-				variantPrice = typeof variantData.price === 'string' ? parseFloat(variantData.price) : variantData.price;
-			} else if (item.price) {
-				variantPrice = typeof item.price === 'string' ? parseFloat(item.price) : item.price;
-			}
-			
-			return {
-				thumbnail: thumbnail,
-				filename: thumbnail,
-				cart_id: item.cart_id,
-				product_name: item.product_name || '',
-				product_subtitle: '',
-				product_id: item.product_id,
-				inventory_id: variantData.inventory_id || null,
-				created_at: Math.floor(new Date(item.created_at).getTime() / 1000),
-				price_label: `$${variantPrice.toFixed(2)}`,
-				price: variantPrice,
-				quantity: 1, // Each cart item is always quantity 1
-				image_width: 400,
-				image_height: 400,
-				waitlist: 0,
-				is_gift_item: false,
-				expires_at: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours from now
-				inventory_not_held_message: null,
-				message: null,
-				messages: [],
-				can_delete: true,
-				color: variantData.color || '',
-				size: variantData.size || '',
-				style: ''
-			};
-		});
-
-		// Calculate totals - each item has quantity 1, so just sum prices
-		const subtotal = cartProducts.reduce((sum, item) => sum + item.price, 0);
-		const shipping = 0; // Free shipping for now
-		let discountAmount = 0;
-		let appliedDiscount = null;
-		
-		// Validate and apply discount code if provided
-		if (discountCode) {
-			try {
-				const discountQuery = `
-					SELECT 
-						d.*,
-						dc.id as code_id,
-						dc.code,
-						dc.usage_count as code_usage_count
-					FROM discounts d
-					JOIN discount_codes dc ON d.id = dc.discount_id
-					WHERE UPPER(dc.code) = UPPER($1) 
-					AND d.tenant_id = $2 
-					AND d.status = 'active'
-					AND d.starts_at <= NOW()
-					AND (d.ends_at IS NULL OR d.ends_at > NOW())
-				`;
-				
-				const discountResult = await query(discountQuery, [discountCode, DEFAULT_TENANT_ID]);
-				
-				if (discountResult.rows.length > 0) {
-					const discount = discountResult.rows[0];
-					
-					// Check minimum requirements
-					let isValid = true;
-					let errorMessage = '';
-					
-					if (discount.minimum_requirement_type === 'minimum_amount' && discount.minimum_amount) {
-						if (subtotal < parseFloat(discount.minimum_amount)) {
-							isValid = false;
-							errorMessage = `Minimum order amount of $${discount.minimum_amount} required`;
-						}
-					}
-					
-					// Check usage limits
-					if (isValid && discount.usage_limit && discount.total_usage_count >= discount.usage_limit) {
-						isValid = false;
-						errorMessage = 'This discount code has reached its usage limit';
-					}
-					
-					if (isValid) {
-						// Calculate discount amount
-						if (discount.value_type === 'percentage') {
-							discountAmount = (subtotal * parseFloat(discount.value)) / 100;
-						} else if (discount.value_type === 'fixed_amount') {
-							discountAmount = Math.min(parseFloat(discount.value), subtotal);
-						}
-						
-						discountAmount = Math.round(discountAmount * 100) / 100; // Round to 2 decimal places
-						
-						appliedDiscount = {
-							id: discount.id,
-							code: discount.code,
-							title: discount.title,
-							discount_type: discount.discount_type,
-							value_type: discount.value_type,
-							value: parseFloat(discount.value),
-							discount_amount: discountAmount
-						};
-					}
-				}
-			} catch (discountError) {
-				console.error('Error validating discount code:', discountError);
-				// Continue without discount if validation fails
-			}
-		}
-		
-		const tax = subtotal * 0.08; // 8% tax
-		const total = subtotal + shipping + tax - discountAmount;
+		// Extract data for response formatting
+		const cartProducts = cart.cart_items;
+		const { subtotal, tax, shipping, discount_amount: discountAmount, credits_applied: creditsApplied, total } = cart.pricing;
+		const appliedDiscount = cart.applied_discount;
 
 		// Construct response similar to CommentSold format
 		const response = {
@@ -227,8 +71,8 @@ export async function GET({ url }) {
 			coupon: appliedDiscount ? {
 				code: appliedDiscount.code,
 				title: appliedDiscount.title,
-				discount_amount: appliedDiscount.discount_amount,
-				amount_label: `-$${appliedDiscount.discount_amount.toFixed(2)}`
+				discount_amount: discountAmount, // Use dynamically calculated amount
+				amount_label: `-$${discountAmount.toFixed(2)}`
 			} : null,
 			customer: {
 				contact_information: {
@@ -248,7 +92,15 @@ export async function GET({ url }) {
 				free_shipping_timer_end: null,
 				cart_products: cartProducts
 			}],
-			purchase_protection_fees: []
+			purchase_protection_fees: [],
+			pricing: {
+				subtotal,
+				tax,
+				shipping,
+				discount_amount: discountAmount,
+				credits_applied: creditsApplied,
+				total
+			}
 		};
 
 		return jsonResponse(response);

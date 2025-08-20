@@ -77,6 +77,149 @@ class StripeService {
   }
 
   /**
+   * Get comprehensive payment details including payment intent and charge info
+   */
+  async getPaymentDetails(paymentIntentId) {
+    try {
+      console.log(`🔍 Fetching comprehensive payment details for: ${paymentIntentId}`);
+      
+      // Fetch payment intent with expanded data
+      const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId, {
+        expand: ['latest_charge', 'customer']
+      });
+
+      const paymentDetails = {
+        payment_intent: {
+          id: paymentIntent.id,
+          amount: paymentIntent.amount / 100,
+          currency: paymentIntent.currency,
+          status: paymentIntent.status,
+          created: paymentIntent.created,
+          confirmation_method: paymentIntent.confirmation_method,
+          capture_method: paymentIntent.capture_method,
+          customer_id: paymentIntent.customer?.id || null,
+          metadata: paymentIntent.metadata || {}
+        }
+      };
+
+      // If there's a charge, get detailed charge information
+      if (paymentIntent.latest_charge) {
+        const charge = typeof paymentIntent.latest_charge === 'string' 
+          ? await this.stripe.charges.retrieve(paymentIntent.latest_charge)
+          : paymentIntent.latest_charge;
+
+        paymentDetails.charge = await this.extractChargeDetails(charge);
+      }
+
+      console.log(`✅ Retrieved comprehensive payment details for: ${paymentIntentId}`);
+      return paymentDetails;
+
+    } catch (error) {
+      console.error(`❌ Failed to get payment details for ${paymentIntentId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieve detailed charge information
+   */
+  async getChargeDetails(chargeId) {
+    try {
+      console.log(`🔍 Fetching charge details for: ${chargeId}`);
+      const charge = await this.stripe.charges.retrieve(chargeId);
+      return await this.extractChargeDetails(charge);
+    } catch (error) {
+      console.error(`❌ Failed to retrieve charge details for ${chargeId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Extract structured charge details from Stripe charge object
+   */
+  async extractChargeDetails(charge) {
+    const chargeDetails = {
+      id: charge.id,
+      amount: charge.amount / 100,
+      currency: charge.currency,
+      status: charge.status,
+      created: charge.created,
+      captured: charge.captured,
+      
+      // Receipt Information
+      receipt_url: charge.receipt_url,
+      receipt_number: charge.receipt_number,
+      receipt_email: charge.receipt_email,
+      
+      // Billing Details
+      billing_details: {
+        name: charge.billing_details?.name,
+        email: charge.billing_details?.email,
+        phone: charge.billing_details?.phone,
+        address: charge.billing_details?.address
+      },
+      
+      // Payment Intent Reference
+      payment_intent_id: charge.payment_intent,
+      
+      // Customer Details
+      customer_id: charge.customer,
+      
+      // Balance Transaction (for fee analysis)
+      balance_transaction_id: charge.balance_transaction,
+      
+      // Fraud Detection
+      fraud_details: charge.fraud_details,
+      
+      // Dispute Information
+      disputed: charge.disputed,
+      dispute: charge.dispute
+    };
+
+    // Extract payment method details
+    if (charge.payment_method_details) {
+      chargeDetails.payment_method_details = {
+        type: charge.payment_method_details.type
+      };
+
+      // Card-specific details
+      if (charge.payment_method_details.card) {
+        chargeDetails.payment_method_details.card = {
+          brand: charge.payment_method_details.card.brand,
+          country: charge.payment_method_details.card.country,
+          exp_month: charge.payment_method_details.card.exp_month,
+          exp_year: charge.payment_method_details.card.exp_year,
+          funding: charge.payment_method_details.card.funding,
+          last4: charge.payment_method_details.card.last4,
+          network: charge.payment_method_details.card.network,
+          wallet: charge.payment_method_details.card.wallet,
+          three_d_secure: charge.payment_method_details.card.three_d_secure
+        };
+      }
+
+      // Other payment method types (for future expansion)
+      if (charge.payment_method_details.type !== 'card' && charge.payment_method_details[charge.payment_method_details.type]) {
+        chargeDetails.payment_method_details[charge.payment_method_details.type] = 
+          charge.payment_method_details[charge.payment_method_details.type];
+      }
+    }
+
+    // Risk Assessment
+    if (charge.outcome) {
+      chargeDetails.risk_assessment = {
+        network_status: charge.outcome.network_status,
+        reason: charge.outcome.reason,
+        risk_level: charge.outcome.risk_level,
+        risk_score: charge.outcome.risk_score,
+        seller_message: charge.outcome.seller_message,
+        type: charge.outcome.type
+      };
+    }
+
+    return chargeDetails;
+  }
+
+  /**
    * Create a customer
    */
   async createCustomer({ email, name, phone = null, metadata = {} }) {

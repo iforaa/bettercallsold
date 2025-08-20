@@ -1,4 +1,5 @@
 import { PaymentProviderFactory } from './payments/PaymentProviderFactory.js';
+import { CartService } from './CartService.js';
 import { query } from '$lib/database.js';
 import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, PLUGIN_EVENTS } from '$lib/constants.js';
 import { PluginService } from './PluginService.js';
@@ -23,9 +24,7 @@ export class CheckoutService {
     shipping_address,
     billing_address,
     customer_info = {},
-    pricing = {},
-    cart_items = [],
-    discount_code = null
+    userId = DEFAULT_MOBILE_USER_ID
   }) {
     const startTime = Date.now();
     let orderId = null;
@@ -45,47 +44,83 @@ export class CheckoutService {
       });
 
       // ==========================================
-      // STEP 2: Get cart items and calculate totals
+      // STEP 2: Get and validate cart using CartService
       // ==========================================
       
-      const { cartItems, calculatedPricing } = await this.getCartDataAndCalculateTotals(
-        cart_items, 
-        pricing,
-        discount_code
-      );
+      const cart = await CartService.validateCartForCheckout(userId);
 
-      if (cartItems.length === 0) {
+      if (!cart.cart_items || cart.cart_items.length === 0) {
         throw new Error('Cart is empty');
       }
 
-      console.log(`📊 Calculated totals: $${calculatedPricing.total} (${cartItems.length} items)`);
+      console.log(`📊 Calculated totals: $${cart.pricing.total} (${cart.cart_items.length} items)`);
+      
+      // Extract data for compatibility with existing code
+      const cartItems = cart.cart_items;
+      const calculatedPricing = {
+        total: cart.pricing.total,
+        subtotal: cart.pricing.subtotal,
+        tax: cart.pricing.tax,
+        shipping: cart.pricing.shipping,
+        discountAmount: cart.pricing.discount_amount,
+        creditsApplied: cart.pricing.credits_applied,
+        appliedDiscount: cart.applied_discount
+      };
 
       // ==========================================
-      // STEP 3: Get payment provider and verify payment
+      // STEP 3: Handle payment verification (skip for credits-only orders)
       // ==========================================
       
-      const provider = PaymentProviderFactory.getProviderForPaymentMethod(payment_method);
-      console.log(`💳 Using provider: ${provider.getProviderName()}`);
-
-      // Verify payment with the provider
-      const paymentResult = await provider.verifyPayment(payment_data);
+      let paymentResult = null;
+      let provider = null;
       
-      if (!paymentResult.success) {
-        throw new Error(paymentResult.error || 'Payment verification failed');
-      }
+      if (payment_method === 'credits_only') {
+        console.log('🎉 Credits-only order - skipping payment verification');
+        
+        // For credits-only orders, ensure total is 0
+        if (calculatedPricing.total > 0.01) {
+          throw new Error('Credits-only payment method requires zero total amount');
+        }
+        
+        // Create mock payment result for credits-only orders
+        paymentResult = {
+          success: true,
+          payment_id: `credits_${crypto.randomUUID()}`,
+          amount: 0,
+          provider: 'credits',
+          metadata: {
+            credits_applied: cart.pricing.credits_applied,
+            payment_method: 'credits_only'
+          }
+        };
+        
+        console.log(`✅ Credits-only order processed: ${paymentResult.payment_id}`);
+        
+      } else {
+        // Regular payment processing for paid orders
+        provider = PaymentProviderFactory.getProviderForPaymentMethod(payment_method);
+        console.log(`💳 Using provider: ${provider.getProviderName()}`);
 
-      console.log(`✅ Payment verified: ${paymentResult.payment_id} for $${paymentResult.amount}`);
+        // Verify payment with the provider
+        paymentResult = await provider.verifyPayment(payment_data);
+        
+        if (!paymentResult.success) {
+          throw new Error(paymentResult.error || 'Payment verification failed');
+        }
 
-      // ==========================================
-      // STEP 4: Validate payment amount
-      // ==========================================
-      
-      const expectedAmount = calculatedPricing.total;
-      const actualAmount = paymentResult.amount;
-      
-      if (Math.abs(actualAmount - expectedAmount) > 0.01) {
-        console.error(`💰 Amount mismatch: expected $${expectedAmount}, got $${actualAmount}`);
-        throw new Error('Payment amount does not match order total');
+        console.log(`✅ Payment verified: ${paymentResult.payment_id} for $${paymentResult.amount}`);
+
+        // ==========================================
+        // STEP 4: Validate payment amount for paid orders
+        // ==========================================
+        
+        const expectedAmount = calculatedPricing.total;
+        const actualAmount = paymentResult.amount;
+        
+        if (Math.abs(actualAmount - expectedAmount) > 0.01) {
+          console.error(`💰 Amount mismatch: expected $${expectedAmount}, got $${actualAmount}`);
+          throw new Error('Payment amount does not match order total');
+        }
       }
 
       // ==========================================
@@ -100,7 +135,7 @@ export class CheckoutService {
         // Create order
         const orderResult = await this.createOrder({
           orderId,
-          provider: provider.getProviderName(),
+          provider: payment_method === 'credits_only' ? 'credits' : provider.getProviderName(),
           paymentResult,
           payment_method,
           calculatedPricing,
@@ -113,27 +148,38 @@ export class CheckoutService {
         // Create order items and update inventory
         await this.createOrderItems(orderId, cartItems);
         
-        // Record discount usage if applicable
+        // Convert cart discount to order discount if applicable
         if (calculatedPricing.appliedDiscount) {
-          await this.recordDiscountUsage({
+          await this.convertCartDiscountToOrder({
             orderId,
-            discountId: calculatedPricing.appliedDiscount.id,
-            discountCodeId: calculatedPricing.appliedDiscount.code_id,
-            discountAmount: calculatedPricing.appliedDiscount.discount_amount,
-            userId: DEFAULT_MOBILE_USER_ID
+            userId,
+            appliedDiscount: calculatedPricing.appliedDiscount
           });
         }
         
         // Log payment transaction
         await this.logPaymentTransaction({
           orderId,
-          provider: provider.getProviderName(),
+          provider: payment_method === 'credits_only' ? 'credits' : provider.getProviderName(),
           paymentResult,
           calculatedPricing
         });
 
-        // Clear cart
-        await this.clearCart();
+        // Deduct credits if any were applied
+        if (calculatedPricing.creditsApplied > 0) {
+          const CreditService = (await import('./CreditService.js')).CreditService;
+          await CreditService.deductCredits(
+            userId,
+            calculatedPricing.creditsApplied,
+            `Order payment: ${orderId}`,
+            'order',
+            orderId
+          );
+          console.log(`✅ Deducted $${calculatedPricing.creditsApplied} credits for order ${orderId}`);
+        }
+
+        // Clear cart using CartService
+        await CartService.clearCart(userId);
 
         // Commit transaction
         await query('COMMIT');
@@ -154,7 +200,7 @@ export class CheckoutService {
       // Trigger checkout completed event
       await this.triggerCheckoutCompletedEvent({
         orderId,
-        provider: provider.getProviderName(),
+        provider: payment_method === 'credits_only' ? 'credits' : provider.getProviderName(),
         paymentResult,
         customer_info,
         cartItems,
@@ -165,7 +211,7 @@ export class CheckoutService {
       return {
         success: true,
         order_id: orderId,
-        payment_provider: provider.getProviderName(),
+        payment_provider: payment_method === 'credits_only' ? 'credits' : provider.getProviderName(),
         payment_id: paymentResult.payment_id,
         payment_method,
         status: 'processing',
@@ -317,174 +363,6 @@ export class CheckoutService {
     }
   }
 
-  /**
-   * Get cart data and calculate totals
-   * @private
-   */
-  static async getCartDataAndCalculateTotals(providedCartItems = [], providedPricing = {}, discountCode = null) {
-    let cartItems = [];
-    
-    if (providedCartItems.length > 0) {
-      // Use provided cart items
-      cartItems = providedCartItems;
-    } else {
-      // Get cart items from database - support both old and new product structures
-      const cartQuery = `
-        SELECT 
-          c.id as cart_id,
-          c.product_id,
-          c.quantity,
-          c.variant_data,
-          COALESCE(p_new.title, p_old.name) as product_name,
-          COALESCE(p_old.price, 0) as price,
-          COALESCE(p_new.images, p_old.images) as images
-        FROM cart_items c
-        LEFT JOIN products_new p_new ON c.product_id = p_new.id
-        LEFT JOIN products_old p_old ON c.product_id = p_old.id
-        WHERE c.tenant_id = $1 AND c.user_id = $2
-        ORDER BY c.created_at DESC
-      `;
-      
-      const cartResult = await query(cartQuery, [DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID]);
-      cartItems = cartResult.rows;
-    }
-
-    // Calculate pricing
-    let subtotal = 0;
-    
-    for (const item of cartItems) {
-      let variantData = {};
-      try {
-        variantData = item.variant_data ? 
-          (typeof item.variant_data === 'string' ? JSON.parse(item.variant_data) : item.variant_data) : {};
-      } catch (e) {
-        variantData = {};
-      }
-
-      const itemPrice = variantData.price || item.price || 0;
-      const itemQuantity = item.quantity || 1;
-      
-      subtotal += (typeof itemPrice === 'string' ? parseFloat(itemPrice) : itemPrice) * itemQuantity;
-    }
-
-    const shipping = providedPricing.shipping || 0;
-    const tax = providedPricing.tax || (subtotal * 0.08); // 8% default tax
-    const freeReturns = providedPricing.freeReturns || 0;
-    let discountAmount = 0;
-    let appliedDiscount = null;
-    
-    // Check if mobile app already provided complete pricing calculation
-    if (providedPricing.total !== undefined && providedPricing.discountAmount !== undefined) {
-      // Mobile app has already calculated totals server-side, use those values
-      console.log('📱 Using mobile app provided pricing calculations');
-      console.log('📱 Provided pricing:', JSON.stringify(providedPricing, null, 2));
-      discountAmount = providedPricing.discountAmount;
-      
-      // If there was a discount, create a basic applied discount object for record keeping
-      if (discountAmount > 0 && discountCode) {
-        appliedDiscount = {
-          code: discountCode,
-          discount_amount: discountAmount
-        };
-      }
-      
-      const total = providedPricing.total;
-      
-      return {
-        cartItems,
-        calculatedPricing: {
-          subtotal,
-          tax,
-          shipping,
-          freeReturns,
-          discountAmount,
-          appliedDiscount,
-          total
-        }
-      };
-    }
-    
-    // Otherwise, calculate discount from scratch (for non-mobile requests)
-    // Validate and apply discount code if provided
-    if (discountCode) {
-      try {
-        const discountQuery = `
-          SELECT 
-            d.*,
-            dc.id as code_id,
-            dc.code,
-            dc.usage_count as code_usage_count
-          FROM discounts d
-          JOIN discount_codes dc ON d.id = dc.discount_id
-          WHERE UPPER(dc.code) = UPPER($1) 
-          AND d.tenant_id = $2 
-          AND d.status = 'active'
-          AND d.starts_at <= NOW()
-          AND (d.ends_at IS NULL OR d.ends_at > NOW())
-        `;
-        
-        const discountResult = await query(discountQuery, [discountCode, DEFAULT_TENANT_ID]);
-        
-        if (discountResult.rows.length > 0) {
-          const discount = discountResult.rows[0];
-          
-          // Check minimum requirements
-          let isValid = true;
-          
-          if (discount.minimum_requirement_type === 'minimum_amount' && discount.minimum_amount) {
-            if (subtotal < parseFloat(discount.minimum_amount)) {
-              isValid = false;
-            }
-          }
-          
-          // Check usage limits
-          if (isValid && discount.usage_limit && discount.total_usage_count >= discount.usage_limit) {
-            isValid = false;
-          }
-          
-          if (isValid) {
-            // Calculate discount amount
-            if (discount.value_type === 'percentage') {
-              discountAmount = (subtotal * parseFloat(discount.value)) / 100;
-            } else if (discount.value_type === 'fixed_amount') {
-              discountAmount = Math.min(parseFloat(discount.value), subtotal);
-            }
-            
-            discountAmount = Math.round(discountAmount * 100) / 100; // Round to 2 decimal places
-            
-            appliedDiscount = {
-              id: discount.id,
-              code_id: discount.code_id,
-              code: discount.code,
-              title: discount.title,
-              discount_type: discount.discount_type,
-              value_type: discount.value_type,
-              value: parseFloat(discount.value),
-              discount_amount: discountAmount
-            };
-          }
-        }
-      } catch (discountError) {
-        console.error('Error validating discount code in checkout:', discountError);
-        // Continue without discount if validation fails
-      }
-    }
-    
-    const total = subtotal + shipping + tax + freeReturns - discountAmount;
-
-    return {
-      cartItems,
-      calculatedPricing: {
-        subtotal,
-        tax,
-        shipping,
-        freeReturns,
-        discountAmount,
-        appliedDiscount,
-        total
-      }
-    };
-  }
 
   /**
    * Create order in database
@@ -615,16 +493,6 @@ export class CheckoutService {
     ]);
   }
 
-  /**
-   * Clear cart after successful checkout
-   * @private
-   */
-  static async clearCart() {
-    await query(`
-      DELETE FROM cart_items 
-      WHERE tenant_id = $1 AND user_id = $2
-    `, [DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID]);
-  }
 
   /**
    * Trigger checkout completed event
@@ -692,6 +560,42 @@ export class CheckoutService {
       console.log('📤 Checkout failed event triggered');
     } catch (pluginError) {
       console.error('Error triggering checkout failed event:', pluginError);
+    }
+  }
+
+  /**
+   * Convert cart discount to order discount during checkout
+   * @private
+   */
+  static async convertCartDiscountToOrder({ orderId, userId, appliedDiscount }) {
+    try {
+      // Update the existing cart discount record to be an order discount
+      await query(`
+        UPDATE discount_usage 
+        SET 
+          usage_type = 'order',
+          order_id = $1,
+          used_at = NOW()
+        WHERE tenant_id = $2 
+          AND user_id = $3 
+          AND usage_type = 'cart'
+      `, [orderId, DEFAULT_TENANT_ID, userId]);
+
+      // Update discount code usage count
+      await query(`
+        UPDATE discount_codes 
+        SET usage_count = usage_count + 1
+        WHERE id = (
+          SELECT discount_code_id 
+          FROM discount_usage 
+          WHERE order_id = $1 AND user_id = $2
+        )
+      `, [orderId, userId]);
+
+      console.log(`✅ Converted cart discount to order discount: $${appliedDiscount.discount_amount} for order ${orderId}`);
+    } catch (error) {
+      console.error('❌ Failed to convert cart discount to order discount:', error);
+      throw error;
     }
   }
 

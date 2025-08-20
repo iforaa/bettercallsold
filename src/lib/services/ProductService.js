@@ -260,10 +260,11 @@ export class ProductService {
       description: formData.description?.trim(),
       price: parseFloat(formData.price) || 0,
       status: formData.status || 'draft',
-      tags: formData.tags?.trim(),
+      tags: formData.tags?.trim() ? formData.tags.trim().split(',').map(tag => tag.trim()).filter(tag => tag) : [],
       vendor: formData.vendor?.trim(),
       product_type: formData.product_type?.trim(),
-      images: imageUrls
+      images: imageUrls,
+      collections: formData.collections || [] // Add collections support
     };
     
     // Remove empty values

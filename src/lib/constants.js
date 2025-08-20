@@ -155,9 +155,9 @@ export const QUERIES = {
     RETURNING id
   `,
   UPDATE_PRODUCT: `
-    UPDATE products_old
-    SET name = $3, description = $4, price = $5, images = $6::jsonb, tags = $7,
-        status = $8, updated_at = NOW()
+    UPDATE products_new
+    SET title = $3, description = $4, images = $5::jsonb, tags = $6,
+        status = $7, updated_at = NOW()
     WHERE id = $1 AND tenant_id = $2
   `,
   DELETE_PRODUCT: "DELETE FROM products_old WHERE id = $1 AND tenant_id = $2",
@@ -179,9 +179,14 @@ export const QUERIES = {
   GET_ORDER_BY_ID: `
     SELECT
       o.id, o.tenant_id, o.user_id as customer_id, o.status, o.total_amount,
-      o.shipping_address, o.payment_method, o.payment_id,
+      o.subtotal_amount, o.shipping_amount, o.tax_amount,
+      o.shipping_address, o.billing_address, o.payment_method, o.payment_id,
+      o.stripe_payment_intent_id, o.provider_payment_id, o.payment_status,
+      o.payment_provider, o.provider_data,
+      o.customer_name, o.customer_email, o.customer_phone,
+      o.stripe_customer_id, o.provider_customer_id,
       o.created_at, o.updated_at,
-      u.name as customer_name, u.email as customer_email
+      u.name as user_name, u.email as user_email
     FROM orders o
     LEFT JOIN users u ON o.user_id = u.id
     WHERE o.id = $1 AND o.tenant_id = $2

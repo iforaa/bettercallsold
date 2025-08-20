@@ -34,12 +34,11 @@ export async function GET({ params }) {
     const discount = result.rows[0];
     discount.status = discount.computed_status;
 
-    // Get usage statistics
+    // Get usage statistics (removed discount_amount since column was dropped)
     const usageQuery = `
       SELECT 
         COUNT(*) as total_uses,
         COUNT(DISTINCT user_id) as unique_customers,
-        SUM(discount_amount) as total_discount_amount,
         MAX(used_at) as last_used_at
       FROM discount_usage
       WHERE discount_id = $1
@@ -53,7 +52,6 @@ export async function GET({ params }) {
       usage_stats: {
         total_uses: parseInt(usageStats.total_uses) || 0,
         unique_customers: parseInt(usageStats.unique_customers) || 0,
-        total_discount_amount: parseFloat(usageStats.total_discount_amount) || 0,
         last_used_at: usageStats.last_used_at
       }
     });

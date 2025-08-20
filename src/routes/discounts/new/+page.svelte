@@ -3,20 +3,25 @@
     import { page } from '$app/stores';
     import { goto } from '$app/navigation';
     import { browser } from '$app/environment';
+    import { DiscountService } from '$lib/services/DiscountService.js';
+    import { getDiscountTypeDisplay } from '$lib/utils/status';
+    import DiscountForm from '$lib/components/discounts/DiscountForm.svelte';
+    import ErrorState from '$lib/components/states/ErrorState.svelte';
+    import type { DiscountFormData } from '$lib/types/discounts';
 
     // Get URL parameters
     let discountType = $derived($page.url.searchParams.get('type') || 'amount_off_order');
-    let discountTitle = $derived($page.url.searchParams.get('title') || 'Amount off order');
+    let discountTitle = $derived(getDiscountTypeDisplay($page.url.searchParams.get('type') || 'amount_off_order'));
 
     // Form state
-    let formData = $state({
+    let formData: DiscountFormData = $state({
         title: '',
         description: '',
-        discount_type: discountType,
-        method: 'code', // 'code' or 'automatic'
-        value_type: 'percentage', // 'percentage' or 'fixed_amount'
+        discount_type: discountType as any,
+        method: 'code',
+        value_type: 'percentage',
         value: '',
-        minimum_requirement_type: 'none', // 'none', 'minimum_amount', 'minimum_quantity'
+        minimum_requirement_type: 'none',
         minimum_amount: '',
         minimum_quantity: '',
         usage_limit: '',
@@ -24,7 +29,7 @@
         can_combine_with_product_discounts: false,
         can_combine_with_order_discounts: false,
         can_combine_with_shipping_discounts: false,
-        customer_eligibility: 'all', // 'all', 'specific_segments', 'specific_customers'
+        customer_eligibility: 'all',
         applies_to_subscription: true,
         applies_to_one_time: true,
         starts_at: '',
@@ -63,28 +68,24 @@
     // Generate discount code
     async function generateDiscountCode() {
         try {
-            const response = await fetch('/api/discounts/generate-code', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                formData.discount_code = data.code;
-            }
+            const data = await DiscountService.generateCode();
+            formData.discount_code = data.code;
         } catch (err) {
             console.error('Failed to generate discount code:', err);
         }
     }
 
-    // Handle method change
-    function handleMethodChange(newMethod) {
-        formData.method = newMethod;
+    // Handle form changes
+    function handleFormChange(changes: Partial<DiscountFormData>) {
+        Object.assign(formData, changes);
         
-        if (newMethod === 'code' && !formData.discount_code) {
-            generateDiscountCode();
-        } else if (newMethod === 'automatic') {
-            formData.discount_code = '';
+        // Handle method change logic
+        if ('method' in changes) {
+            if (changes.method === 'code' && !formData.discount_code) {
+                generateDiscountCode();
+            } else if (changes.method === 'automatic') {
+                formData.discount_code = '';
+            }
         }
     }
 
@@ -129,7 +130,7 @@
     }
 
     // Handle form submission
-    async function handleSubmit() {
+    async function handleSubmit(submittedFormData: DiscountFormData) {
         if (!validateForm()) {
             return;
         }
@@ -138,65 +139,19 @@
             loading = true;
             error = '';
 
-            // Format dates
-            const startsAt = new Date(`${formData.starts_at}T${formData.start_time}:00Z`);
-            let endsAt = null;
+            // Use service to prepare and submit data
+            const requestData = DiscountService.prepareDiscountData(submittedFormData);
+            await DiscountService.createDiscount(requestData);
             
-            if (formData.set_end_date && formData.ends_at && formData.end_time) {
-                endsAt = new Date(`${formData.ends_at}T${formData.end_time}:00Z`);
-            }
-
-            // Prepare request data
-            const requestData = {
-                title: formData.title,
-                description: formData.description,
-                discount_type: formData.discount_type,
-                method: formData.method,
-                value_type: formData.value_type,
-                value: parseFloat(formData.value),
-                minimum_requirement_type: formData.minimum_requirement_type,
-                minimum_amount: formData.minimum_amount ? parseFloat(formData.minimum_amount) : null,
-                minimum_quantity: formData.minimum_quantity ? parseInt(formData.minimum_quantity) : null,
-                usage_limit: formData.usage_limit ? parseInt(formData.usage_limit) : null,
-                usage_limit_per_customer: formData.usage_limit_per_customer ? parseInt(formData.usage_limit_per_customer) : null,
-                can_combine_with_product_discounts: formData.can_combine_with_product_discounts,
-                can_combine_with_order_discounts: formData.can_combine_with_order_discounts,
-                can_combine_with_shipping_discounts: formData.can_combine_with_shipping_discounts,
-                customer_eligibility: formData.customer_eligibility,
-                applies_to_subscription: formData.applies_to_subscription,
-                applies_to_one_time: formData.applies_to_one_time,
-                starts_at: startsAt.toISOString(),
-                ends_at: endsAt ? endsAt.toISOString() : null,
-                available_on_online_store: formData.available_on_online_store,
-                available_on_mobile_app: formData.available_on_mobile_app,
-                discount_code: formData.method === 'code' ? formData.discount_code : undefined
-            };
-
-            const response = await fetch('/api/discounts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestData)
-            });
-
-            if (response.ok) {
-                // Redirect to discounts list
-                goto('/discounts');
-            } else {
-                const data = await response.json();
-                error = data.message || 'Failed to create discount';
-            }
+            // Redirect to discounts list
+            goto('/discounts');
 
         } catch (err) {
             console.error('Create discount error:', err);
-            error = 'An error occurred while creating the discount';
+            error = err.message || 'An error occurred while creating the discount';
         } finally {
             loading = false;
         }
-    }
-
-    // Handle cancel
-    function handleCancel() {
-        goto('/discounts');
     }
 </script>
 
@@ -208,484 +163,75 @@
     <div class="page-header">
         <div class="page-header-content">
             <div class="page-header-nav">
+                <button 
+                    class="btn btn-secondary btn-sm"
+                    onclick={() => goto('/discounts')}
+                    title="Back to discounts"
+                >
+                    ← Back
+                </button>
                 <div class="breadcrumb" style="margin-bottom: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold);">
                     <a href="/discounts" class="breadcrumb-item">🏷️ Discounts</a>
                     <span class="breadcrumb-separator">›</span>
                     <span class="breadcrumb-item current">Create discount</span>
                 </div>
             </div>
+            <div class="page-actions">
+                <button 
+                    class="btn btn-primary {loading ? 'btn-loading' : ''}"
+                    onclick={() => handleSubmit(formData)}
+                    disabled={loading}
+                >
+                    {loading ? 'Saving...' : 'Save discount'}
+                </button>
+            </div>
         </div>
     </div>
 
-    <div class="page-content">
-        <div class="form-layout">
-            <!-- Main form content -->
-            <div class="form-main">
-                <!-- Discount type header -->
-                <div class="discount-type-header">
-                    <h1>{discountTitle}</h1>
-                </div>
-
-                {#if error}
-                    <div class="error-alert">
-                        <span class="error-icon">⚠</span>
-                        {error}
-                    </div>
-                {/if}
-
-                <!-- Method selection -->
-                <div class="form-section">
-                    <h2>Method</h2>
-                    <div class="method-tabs">
-                        <button 
-                            class="method-tab {formData.method === 'code' ? 'active' : ''}"
-                            onclick={() => handleMethodChange('code')}
-                        >
-                            Discount code
-                        </button>
-                        <button 
-                            class="method-tab {formData.method === 'automatic' ? 'active' : ''}"
-                            onclick={() => handleMethodChange('automatic')}
-                        >
-                            Automatic discount
-                        </button>
-                    </div>
-
-                    {#if formData.method === 'code'}
-                        <div class="form-field">
-                            <label class="form-label" for="discount-code">
-                                Discount Code
-                                {#if validationErrors.discount_code}
-                                    <span class="field-error">({validationErrors.discount_code})</span>
-                                {/if}
-                            </label>
-                            <div class="code-input-group">
-                                <input 
-                                    id="discount-code"
-                                    type="text" 
-                                    class="form-input {validationErrors.discount_code ? 'error' : ''}"
-                                    bind:value={formData.discount_code}
-                                    placeholder="Enter discount code"
-                                />
-                                <button 
-                                    type="button" 
-                                    class="btn btn-secondary"
-                                    onclick={generateDiscountCode}
-                                >
-                                    Generate random code
-                                </button>
-                            </div>
-                            <p class="form-help">Customers must enter this code at checkout.</p>
-                        </div>
-                    {/if}
-                </div>
-
-                <!-- Discount value -->
-                <div class="form-section">
-                    <h2>Discount Value</h2>
-                    
-                    <div class="value-input-group">
-                        <select 
-                            class="form-select value-type-select"
-                            bind:value={formData.value_type}
-                        >
-                            <option value="percentage">Percentage</option>
-                            <option value="fixed_amount">Fixed amount</option>
-                        </select>
-                        
-                        <div class="value-input-container">
-                            <input 
-                                type="number" 
-                                class="form-input value-input {validationErrors.value ? 'error' : ''}"
-                                bind:value={formData.value}
-                                placeholder={formData.value_type === 'percentage' ? '0' : '0.00'}
-                                step={formData.value_type === 'percentage' ? '1' : '0.01'}
-                                min="0"
-                                max={formData.value_type === 'percentage' ? '100' : undefined}
-                            />
-                            <span class="value-suffix">
-                                {formData.value_type === 'percentage' ? '%' : '$'}
-                            </span>
-                        </div>
-                    </div>
-                    {#if validationErrors.value}
-                        <p class="field-error">{validationErrors.value}</p>
-                    {/if}
-                </div>
-
-                <!-- Purchase type -->
-                <div class="form-section">
-                    <h2>Purchase type</h2>
-                    <div class="purchase-type-options">
-                        <label class="radio-label">
-                            <input 
-                                type="radio" 
-                                bind:group={formData.applies_to_one_time}
-                                value={true}
-                                checked
-                            />
-                            One-time purchase
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Customer eligibility -->
-                <div class="form-section">
-                    <h2>Eligibility</h2>
-                    <p class="section-description">Available on all sales channels</p>
-                    
-                    <div class="eligibility-options">
-                        <label class="radio-label">
-                            <input 
-                                type="radio" 
-                                bind:group={formData.customer_eligibility}
-                                value="all"
-                            />
-                            All customers
-                        </label>
-                        <label class="radio-label">
-                            <input 
-                                type="radio" 
-                                bind:group={formData.customer_eligibility}
-                                value="specific_segments"
-                                disabled
-                            />
-                            Specific customer segments
-                            <span class="coming-soon">Coming soon</span>
-                        </label>
-                        <label class="radio-label">
-                            <input 
-                                type="radio" 
-                                bind:group={formData.customer_eligibility}
-                                value="specific_customers"
-                                disabled
-                            />
-                            Specific customers
-                            <span class="coming-soon">Coming soon</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Minimum purchase requirements -->
-                <div class="form-section">
-                    <h2>Minimum purchase requirements</h2>
-                    
-                    <div class="minimum-requirements">
-                        <label class="radio-label">
-                            <input 
-                                type="radio" 
-                                bind:group={formData.minimum_requirement_type}
-                                value="none"
-                            />
-                            No minimum requirements
-                        </label>
-                        
-                        <label class="radio-label">
-                            <input 
-                                type="radio" 
-                                bind:group={formData.minimum_requirement_type}
-                                value="minimum_amount"
-                            />
-                            Minimum purchase amount ($)
-                        </label>
-                        {#if formData.minimum_requirement_type === 'minimum_amount'}
-                            <div class="nested-input">
-                                <input 
-                                    type="number" 
-                                    class="form-input {validationErrors.minimum_amount ? 'error' : ''}"
-                                    bind:value={formData.minimum_amount}
-                                    placeholder="0.00"
-                                    step="0.01"
-                                    min="0"
-                                />
-                                {#if validationErrors.minimum_amount}
-                                    <p class="field-error">{validationErrors.minimum_amount}</p>
-                                {/if}
-                            </div>
-                        {/if}
-                        
-                        <label class="radio-label">
-                            <input 
-                                type="radio" 
-                                bind:group={formData.minimum_requirement_type}
-                                value="minimum_quantity"
-                            />
-                            Minimum quantity of items
-                        </label>
-                        {#if formData.minimum_requirement_type === 'minimum_quantity'}
-                            <div class="nested-input">
-                                <input 
-                                    type="number" 
-                                    class="form-input {validationErrors.minimum_quantity ? 'error' : ''}"
-                                    bind:value={formData.minimum_quantity}
-                                    placeholder="0"
-                                    min="0"
-                                />
-                                {#if validationErrors.minimum_quantity}
-                                    <p class="field-error">{validationErrors.minimum_quantity}</p>
-                                {/if}
-                            </div>
-                        {/if}
-                    </div>
-                </div>
-
-                <!-- Maximum discount uses -->
-                <div class="form-section">
-                    <h2>Maximum discount uses</h2>
-                    
-                    <div class="usage-limits">
-                        <label class="checkbox-label">
-                            <input 
-                                type="checkbox" 
-                                bind:checked={formData.usage_limit}
-                            />
-                            Limit number of times this discount can be used in total
-                        </label>
-                        {#if formData.usage_limit}
-                            <div class="nested-input">
-                                <input 
-                                    type="number" 
-                                    class="form-input"
-                                    bind:value={formData.usage_limit}
-                                    placeholder="0"
-                                    min="1"
-                                />
-                            </div>
-                        {/if}
-
-                        <label class="checkbox-label">
-                            <input 
-                                type="checkbox" 
-                                bind:checked={formData.usage_limit_per_customer}
-                            />
-                            Limit to one use per customer
-                        </label>
-                        {#if formData.usage_limit_per_customer}
-                            <div class="nested-input">
-                                <input 
-                                    type="number" 
-                                    class="form-input"
-                                    bind:value={formData.usage_limit_per_customer}
-                                    placeholder="1"
-                                    min="1"
-                                />
-                            </div>
-                        {/if}
-                    </div>
-                </div>
-
-                <!-- Combinations -->
-                <div class="form-section">
-                    <h2>Combinations</h2>
-                    
-                    <div class="combinations">
-                        <label class="checkbox-label">
-                            <input 
-                                type="checkbox" 
-                                bind:checked={formData.can_combine_with_product_discounts}
-                            />
-                            Product discounts
-                        </label>
-
-                        <label class="checkbox-label">
-                            <input 
-                                type="checkbox" 
-                                bind:checked={formData.can_combine_with_order_discounts}
-                            />
-                            Order discounts
-                        </label>
-
-                        <label class="checkbox-label">
-                            <input 
-                                type="checkbox" 
-                                bind:checked={formData.can_combine_with_shipping_discounts}
-                            />
-                            Shipping discounts
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Active dates -->
-                <div class="form-section">
-                    <h2>Active dates</h2>
-                    
-                    <div class="date-inputs">
-                        <div class="date-group">
-                            <div class="date-field">
-                                <label class="form-label" for="start-date">
-                                    Start date
-                                    {#if validationErrors.starts_at}
-                                        <span class="field-error">({validationErrors.starts_at})</span>
-                                    {/if}
-                                </label>
-                                <input 
-                                    id="start-date"
-                                    type="date" 
-                                    class="form-input {validationErrors.starts_at ? 'error' : ''}"
-                                    bind:value={formData.starts_at}
-                                />
-                            </div>
-                            
-                            <div class="time-field">
-                                <label class="form-label" for="start-time">
-                                    Start time (EDT)
-                                    {#if validationErrors.start_time}
-                                        <span class="field-error">({validationErrors.start_time})</span>
-                                    {/if}
-                                </label>
-                                <input 
-                                    id="start-time"
-                                    type="time" 
-                                    class="form-input {validationErrors.start_time ? 'error' : ''}"
-                                    bind:value={formData.start_time}
-                                />
-                            </div>
-                        </div>
-
-                        <label class="checkbox-label">
-                            <input 
-                                type="checkbox" 
-                                bind:checked={formData.set_end_date}
-                            />
-                            Set end date
-                        </label>
-
-                        {#if formData.set_end_date}
-                            <div class="date-group">
-                                <div class="date-field">
-                                    <label class="form-label" for="end-date">End date</label>
-                                    <input 
-                                        id="end-date"
-                                        type="date" 
-                                        class="form-input"
-                                        bind:value={formData.ends_at}
-                                    />
-                                </div>
-                                
-                                <div class="time-field">
-                                    <label class="form-label" for="end-time">End time (EDT)</label>
-                                    <input 
-                                        id="end-time"
-                                        type="time" 
-                                        class="form-input"
-                                        bind:value={formData.end_time}
-                                    />
-                                </div>
-                            </div>
-                        {/if}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sidebar -->
-            <div class="form-sidebar">
-                <div class="sidebar-section">
-                    <div class="preview-header">
-                        <h3>Summary</h3>
-                    </div>
-                    
-                    <div class="discount-preview">
-                        <div class="preview-title">
-                            {formData.title || 'No discount code yet'}
-                        </div>
-                        <div class="preview-subtitle">Code</div>
-                        
-                        <div class="preview-section">
-                            <div class="preview-label">Type</div>
-                            <div class="preview-value">{discountTitle}</div>
-                            <div class="preview-icon">💰</div>
-                        </div>
-
-                        <div class="preview-section">
-                            <div class="preview-label">Details</div>
-                            <div class="preview-details">
-                                <div>• All customers</div>
-                                <div>• Applies to one-time purchases</div>
-                                {#if formData.minimum_requirement_type === 'none'}
-                                    <div>• No minimum purchase requirement</div>
-                                {:else if formData.minimum_requirement_type === 'minimum_amount'}
-                                    <div>• Minimum purchase of ${formData.minimum_amount || '0.00'}</div>
-                                {:else if formData.minimum_requirement_type === 'minimum_quantity'}
-                                    <div>• Minimum {formData.minimum_quantity || '0'} items</div>
-                                {/if}
-                                <div>• No usage limits</div>
-                                <div>• Can't combine with other discounts</div>
-                                <div>• Active from {formData.starts_at || 'today'}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Save actions -->
-                <div class="save-actions">
-                    <button 
-                        class="btn btn-primary btn-lg" 
-                        onclick={handleSubmit}
-                        disabled={loading}
-                    >
-                        {#if loading}
-                            <span class="loading-spinner"></span>
-                            Saving...
-                        {:else}
-                            Save discount
-                        {/if}
-                    </button>
-                </div>
+    <div class="page-content-padded">
+        <!-- Discount type header -->
+        <div class="discount-header-container">
+            <div class="discount-type-header">
+                <h1>{discountTitle}</h1>
             </div>
         </div>
+
+        {#if error}
+            <ErrorState 
+                error={error}
+                title="Error"
+            />
+        {:else}
+            <DiscountForm 
+                {formData}
+                {validationErrors}
+                onSubmit={handleSubmit}
+                onFormChange={handleFormChange}
+                mode="create"
+                {loading}
+            />
+        {/if}
     </div>
 </div>
 
 <style>
-    /* Layout */
-    .form-layout {
+    /* Header container that matches DiscountForm layout exactly */
+    .discount-header-container {
         display: grid;
         grid-template-columns: 1fr 320px;
         gap: var(--space-6);
         max-width: 1200px;
         margin: 0 auto;
         padding: var(--space-4);
+        margin-bottom: var(--space-6);
     }
-
-    .form-main {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-6);
-    }
-
-    .form-sidebar {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-4);
-    }
-
-    /* Sections */
-    .form-section {
-        background: var(--color-surface);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        padding: var(--space-5);
-    }
-
-    .form-section h2 {
-        margin: 0 0 var(--space-4) 0;
-        font-size: var(--font-size-lg);
-        font-weight: var(--font-weight-semibold);
-        color: var(--color-text-primary);
-    }
-
-    .section-description {
-        color: var(--color-text-secondary);
-        font-size: var(--font-size-sm);
-        margin-bottom: var(--space-4);
-    }
-
-    /* Discount type header */
+    
     .discount-type-header {
         background: var(--color-surface);
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         padding: var(--space-5);
+        grid-column: 1;  /* Only take the first column */
     }
 
     .discount-type-header h1 {
@@ -695,333 +241,10 @@
         color: var(--color-text-primary);
     }
 
-    /* Error alert */
-    .error-alert {
-        background: #fef2f2;
-        color: #dc2626;
-        border: 1px solid #fecaca;
-        border-radius: var(--radius-md);
-        padding: var(--space-3);
+    /* Page header navigation styling */
+    .page-header-nav {
         display: flex;
         align-items: center;
-        gap: var(--space-2);
-    }
-
-    .error-icon {
-        font-size: var(--font-size-lg);
-    }
-
-    /* Method tabs */
-    .method-tabs {
-        display: flex;
-        gap: var(--space-1);
-        margin-bottom: var(--space-4);
-        border-bottom: 1px solid var(--color-border);
-    }
-
-    .method-tab {
-        background: none;
-        border: none;
-        padding: var(--space-3) var(--space-4);
-        color: var(--color-text-secondary);
-        cursor: pointer;
-        font-weight: var(--font-weight-medium);
-        border-bottom: 2px solid transparent;
-        transition: all var(--transition-fast);
-    }
-
-    .method-tab:hover {
-        color: var(--color-text-primary);
-    }
-
-    .method-tab.active {
-        color: var(--color-primary);
-        border-bottom-color: var(--color-primary);
-    }
-
-    /* Form fields */
-    .form-field {
-        margin-bottom: var(--space-4);
-    }
-
-    .form-label {
-        display: block;
-        font-weight: var(--font-weight-medium);
-        color: var(--color-text-primary);
-        margin-bottom: var(--space-2);
-        font-size: var(--font-size-sm);
-    }
-
-    .form-input,
-    .form-select {
-        width: 100%;
-        padding: var(--space-3);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-md);
-        background: var(--color-surface);
-        font-size: var(--font-size-sm);
-        transition: border-color var(--transition-fast);
-    }
-
-    .form-input:focus,
-    .form-select:focus {
-        outline: none;
-        border-color: var(--color-primary);
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-    }
-
-    .form-input.error {
-        border-color: #dc2626;
-    }
-
-    .form-help {
-        font-size: var(--font-size-xs);
-        color: var(--color-text-secondary);
-        margin-top: var(--space-1);
-        margin-bottom: 0;
-    }
-
-    .field-error {
-        color: #dc2626;
-        font-size: var(--font-size-xs);
-        margin-top: var(--space-1);
-    }
-
-    /* Input groups */
-    .code-input-group {
-        display: flex;
         gap: var(--space-3);
-        align-items: flex-start;
-    }
-
-    .code-input-group .form-input {
-        flex: 1;
-    }
-
-    .value-input-group {
-        display: flex;
-        gap: var(--space-3);
-        align-items: flex-start;
-    }
-
-    .value-type-select {
-        width: 150px;
-    }
-
-    .value-input-container {
-        flex: 1;
-        position: relative;
-    }
-
-    .value-input {
-        padding-right: 40px;
-    }
-
-    .value-suffix {
-        position: absolute;
-        right: var(--space-3);
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--color-text-secondary);
-        pointer-events: none;
-    }
-
-    /* Radio and checkbox labels */
-    .radio-label,
-    .checkbox-label {
-        display: flex;
-        align-items: center;
-        gap: var(--space-2);
-        margin-bottom: var(--space-3);
-        cursor: pointer;
-        font-size: var(--font-size-sm);
-    }
-
-    .radio-label:last-child,
-    .checkbox-label:last-child {
-        margin-bottom: 0;
-    }
-
-    .radio-label input[type="radio"],
-    .checkbox-label input[type="checkbox"] {
-        margin: 0;
-    }
-
-    .coming-soon {
-        font-size: var(--font-size-xs);
-        background: var(--color-warning);
-        color: var(--color-warning-text);
-        padding: 2px var(--space-1);
-        border-radius: var(--radius-sm);
-        font-weight: var(--font-weight-medium);
-        margin-left: var(--space-2);
-    }
-
-    /* Nested inputs */
-    .nested-input {
-        margin-left: var(--space-5);
-        margin-top: var(--space-2);
-        margin-bottom: var(--space-2);
-    }
-
-    .nested-input .form-input {
-        max-width: 200px;
-    }
-
-    /* Date inputs */
-    .date-group {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: var(--space-3);
-        margin-bottom: var(--space-3);
-    }
-
-    .date-field,
-    .time-field {
-        display: flex;
-        flex-direction: column;
-    }
-
-    /* Sidebar */
-    .sidebar-section {
-        background: var(--color-surface);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        overflow: hidden;
-    }
-
-    .preview-header {
-        padding: var(--space-4);
-        border-bottom: 1px solid var(--color-border);
-        background: var(--color-background-secondary);
-    }
-
-    .preview-header h3 {
-        margin: 0;
-        font-size: var(--font-size-sm);
-        font-weight: var(--font-weight-semibold);
-        color: var(--color-text-primary);
-        text-transform: uppercase;
-        letter-spacing: 0.025em;
-    }
-
-    .discount-preview {
-        padding: var(--space-4);
-    }
-
-    .preview-title {
-        font-weight: var(--font-weight-semibold);
-        color: var(--color-text-primary);
-        margin-bottom: var(--space-1);
-    }
-
-    .preview-subtitle {
-        font-size: var(--font-size-sm);
-        color: var(--color-text-secondary);
-        margin-bottom: var(--space-4);
-    }
-
-    .preview-section {
-        margin-bottom: var(--space-4);
-        position: relative;
-    }
-
-    .preview-section:last-child {
-        margin-bottom: 0;
-    }
-
-    .preview-label {
-        font-size: var(--font-size-xs);
-        font-weight: var(--font-weight-medium);
-        color: var(--color-text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.025em;
-        margin-bottom: var(--space-2);
-    }
-
-    .preview-value {
-        font-weight: var(--font-weight-medium);
-        color: var(--color-text-primary);
-        margin-bottom: var(--space-2);
-    }
-
-    .preview-icon {
-        position: absolute;
-        top: 0;
-        right: 0;
-        font-size: var(--font-size-lg);
-    }
-
-    .preview-details {
-        font-size: var(--font-size-sm);
-        color: var(--color-text-secondary);
-        line-height: 1.5;
-    }
-
-    .preview-details > div {
-        margin-bottom: var(--space-1);
-    }
-
-    /* Save actions */
-    .save-actions {
-        position: sticky;
-        bottom: var(--space-4);
-    }
-
-    .btn-lg {
-        padding: var(--space-3) var(--space-4);
-        font-size: var(--font-size-base);
-        width: 100%;
-    }
-
-    /* Loading spinner */
-    .loading-spinner {
-        width: 16px;
-        height: 16px;
-        border: 2px solid transparent;
-        border-top-color: currentColor;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin-right: var(--space-2);
-        display: inline-block;
-    }
-
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-
-    /* Responsive */
-    @media (max-width: 1024px) {
-        .form-layout {
-            grid-template-columns: 1fr;
-            gap: var(--space-4);
-        }
-
-        .form-sidebar {
-            order: -1;
-        }
-
-        .save-actions {
-            position: static;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .form-layout {
-            padding: var(--space-2);
-        }
-
-        .date-group {
-            grid-template-columns: 1fr;
-        }
-
-        .code-input-group,
-        .value-input-group {
-            flex-direction: column;
-        }
-
-        .value-type-select {
-            width: 100%;
-        }
     }
 </style>

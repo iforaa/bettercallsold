@@ -21,8 +21,6 @@ export async function POST({ request }) {
       billing_address,
       customer_info = {},
       pricing = {},
-      cart_items = [],
-      discount_code = null,
       // Legacy support for backward compatibility
       payment_intent_id,
       apple_pay_token,
@@ -88,10 +86,7 @@ export async function POST({ request }) {
       payment_data: body.payment_data,
       shipping_address,
       billing_address,
-      customer_info,
-      pricing,
-      cart_items,
-      discount_code
+      customer_info
     });
 
     console.log(`✅ Checkout completed successfully: ${result.order_id} via ${result.payment_provider}`);

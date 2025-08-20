@@ -126,6 +126,12 @@ export async function query(text, params = []) {
   }
 }
 
+// Get database client for transactions
+export async function getClient() {
+  const pool = getDbPool();
+  return await pool.connect();
+}
+
 // Simple cache helpers - only for products data
 export async function getCached(key) {
   if (!CACHE_ENABLED) {

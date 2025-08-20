@@ -106,12 +106,11 @@ async function handleProductUpdate({ params, request }) {
     const productData = await request.json();
 
     if (
-      !productData.name ||
-      !productData.description ||
-      productData.price === undefined
+      !productData.title ||
+      !productData.description
     ) {
       return badRequestResponse(
-        "Missing required fields: name, description, price",
+        "Missing required fields: title, description",
       );
     }
 
@@ -124,13 +123,12 @@ async function handleProductUpdate({ params, request }) {
       productData.images,
     );
 
-    // Update product details
+    // Update product details (products_new doesn't have price field)
     const result = await query(QUERIES.UPDATE_PRODUCT, [
       productId,
       DEFAULT_TENANT_ID,
-      productData.name,
+      productData.title,
       productData.description,
-      productData.price,
       imagesJson,
       tagsArray,
       productData.status || "active",
@@ -160,7 +158,8 @@ async function handleProductUpdate({ params, request }) {
     try {
       const eventPayload = {
         product_id: productId,
-        name: productData.name,
+        title: productData.title,
+        name: productData.title, // Keep name for backward compatibility
         description: productData.description,
         price: productData.price,
         status: productData.status || "active",
