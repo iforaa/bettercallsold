@@ -18,6 +18,9 @@
 	import EmptyState from '$lib/components/states/EmptyState.svelte';
 	import ReplayCard from '$lib/components/replays/ReplayCard.svelte';
 	import ReplayMetrics from '$lib/components/replays/ReplayMetrics.svelte';
+	
+	// Shared Live Selling components
+	import LiveSellingHeader from '$lib/components/live-selling/LiveSellingHeader.svelte';
 
 	let { data }: { data: PageData } = $props();
 	
@@ -89,44 +92,34 @@
 </script>
 
 <svelte:head>
-	<title>Replays - BetterCallSold</title>
+	<title>Live Selling - BetterCallSold</title>
 </svelte:head>
 
 <div class="page">
-	<div class="page-header">
-		<div class="page-header-content">
-			<div class="page-header-nav">
-				<div class="breadcrumb" style="margin-bottom: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold);">
-					<span class="breadcrumb-item current">🎬 Replays</span>
-				</div>
+	<LiveSellingHeader>
+		{#snippet rightContent()}
+			<!-- View Mode Toggle -->
+			<div class="view-mode-toggle">
+				<button 
+					class="btn btn-ghost btn-sm" 
+					class:active={viewMode === 'table'}
+					onclick={() => handleViewModeChange('table')}
+				>
+					📋 Table
+				</button>
+				<button 
+					class="btn btn-ghost btn-sm" 
+					class:active={viewMode === 'grid'}
+					onclick={() => handleViewModeChange('grid')}
+				>
+					⊞ Grid
+				</button>
 			</div>
-			<div class="page-actions">
-				<!-- View Mode Toggle -->
-				<div class="view-mode-toggle">
-					<button 
-						class="btn btn-ghost btn-sm" 
-						class:active={viewMode === 'table'}
-						onclick={() => handleViewModeChange('table')}
-					>
-						📋 Table
-					</button>
-					<button 
-						class="btn btn-ghost btn-sm" 
-						class:active={viewMode === 'grid'}
-						onclick={() => handleViewModeChange('grid')}
-					>
-						⊞ Grid
-					</button>
-				</div>
-				<button class="btn btn-primary" onclick={handleSyncReplays}>Sync Replays</button>
-			</div>
-		</div>
-		<p class="page-description">
-			View and manage your CommentSold live sale replays.
-		</p>
-	</div>
-
-	<div class="page-content">
+			<button class="btn btn-primary" onclick={handleSyncReplays}>Sync Replays</button>
+		{/snippet}
+	</LiveSellingHeader>
+	
+	<div class="page-content-padded">
 		<!-- Global Error State -->
 		{#if error}
 			<ErrorState 
@@ -146,10 +139,12 @@
 		{:else}
 			<!-- Analytics Overview -->
 			{#if replays.length > 0}
-				<ReplayMetrics 
-					analytics={analytics}
-					showDetailed={false}
-				/>
+				<div class="analytics-section">
+					<ReplayMetrics 
+						analytics={analytics}
+						showDetailed={false}
+					/>
+				</div>
 			{/if}
 
 			<!-- Selection Actions -->
@@ -316,12 +311,9 @@
 </div>
 
 <style>
-	/* Custom page description styling */
-	.page-description {
-		margin: var(--space-2) 0 0 0;
-		color: var(--color-text-muted);
-		font-size: var(--font-size-sm);
-		padding: 0 var(--space-8);
+	/* Analytics section spacing */
+	.analytics-section {
+		margin-bottom: var(--space-6);
 	}
 	
 	/* View mode toggle */
@@ -450,9 +442,6 @@
 			min-width: 900px;
 		}
 		
-		.page-description {
-			padding: 0;
-		}
 		
 		.selection-banner {
 			flex-direction: column;

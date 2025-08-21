@@ -7,6 +7,20 @@ export async function GET({ url }) {
 		const searchParams = url.searchParams;
 		const limit = parseInt(searchParams.get('limit')) || 50;
 		const offset = parseInt(searchParams.get('offset')) || 0;
+		const userId = searchParams.get('user_id'); // Add user_id filter support
+		
+		// Build WHERE clause dynamically
+		let whereClause = 'WHERE w.tenant_id = $1';
+		const queryParams = [DEFAULT_TENANT_ID];
+		
+		// Add user_id filter if provided
+		if (userId) {
+			whereClause += ' AND w.user_id = $' + (queryParams.length + 1);
+			queryParams.push(userId);
+		}
+		
+		// Add limit and offset parameters
+		queryParams.push(limit, offset);
 		
 		// Query waitlists with user, product, and inventory info 
 		// Note: inventory_id still references old inventory_old table, so we join with that
@@ -29,12 +43,12 @@ export async function GET({ url }) {
 			LEFT JOIN users u ON w.user_id = u.id
 			LEFT JOIN products_new p ON w.product_id = p.id
 			LEFT JOIN inventory_old i_old ON w.inventory_id = i_old.id
-			WHERE w.tenant_id = $1
+			${whereClause}
 			ORDER BY w.created_at DESC
-			LIMIT $2 OFFSET $3
+			LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}
 		`;
 		
-		const result = await query(waitlistsQuery, [DEFAULT_TENANT_ID, limit, offset]);
+		const result = await query(waitlistsQuery, queryParams);
 		return jsonResponse(result.rows);
 	} catch (error) {
 		console.error('Get waitlists error:', error);

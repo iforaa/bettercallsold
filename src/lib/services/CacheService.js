@@ -1,4 +1,39 @@
-import { getCached, setCache, deleteCache } from '$lib/database.js';
+// Client-safe cache functions that work both client and server-side
+const isServer = typeof window === 'undefined';
+
+// No-op functions for client-side or fallback
+const getCached = isServer 
+  ? async (key) => {
+      try {
+        const { getCached: serverGetCached } = await import('$lib/database.js');
+        return await serverGetCached(key);
+      } catch {
+        return null;
+      }
+    }
+  : async () => null;
+
+const setCache = isServer
+  ? async (key, data, ttl) => {
+      try {
+        const { setCache: serverSetCache } = await import('$lib/database.js');
+        return await serverSetCache(key, data, ttl);
+      } catch {
+        return false;
+      }
+    }
+  : async () => false;
+
+const deleteCache = isServer
+  ? async (key) => {
+      try {
+        const { deleteCache: serverDeleteCache } = await import('$lib/database.js');
+        return await serverDeleteCache(key);
+      } catch {
+        return false;
+      }
+    }
+  : async () => false;
 
 /**
  * Enhanced caching service with strategic cache invalidation
@@ -28,6 +63,19 @@ export class CacheService {
     SHORT: 120,         // 2 minutes - for highly dynamic data
     LONG: 3600         // 1 hour - for very stable data
   };
+
+  // Core cache methods used by CustomerService and others
+  static async getCached(key) {
+    return await getCached(key);
+  }
+
+  static async setCache(key, data, ttl = 300) {
+    return await setCache(key, data, ttl);
+  }
+
+  static async deleteCache(key) {
+    return await deleteCache(key);
+  }
 
   // Product and variant caching
   static async getProduct(productId) {
@@ -177,8 +225,8 @@ export class CacheService {
     // This would require additional Redis commands
     // For now, return basic info
     return {
-      enabled: process.env.CACHE_ENABLED === 'true',
-      redis_url: process.env.REDIS_URL ? 'configured' : 'not configured'
+      enabled: isServer,
+      environment: isServer ? 'server' : 'client'
     };
   }
 }

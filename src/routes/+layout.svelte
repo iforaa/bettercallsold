@@ -3,6 +3,7 @@
     import { page } from "$app/stores";
     import { isAuthenticated, authLoaded, logout } from "$lib/stores/auth.js";
     import AuthWall from "$lib/components/AuthWall.svelte";
+    import SearchInput from "$lib/components/search/SearchInput.svelte";
     import type { LayoutData } from "./$types";
     import { onMount } from "svelte";
     import { pluginsState, pluginsActions, getPluginsForMenu } from "$lib/state/plugins.svelte.js";
@@ -129,13 +130,7 @@
         },
         {
             items: [
-                { path: "/live", label: "Live", icon: "📺", functional: true },
-                {
-                    path: "/replays",
-                    label: "Replays",
-                    icon: "🎬",
-                    functional: true,
-                },
+                { path: "/live", label: "Live Selling", icon: "📺", functional: true },
             ],
         },
         {
@@ -329,14 +324,7 @@
                 </div>
             </div>
             <div class="header-center">
-                <div class="search-container">
-                    <div class="search-icon">🔍</div>
-                    <input
-                        type="text"
-                        placeholder="Search"
-                        class="search-input"
-                    />
-                </div>
+                <SearchInput placeholder="Search products, orders, customers..." />
             </div>
             <div class="header-right">
                 <div class="header-actions">
@@ -508,45 +496,6 @@
         margin: 0 auto;
     }
 
-    .search-container {
-        position: relative;
-        width: 100%;
-        max-width: 360px;
-    }
-
-    .search-input {
-        width: 100%;
-        height: 28px;
-        padding: 0 32px 0 28px;
-        background: #2a2a2a;
-        border: 1px solid transparent;
-        border-radius: 6px;
-        color: #e3e3e3;
-        font-size: 13px;
-        outline: none;
-        font-weight: 400;
-    }
-
-    .search-input::placeholder {
-        color: #b5b5b5;
-        font-weight: 400;
-    }
-
-    .search-input:focus {
-        background: #3a3a3a;
-        border-color: #4a90e2;
-        box-shadow: 0 0 0 1px #4a90e2;
-    }
-
-    .search-icon {
-        position: absolute;
-        left: 8px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: #b5b5b5;
-        font-size: 14px;
-        pointer-events: none;
-    }
 
     .header-right {
         display: flex;

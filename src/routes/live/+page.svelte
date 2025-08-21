@@ -27,6 +27,9 @@
 	import StreamConfiguration from '$lib/components/live-stream/StreamConfiguration.svelte';
 	import StreamStatusDisplay from '$lib/components/live-stream/StreamStatusDisplay.svelte';
 	import StreamMetrics from '$lib/components/live-stream/StreamMetrics.svelte';
+	
+	// Shared Live Selling components
+	import LiveSellingHeader from '$lib/components/live-selling/LiveSellingHeader.svelte';
 
 	let { data }: { data: PageData } = $props();
 	
@@ -140,24 +143,17 @@
 </script>
 
 <svelte:head>
-	<title>Live Stream - BetterCallSold</title>
+	<title>Live Selling - BetterCallSold</title>
 </svelte:head>
 
 <div class="page">
-	<div class="page-header">
-		<div class="page-header-content">
-			<div class="page-header-nav">
-				<div class="breadcrumb" style="margin-bottom: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold);">
-					<span class="breadcrumb-item current">📺 Live Stream</span>
-				</div>
-			</div>
-			<div class="page-header-aside">
-				{#if servicesReady}
-					<StreamStatusDisplay status={streamStatus} metrics={streamMetrics} isCompact={true} />
-				{/if}
-			</div>
-		</div>
-	</div>
+	<LiveSellingHeader>
+		{#snippet rightContent()}
+			{#if servicesReady}
+				<StreamStatusDisplay status={streamStatus} metrics={streamMetrics} isCompact={true} />
+			{/if}
+		{/snippet}
+	</LiveSellingHeader>
 
 	<div class="page-content">
 		<!-- Global Error State -->

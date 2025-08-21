@@ -15,12 +15,13 @@ export async function GET({ url }) {
     const limit = parseInt(searchParams.get("limit")) || 50;
     const offset = parseInt(searchParams.get("offset")) || 0;
     const status = searchParams.get("status"); // Get status filter
+    const searchQuery = searchParams.get("q"); // Get search query
 
     // Check if we should use the new product API
     const useNewApi = await FeatureFlags.isEnabled(FeatureFlags.FLAGS.USE_NEW_PRODUCT_API);
     
     // Create cache key based on query parameters and API version
-    const cacheKey = `products_${useNewApi ? 'new' : 'old'}_${DEFAULT_TENANT_ID}_${limit}_${offset}_${status || "all"}`;
+    const cacheKey = `products_${useNewApi ? 'new' : 'old'}_${DEFAULT_TENANT_ID}_${limit}_${offset}_${status || "all"}_${searchQuery || "no_search"}`;
 
     // Try to get from cache first
     const cachedProducts = await getCached(cacheKey);
@@ -35,10 +36,10 @@ export async function GET({ url }) {
 
     if (useNewApi) {
       // Use new Shopify-style database structure
-      productsData = await getProductsNew(limit, offset, status);
+      productsData = await getProductsNew(limit, offset, status, searchQuery);
     } else {
       // Use old database structure
-      productsData = await getProductsOld(limit, offset, status);
+      productsData = await getProductsOld(limit, offset, status, searchQuery);
     }
 
     // Cache the results for 5 minutes (300 seconds)
@@ -167,8 +168,8 @@ export async function POST({ request }) {
 }
 
 // Helper function to get products using old database structure
-async function getProductsOld(limit, offset, status) {
-  // Build query with status filtering
+async function getProductsOld(limit, offset, status, searchQuery) {
+  // Build query with status filtering and search
   let whereClause = "WHERE p.tenant_id = $1";
   const params = [DEFAULT_TENANT_ID];
   let paramIndex = 2;
@@ -177,6 +178,18 @@ async function getProductsOld(limit, offset, status) {
     whereClause += ` AND p.status = $${paramIndex}`;
     params.push(status);
     paramIndex++;
+  }
+
+  if (searchQuery && searchQuery.trim()) {
+    // Add search condition - search in title, description, and handle
+    whereClause += ` AND (
+      LOWER(p.title) LIKE LOWER($${paramIndex}) OR 
+      LOWER(p.description) LIKE LOWER($${paramIndex + 1}) OR 
+      LOWER(p.handle) LIKE LOWER($${paramIndex + 2})
+    )`;
+    const searchPattern = `%${searchQuery.trim()}%`;
+    params.push(searchPattern, searchPattern, searchPattern);
+    paramIndex += 3;
   }
 
   const products = await query(
@@ -210,8 +223,8 @@ async function getProductsOld(limit, offset, status) {
 }
 
 // Helper function to get products using new Shopify-style database structure
-async function getProductsNew(limit, offset, status) {
-  // Build query with status filtering
+async function getProductsNew(limit, offset, status, searchQuery) {
+  // Build query with status filtering and search
   let whereClause = "WHERE p.tenant_id = $1";
   const params = [DEFAULT_TENANT_ID];
   let paramIndex = 2;
@@ -220,6 +233,18 @@ async function getProductsNew(limit, offset, status) {
     whereClause += ` AND p.status = $${paramIndex}`;
     params.push(status);
     paramIndex++;
+  }
+
+  if (searchQuery && searchQuery.trim()) {
+    // Add search condition - search in title, description, and handle
+    whereClause += ` AND (
+      LOWER(p.title) LIKE LOWER($${paramIndex}) OR 
+      LOWER(p.description) LIKE LOWER($${paramIndex + 1}) OR 
+      LOWER(p.handle) LIKE LOWER($${paramIndex + 2})
+    )`;
+    const searchPattern = `%${searchQuery.trim()}%`;
+    params.push(searchPattern, searchPattern, searchPattern);
+    paramIndex += 3;
   }
 
   const products = await query(

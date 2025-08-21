@@ -11,6 +11,8 @@ export class WaitlistService {
     const searchParams = new URLSearchParams();
     
     if (params.limit) searchParams.set('limit', params.limit.toString());
+    if (params.offset) searchParams.set('offset', params.offset.toString());
+    if (params.user_id) searchParams.set('user_id', params.user_id);
     if (params.status && params.status !== 'all') searchParams.set('status', params.status);
     if (params.source && params.source !== 'all') searchParams.set('source', params.source.toString());
     if (params.search) searchParams.set('q', params.search);
@@ -23,6 +25,18 @@ export class WaitlistService {
     }
     
     return await response.json();
+  }
+
+  /**
+   * Get waitlist entries for a specific user
+   */
+  static async getUserWaitlists(userId, params = {}) {
+    if (!userId) throw new Error('User ID is required');
+    
+    return this.getWaitlists({
+      ...params,
+      user_id: userId
+    });
   }
 
   /**
