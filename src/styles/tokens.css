@@ -121,7 +121,19 @@
   --container-lg: 1024px;
   --container-xl: 1280px;
   
+  /* Responsive Breakpoints */
+  --mobile-sm: 480px;
+  --mobile-md: 768px;
+  --tablet: 1024px;
+  --desktop: 1280px;
+  
   /* Header Heights */
   --header-height: 48px;
+  --mobile-header-height: 56px;
   --sidebar-width: 232px;
+  --mobile-sidebar-width: 280px;
+  
+  /* Mobile Spacing */
+  --mobile-padding: var(--space-4);
+  --mobile-touch-target: 44px;
 }

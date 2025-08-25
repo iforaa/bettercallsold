@@ -111,7 +111,7 @@
 					<tbody>
 						{#each collections as collection}
 							<tr class="table-row table-row-clickable" onclick={() => goToCollection(collection.id)}>
-								<td class="table-cell-checkbox" onclick={(e) => e.stopPropagation()}>
+								<td class="table-cell-checkbox" data-label="Select" onclick={(e) => e.stopPropagation()}>
 									<input 
 										type="checkbox" 
 										class="table-checkbox"
@@ -119,7 +119,7 @@
 										onchange={() => toggleCollection(collection.id)}
 									/>
 								</td>
-								<td class="table-cell-main">
+								<td class="table-cell-main" data-label="Collection">
 									<div class="table-cell-content">
 										<div class="table-cell-media">
 											{#if collection.image_url}
@@ -134,10 +134,10 @@
 										</div>
 									</div>
 								</td>
-								<td class="table-cell-numeric">
+								<td class="table-cell-numeric" data-label="Products">
 									<span class="table-cell-text">{collection.formattedProductCount || '0 products'}</span>
 								</td>
-								<td>
+								<td data-label="Conditions">
 									<span class="table-cell-text">Manual</span>
 								</td>
 							</tr>
@@ -163,19 +163,61 @@
 </div>
 
 <style>
-	/* Minimal custom styles - most styling now handled by design system */
-	
-	/* All header, nav-tabs, table, empty-state, loading-state, and error-state styles now handled by design system */
-	
-	/* Only responsive table scrolling adjustment */
+	/* Mobile-first responsive design */
 	@media (max-width: 768px) {
-		.table-container {
-			overflow-x: auto;
-			-webkit-overflow-scrolling: touch;
+		.page-header-content {
+			flex-direction: column;
+			gap: var(--space-3);
+			align-items: flex-start;
 		}
 		
-		.table {
-			min-width: 800px;
+		.page-actions {
+			width: 100%;
+		}
+		
+		.nav-tabs {
+			padding: 0 var(--mobile-padding);
+			margin-bottom: var(--space-4);
+		}
+		
+		.nav-tab {
+			min-height: var(--mobile-touch-target);
+			padding: var(--space-3) var(--space-5);
+		}
+		
+		/* Hide checkbox column on mobile for better use of space */
+		.table-cell-checkbox {
+			display: none;
+		}
+		
+		/* Make collection media smaller on mobile */
+		.table-cell-media {
+			width: 40px;
+			height: 40px;
+		}
+		
+		.table-cell-media img,
+		.table-cell-placeholder {
+			width: 40px;
+			height: 40px;
+			border-radius: var(--radius-md);
+		}
+	}
+	
+	@media (max-width: 480px) {
+		.breadcrumb {
+			font-size: var(--font-size-base) !important;
+		}
+		
+		.table-cell-media {
+			width: 32px;
+			height: 32px;
+		}
+		
+		.table-cell-media img,
+		.table-cell-placeholder {
+			width: 32px;
+			height: 32px;
 		}
 	}
 </style>

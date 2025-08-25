@@ -669,6 +669,110 @@
 		}
 	}
 	
+	/* Mobile improvements */
+	@media (max-width: 768px) {
+		.form-container {
+			gap: var(--space-4);
+			padding: 0;
+		}
+		
+		.form-main,
+		.form-sidebar {
+			gap: var(--space-4);
+		}
+		
+		/* Fix form toolbar buttons to wrap on mobile */
+		.form-toolbar {
+			flex-wrap: wrap;
+		}
+		
+		.form-toolbar-buttons {
+			flex-wrap: wrap;
+			gap: var(--space-1);
+		}
+		
+		.form-toolbar-btn {
+			min-width: var(--mobile-touch-target);
+			min-height: var(--mobile-touch-target);
+		}
+		
+		/* Make image grid more mobile-friendly */
+		.image-preview-grid {
+			grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+			gap: var(--space-3);
+		}
+		
+		.image-preview {
+			aspect-ratio: 1;
+		}
+		
+		/* Stack currency inputs on mobile */
+		.form-field-group {
+			grid-template-columns: 1fr;
+		}
+		
+		/* Make dropdowns full width */
+		.dropdown {
+			width: 100%;
+		}
+		
+		/* Better spacing for mobile */
+		.sidebar-section {
+			background: var(--color-surface);
+			border: 1px solid var(--color-border);
+			border-radius: var(--radius-lg);
+			padding: var(--mobile-padding);
+		}
+		
+		/* Variant items more touch-friendly */
+		.variant-item {
+			min-height: var(--mobile-touch-target);
+			padding: var(--space-3) var(--space-4);
+		}
+		
+		/* Detail items more readable */
+		.detail-item {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: var(--space-1);
+			padding: var(--space-3) 0;
+		}
+		
+		.detail-label {
+			font-size: var(--font-size-xs);
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+		}
+		
+		.detail-value {
+			font-size: var(--font-size-sm);
+			word-break: break-all;
+		}
+	}
+	
+	@media (max-width: 480px) {
+		.form-container {
+			gap: var(--space-3);
+		}
+		
+		.form-main,
+		.form-sidebar {
+			gap: var(--space-3);
+		}
+		
+		.image-preview-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
+		
+		.sidebar-section {
+			padding: var(--space-3);
+		}
+		
+		.form-toolbar-buttons {
+			display: none; /* Hide complex toolbar on very small screens */
+		}
+	}
+	
 	/* Collections placeholder */
 	.dropdown-placeholder {
 		padding: var(--space-2) var(--space-3);

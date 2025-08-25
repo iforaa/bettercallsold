@@ -85,10 +85,10 @@
                         <tbody>
                             {#each orders as order}
                                 <tr class="table-row-clickable" onclick={() => goToOrder(order.id)}>
-                                    <td class="table-id" title={fullOrderId(order.id)}>
+                                    <td class="table-id" data-label="Order ID" title={fullOrderId(order.id)}>
                                         <span class="order-id-display">{orderId(order.id)}</span>
                                     </td>
-                                    <td>
+                                    <td data-label="Customer">
                                         <div class="table-cell-content">
                                             <div class="table-cell-details">
                                                 <div class="table-cell-title">{order.customer_name}</div>
@@ -96,14 +96,14 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="table-cell-text">{date(order.created_at)}</td>
-                                    <td class="table-amount">{currency(order.total_amount)}</td>
-                                    <td>
+                                    <td class="table-cell-text" data-label="Date">{date(order.created_at)}</td>
+                                    <td class="table-amount" data-label="Amount">{currency(order.total_amount)}</td>
+                                    <td data-label="Status">
                                         <span class="status-badge {getStatusColor(order.status)}">
                                             {order.status}
                                         </span>
                                     </td>
-                                    <td>
+                                    <td data-label="Payment">
                                         <div class="payment-method">
                                             {formatPaymentMethod(order.payment_method)}
                                         </div>

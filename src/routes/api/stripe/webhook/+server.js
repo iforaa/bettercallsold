@@ -5,7 +5,8 @@ import {
   badRequestResponse,
   internalServerErrorResponse,
 } from "$lib/response.js";
-import { DEFAULT_TENANT_ID } from "$lib/constants.js";
+import { DEFAULT_TENANT_ID, PLUGIN_EVENTS, DEFAULT_MOBILE_USER_ID } from "$lib/constants.js";
+import { PluginService } from "$lib/services/PluginService.js";
 
 /**
  * Stripe Webhook Handler (Multi-Provider Compatible)
@@ -148,6 +149,24 @@ async function handlePaymentSucceeded(paymentIntent) {
       console.log(
         `✅ Order ${order.id} status updated to 'paid' - Amount: $${order.total_amount}`,
       );
+
+      // Trigger order.paid plugin event
+      try {
+        const eventPayload = {
+          order_id: order.id,
+          user_id: DEFAULT_MOBILE_USER_ID,
+          payment_method: order.payment_provider || 'stripe',
+          amount_paid: order.total_amount,
+          payment_id: paymentIntent.id,
+          status: 'paid',
+          paid_at: new Date().toISOString()
+        };
+
+        await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.ORDER_PAID, eventPayload);
+        console.log(`📤 order.paid event triggered for order: ${order.id}`);
+      } catch (pluginError) {
+        console.error('Error triggering order.paid plugin event:', pluginError);
+      }
 
       // Update new multi-provider payment_transactions table
       try {

@@ -36,10 +36,27 @@ export async function POST({ request }) {
 
     const liveStream = activeLiveStreamResult.rows[0];
 
-    // Find the product data from our products table
+    // Find the product data from our new products table with variants
     const productResult = await query(`
-      SELECT * FROM products 
-      WHERE tenant_id = $1 AND id::text = $2
+      SELECT 
+        p.id,
+        p.title,
+        p.description,
+        p.vendor,
+        p.product_type,
+        p.images,
+        p.tags,
+        p.status,
+        p.created_at,
+        p.updated_at,
+        -- Get variant price information
+        MIN(pv.price) as min_price,
+        MAX(pv.price) as max_price,
+        COUNT(DISTINCT pv.id) as variant_count
+      FROM products_new p
+      LEFT JOIN product_variants_new pv ON p.id = pv.product_id
+      WHERE p.tenant_id = $1 AND p.id::text = $2
+      GROUP BY p.id
       LIMIT 1
     `, [DEFAULT_TENANT_ID, external_product_id || product_id]);
     
@@ -102,22 +119,25 @@ export async function POST({ request }) {
       `, [
         liveStream.id,
         externalId, // external_id - unique hash from UUID
-        product.name || 'Unknown Product', // product_name
-        product.brand || null, // brand
+        product.title || 'Unknown Product', // product_name (now using title)
+        product.vendor || null, // brand (now using vendor)
         product.id, // identifier - use UUID as string identifier
         product.images && product.images.length > 0 ? 
           (typeof product.images === 'string' ? JSON.parse(product.images)[0]?.url : product.images[0]?.url) : null, // thumbnail
-        product.price || 0, // price
-        product.price ? `$${parseFloat(product.price).toFixed(2)}` : 'Price not available', // price_label
+        product.min_price || 0, // price (now using min_price from variants)
+        product.min_price ? (product.min_price === product.max_price 
+          ? `$${parseFloat(product.min_price).toFixed(2)}` 
+          : `$${parseFloat(product.min_price).toFixed(2)} - $${parseFloat(product.max_price).toFixed(2)}`) 
+          : 'Price not available', // price_label
         0, // quantity (not available from pusher)
         'LIVE FEATURED', // badge_label
-        product.is_favorite || false, // is_favorite
+        false, // is_favorite (not in new schema)
         product.description || '', // description
         product.description || '', // store_description
         null, // product_path
         product.id, // external_product_id - use UUID as string
-        'physical', // product_type
-        product.shopify_product_id || null, // shopify_product_id
+        product.product_type || 'physical', // product_type
+        null, // shopify_product_id (not in new schema)
         typeof product.images === 'string' ? product.images : JSON.stringify(product.images || []), // media (JSONB)
         JSON.stringify([]), // overlay_texts (JSONB)  
         JSON.stringify([]), // inventory (JSONB)
@@ -130,13 +150,13 @@ export async function POST({ request }) {
       type: 'product-highlight',
       product: {
         id: product.id,
-        name: product.name,
-        price: product.price,
+        name: product.title,
+        price: product.min_price,
         image: product.images && product.images.length > 0 ? 
           (typeof product.images === 'string' ? JSON.parse(product.images)[0]?.url : product.images[0]?.url) : null,
         description: product.description
       },
-      message: `🛍️ Now featuring: ${product.name} - $${product.price}`,
+      message: `🛍️ Now featuring: ${product.title} - $${product.min_price}`,
       timestamp: new Date().toISOString(),
       id: Date.now().toString(),
       user: 'Live Stream'

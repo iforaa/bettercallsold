@@ -13,11 +13,33 @@
     let currentPath = $derived($page.url.pathname);
     let isStorefront = $derived(currentPath.startsWith("/store"));
     
+    // Mobile state management
+    let mobileMenuOpen = $state(false);
+    let mobileSearchOpen = $state(false);
+    let isMobile = $state(false);
+    
     // Load plugins on mount with caching - ONLY for non-store routes
     onMount(() => {
         if (!isStorefront) {
             pluginsActions.loadPlugins();
         }
+        
+        // Mobile detection
+        const checkMobile = () => {
+            isMobile = window.innerWidth <= 768;
+            // Close mobile menu when switching to desktop
+            if (!isMobile) {
+                mobileMenuOpen = false;
+                mobileSearchOpen = false;
+            }
+        };
+        
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        
+        return () => {
+            window.removeEventListener('resize', checkMobile);
+        };
     });
 
     // Handle plugin refresh
@@ -27,6 +49,26 @@
 
     function handleLogout() {
         logout();
+    }
+    
+    // Mobile navigation functions
+    function toggleMobileMenu() {
+        mobileMenuOpen = !mobileMenuOpen;
+        if (mobileMenuOpen) {
+            mobileSearchOpen = false; // Close search when opening menu
+        }
+    }
+    
+    function toggleMobileSearch() {
+        mobileSearchOpen = !mobileSearchOpen;
+        if (mobileSearchOpen) {
+            mobileMenuOpen = false; // Close menu when opening search
+        }
+    }
+    
+    function closeMobileMenus() {
+        mobileMenuOpen = false;
+        mobileSearchOpen = false;
     }
 
     // Define which pages are functional (not demo)
@@ -318,34 +360,86 @@
         <!-- Top Header -->
         <header class="top-header">
             <div class="header-left">
+                {#if isMobile}
+                    <button 
+                        class="mobile-menu-toggle" 
+                        onclick={toggleMobileMenu}
+                        class:active={mobileMenuOpen}
+                        title="Toggle menu"
+                    >
+                        <span class="hamburger-icon"></span>
+                    </button>
+                {/if}
                 <div class="logo">
                     <img src="/android-chrome-512x512.png" alt="BetterCallSold" class="logo-icon" />
                     <span class="logo-text">BetterCallSold</span>
                 </div>
             </div>
-            <div class="header-center">
-                <SearchInput placeholder="Search products, orders, customers..." />
-            </div>
+            
+            {#if isMobile}
+                <div class="header-center-mobile">
+                    <button 
+                        class="mobile-search-toggle" 
+                        onclick={toggleMobileSearch}
+                        class:active={mobileSearchOpen}
+                        title="Search"
+                    >
+                        🔍
+                    </button>
+                </div>
+            {:else}
+                <div class="header-center">
+                    <SearchInput placeholder="Search products, orders, customers..." />
+                </div>
+            {/if}
+            
             <div class="header-right">
                 <div class="header-actions">
-                    <button class="header-btn">📧</button>
-                    <button class="header-btn">🔔</button>
+                    {#if !isMobile}
+                        <button class="header-btn">📧</button>
+                        <button class="header-btn">🔔</button>
+                    {/if}
                     <button
                         class="header-btn logout-btn"
                         onclick={handleLogout}
                         title="Logout">🚪</button
                     >
-                    <div class="user-menu">
-                        <span class="store-name">BetterCallSold</span>
-                        <div class="user-avatar">CS</div>
-                    </div>
+                    {#if !isMobile}
+                        <div class="user-menu">
+                            <span class="store-name">BetterCallSold</span>
+                            <div class="user-avatar">CS</div>
+                        </div>
+                    {/if}
                 </div>
             </div>
         </header>
 
+        <!-- Mobile Search Overlay -->
+        {#if isMobile && mobileSearchOpen}
+            <div class="mobile-search-overlay" onclick={closeMobileMenus}>
+                <div class="mobile-search-container" onclick={(e) => e.stopPropagation()}>
+                    <div class="mobile-search-header">
+                        <SearchInput placeholder="Search..." />
+                        <button 
+                            class="mobile-search-close" 
+                            onclick={closeMobileMenus}
+                            title="Close search"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                </div>
+            </div>
+        {/if}
+
+        <!-- Mobile Overlay -->
+        {#if isMobile && mobileMenuOpen}
+            <div class="mobile-overlay" onclick={closeMobileMenus}></div>
+        {/if}
+
         <div class="main-container">
             <!-- Left Sidebar -->
-            <aside class="sidebar">
+            <aside class="sidebar" class:mobile-open={isMobile && mobileMenuOpen}>
                 <nav class="sidebar-nav">
                     {#each menuSectionsWithPlugins as section}
                         <div class="nav-section">
@@ -371,6 +465,7 @@
                                     class:active={isActiveRoute(item.path)}
                                     class:functional={item.functional !== false}
                                     class:demo={item.functional === false}
+                                    onclick={isMobile ? closeMobileMenus : undefined}
                                 >
                                     <span class="nav-icon">{item.icon}</span>
                                     <span class="nav-label"
@@ -400,6 +495,7 @@
                                                     false}
                                                 class:demo={subItem.functional ===
                                                     false}
+                                                onclick={isMobile ? closeMobileMenus : undefined}
                                             >
                                                 <span class="nav-sub-icon"
                                                     >{subItem.icon}</span
@@ -891,23 +987,253 @@
         box-shadow: var(--shadow-focus);
     }
 
+    /* Mobile Menu Toggle */
+    .mobile-menu-toggle {
+        width: var(--mobile-touch-target);
+        height: var(--mobile-touch-target);
+        background: transparent;
+        border: none;
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-md);
+        margin-right: var(--space-2);
+        transition: all var(--transition-fast);
+        position: relative;
+    }
+
+    .mobile-menu-toggle:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Hamburger Icon */
+    .hamburger-icon {
+        position: relative;
+        width: 18px;
+        height: 2px;
+        background: white;
+        transition: all 0.3s ease;
+    }
+
+    .hamburger-icon::before,
+    .hamburger-icon::after {
+        content: '';
+        position: absolute;
+        width: 18px;
+        height: 2px;
+        background: white;
+        transition: all 0.3s ease;
+    }
+
+    .hamburger-icon::before {
+        top: -6px;
+    }
+
+    .hamburger-icon::after {
+        top: 6px;
+    }
+
+    /* Animated hamburger to X */
+    .mobile-menu-toggle.active .hamburger-icon {
+        background: transparent;
+    }
+
+    .mobile-menu-toggle.active .hamburger-icon::before {
+        top: 0;
+        transform: rotate(45deg);
+    }
+
+    .mobile-menu-toggle.active .hamburger-icon::after {
+        top: 0;
+        transform: rotate(-45deg);
+    }
+
+    /* Mobile Search Toggle */
+    .mobile-search-toggle {
+        width: var(--mobile-touch-target);
+        height: var(--mobile-touch-target);
+        background: transparent;
+        border: none;
+        color: #b5b5b5;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-md);
+        font-size: 16px;
+        transition: all var(--transition-fast);
+    }
+
+    .mobile-search-toggle:hover,
+    .mobile-search-toggle.active {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+
+    /* Mobile Search Overlay */
+    .mobile-search-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: var(--z-modal);
+        display: flex;
+        align-items: flex-start;
+        padding-top: var(--mobile-header-height);
+    }
+
+    .mobile-search-container {
+        width: 100%;
+        background: var(--color-surface);
+        border-bottom: 1px solid var(--color-border);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .mobile-search-header {
+        display: flex;
+        align-items: center;
+        padding: var(--space-4);
+        gap: var(--space-3);
+    }
+
+    .mobile-search-close {
+        width: var(--mobile-touch-target);
+        height: var(--mobile-touch-target);
+        background: transparent;
+        border: none;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-md);
+        font-size: 18px;
+        font-weight: bold;
+        transition: all var(--transition-fast);
+        flex-shrink: 0;
+    }
+
+    .mobile-search-close:hover {
+        background: var(--color-surface-hover);
+        color: var(--color-text);
+    }
+
+    /* Mobile Overlay */
+    .mobile-overlay {
+        position: fixed;
+        top: var(--mobile-header-height);
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: calc(var(--z-modal) - 1);
+        opacity: 1;
+        visibility: visible;
+    }
+
+    /* Mobile Responsive Styles */
     @media (max-width: 768px) {
+        .top-header {
+            height: var(--mobile-header-height);
+            padding: 0 var(--mobile-padding);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            min-width: auto;
+        }
+
+        .header-center-mobile {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+        }
+
+        .header-right {
+            min-width: auto;
+            justify-content: flex-end;
+        }
+
+        .header-actions {
+            gap: var(--space-1);
+        }
+
+        .logo-text {
+            display: none; /* Hide on small screens */
+        }
+
         .sidebar {
+            position: fixed;
+            top: var(--mobile-header-height);
+            left: 0;
+            height: calc(100vh - var(--mobile-header-height));
+            width: var(--mobile-sidebar-width);
+            background: var(--color-surface);
+            box-shadow: var(--shadow-xl);
             transform: translateX(-100%);
             transition: transform 0.3s ease;
+            z-index: var(--z-modal);
+            overflow-y: auto;
+            border-right: 1px solid var(--color-border);
+        }
+
+        .sidebar.mobile-open {
+            transform: translateX(0);
+        }
+
+        .sidebar-nav {
+            padding: var(--space-4) 0;
+        }
+
+        .nav-item {
+            padding: var(--space-4);
+            margin: var(--space-1) var(--space-3);
+            font-size: var(--font-size-base);
+            min-height: var(--mobile-touch-target);
+        }
+
+        .nav-sub-item {
+            padding: var(--space-3) var(--space-4);
+            padding-left: calc(var(--space-4) + var(--space-8));
+            margin: var(--space-1) var(--space-3);
+            min-height: 40px;
         }
 
         .main-content {
             margin-left: 0;
+            margin-top: var(--mobile-header-height);
+            min-height: calc(100vh - var(--mobile-header-height));
         }
 
-        .header-left,
-        .header-right {
-            width: auto;
+        .main-container {
+            margin-top: 0;
+        }
+    }
+
+    /* Smaller mobile screens */
+    @media (max-width: 480px) {
+        .mobile-search-header {
+            padding: var(--space-3);
         }
 
-        .header-center {
-            display: none;
+        .sidebar {
+            width: calc(100vw - 40px);
+            max-width: 320px;
+        }
+
+        .logo {
+            font-size: 14px;
+        }
+
+        .logo-icon {
+            width: 18px;
+            height: 18px;
         }
     }
 </style>

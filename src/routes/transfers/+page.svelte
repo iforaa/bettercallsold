@@ -236,7 +236,7 @@
           <tbody>
             {#each transfers as transfer}
               <tr class="table-row table-row-clickable" onclick={() => goToTransfer(transfer)}>
-                <td class="table-cell-main">
+                <td class="table-cell-main" data-label="Transfer">
                   <div class="table-cell-content">
                     <div class="table-cell-details">
                       <div class="table-cell-title">{transfer.transfer_number}</div>
@@ -246,24 +246,24 @@
                     </div>
                   </div>
                 </td>
-                <td class="table-cell-location">
+                <td class="table-cell-location" data-label="From">
                   <span class="table-cell-text">{transfer.from_location.name}</span>
                 </td>
-                <td class="table-cell-location">
+                <td class="table-cell-location" data-label="To">
                   <span class="table-cell-text">{transfer.to_location.name}</span>
                 </td>
-                <td class="table-cell-numeric">
+                <td class="table-cell-numeric" data-label="Items">
                   <span class="table-cell-text">{transfer.item_count}</span>
                 </td>
-                <td class="table-cell-numeric">
+                <td class="table-cell-numeric" data-label="Quantity">
                   <span class="table-cell-text">{transfer.total_quantity}</span>
                 </td>
-                <td class="table-cell-status">
+                <td class="table-cell-status" data-label="Status">
                   <span class="badge {getStatusBadgeClass(transfer.status)}">
                     {getStatusText(transfer.status)}
                   </span>
                 </td>
-                <td class="table-cell-date">
+                <td class="table-cell-date" data-label="Created">
                   <span class="table-cell-text table-cell-muted">{formatDate(transfer.created_at)}</span>
                 </td>
               </tr>
@@ -376,11 +376,78 @@
     color: var(--color-text-muted);
   }
 
+  /* Mobile-first responsive design */
   @media (max-width: 768px) {
+    .page-header-content {
+      flex-direction: column;
+      gap: var(--space-3);
+      align-items: flex-start;
+    }
+    
     .page-header-aside {
       flex-direction: column;
       align-items: flex-start;
+      width: 100%;
+      gap: var(--space-3);
+    }
+    
+    .form-field-inline {
+      width: 100%;
+      flex-direction: column;
+      align-items: flex-start;
       gap: var(--space-2);
+    }
+    
+    .form-field-inline .form-select {
+      width: 100%;
+    }
+    
+    .form-label-sm {
+      font-size: var(--font-size-sm);
+      margin-bottom: 0;
+    }
+    
+    /* Hide less important columns on mobile */
+    .table-cell-location[data-label="To"],
+    .table-cell-numeric[data-label="Items"],
+    .table-cell-date {
+      display: none;
+    }
+    
+    /* Make pagination mobile-friendly */
+    .pagination {
+      flex-direction: column;
+      gap: var(--space-3);
+      align-items: center;
+    }
+    
+    .pagination-controls {
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    
+    .pagination-current {
+      order: -1;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .breadcrumb {
+      font-size: var(--font-size-base) !important;
+    }
+    
+    .form-field-inline {
+      gap: var(--space-1);
+    }
+    
+    /* Stack filter controls vertically */
+    .page-header-aside {
+      gap: var(--space-2);
+    }
+    
+    .pagination-info {
+      font-size: var(--font-size-xs);
+      text-align: center;
     }
   }
 </style>

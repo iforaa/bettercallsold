@@ -278,7 +278,7 @@
 					<tbody>
 						{#each inventory as item}
 							<tr class="table-row table-row-clickable" onclick={() => goToVariant(item)}>
-								<td class="table-cell-checkbox" onclick={(e) => e.stopPropagation()}>
+								<td class="table-cell-checkbox" data-label="Select" onclick={(e) => e.stopPropagation()}>
 									<input 
 										type="checkbox" 
 										class="table-checkbox"
@@ -286,7 +286,7 @@
 										onchange={() => toggleItem(item.id)}
 									/>
 								</td>
-								<td class="table-cell-main">
+								<td class="table-cell-main" data-label="Product">
 									<div class="table-cell-content">
 										<div class="table-cell-media">
 											{#if getFirstImage(item)}
@@ -307,16 +307,16 @@
 										</div>
 									</div>
 								</td>
-								<td class="table-cell-sku">
+								<td class="table-cell-sku" data-label="SKU">
 									<span class="table-cell-text table-cell-muted">{item.formattedSKU}</span>
 								</td>
-								<td class="table-cell-numeric">
+								<td class="table-cell-numeric" data-label="Unavailable">
 									<span class="table-cell-text">{item.unavailableCount}</span>
 								</td>
-								<td class="table-cell-numeric">
+								<td class="table-cell-numeric" data-label="Committed">
 									<span class="table-cell-text">{item.committedCount}</span>
 								</td>
-								<td class="table-cell-numeric" onclick={(e) => e.stopPropagation()}>
+								<td class="table-cell-numeric" data-label="Available" onclick={(e) => e.stopPropagation()}>
 									<button 
 										class="btn btn-ghost btn-sm" 
 										onclick={() => handleQuantityAdjustment(item, 'available')}
@@ -324,7 +324,7 @@
 										{item.availableCount}
 									</button>
 								</td>
-								<td class="table-cell-numeric" onclick={(e) => e.stopPropagation()}>
+								<td class="table-cell-numeric" data-label="On Hand" onclick={(e) => e.stopPropagation()}>
 									<button 
 										class="btn btn-ghost btn-sm" 
 										onclick={() => handleQuantityAdjustment(item, 'on_hand')}
@@ -453,26 +453,92 @@
 
 	/* All header, form, table, modal, toast, loading, and other component styles now handled by design system */
 	
-	/* Responsive adjustments - match products table */
+	/* Mobile-first responsive design */
 	@media (max-width: 768px) {
-		.table {
-			min-width: 800px;
+		.page-header-content {
+			flex-direction: column;
+			gap: var(--space-3);
+			align-items: flex-start;
 		}
 		
 		.page-header-aside {
 			flex-direction: column;
 			align-items: flex-start;
+			width: 100%;
+			gap: var(--space-3);
+		}
+		
+		.form-field-inline {
+			width: 100%;
+		}
+		
+		.form-field-inline .form-select {
+			width: 100%;
+		}
+		
+		.page-actions {
+			width: 100%;
+			flex-wrap: wrap;
 			gap: var(--space-2);
+		}
+		
+		.nav-tabs {
+			padding: 0 var(--mobile-padding);
+			margin-bottom: var(--space-4);
+		}
+		
+		.nav-tab {
+			min-height: var(--mobile-touch-target);
+			padding: var(--space-3) var(--space-5);
+		}
+		
+		/* Hide checkbox and less important columns on mobile */
+		.table-cell-checkbox,
+		.table-cell-sku {
+			display: none;
+		}
+		
+		/* Prioritize most important columns */
+		.table-cell-numeric[data-label="Unavailable"],
+		.table-cell-numeric[data-label="Committed"] {
+			display: none;
 		}
 
 		.table-cell-image {
-			width: 32px; /* Match products table mobile size */
+			width: 40px;
+			height: 40px;
+		}
+
+		.table-cell-media {
+			width: 40px;
+			height: 40px;
+		}
+		
+		/* Make buttons more touch-friendly */
+		.btn-sm {
+			min-height: 36px;
+			min-width: 48px;
+			padding: var(--space-2) var(--space-3);
+		}
+	}
+	
+	@media (max-width: 480px) {
+		.breadcrumb {
+			font-size: var(--font-size-base) !important;
+		}
+		
+		.table-cell-image {
+			width: 32px;
 			height: 32px;
 		}
 
 		.table-cell-media {
-			width: 32px; /* Match products table mobile size */
+			width: 32px;
 			height: 32px;
+		}
+		
+		.form-label {
+			font-size: var(--font-size-sm);
 		}
 	}
 </style>
