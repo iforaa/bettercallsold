@@ -15,8 +15,8 @@ export class AgoraService {
         this.isLocalStreaming = false;
         this.isCameraActive = false;
         
-        // Configuration
-        this.APP_ID = "1fe1d3f0d301498d9e43e0094f091800";
+        // Configuration - App ID will be loaded from server
+        this.APP_ID = null;
         this.DEFAULT_CHANNEL = "test-channel";
         
         // Event callbacks
@@ -35,6 +35,9 @@ export class AgoraService {
      */
     async init() {
         try {
+            // First, get the App ID from the server
+            await this.loadAppId();
+            
             // Dynamically import Agora SDK
             const agoraModule = await import("agora-rtc-sdk-ng");
             this.AgoraRTC = agoraModule.default;
@@ -51,6 +54,33 @@ export class AgoraService {
             console.error("Failed to initialize Agora client:", error);
             this.triggerCallback('onError', `Failed to initialize video client: ${error.message}`);
             return false;
+        }
+    }
+
+    /**
+     * Load App ID from server-side configuration
+     */
+    async loadAppId() {
+        if (this.APP_ID) {
+            return this.APP_ID; // Already loaded
+        }
+        
+        try {
+            const response = await fetch('/api/agora/config');
+            if (!response.ok) {
+                throw new Error(`Failed to get Agora config: ${response.status}`);
+            }
+            
+            const config = await response.json();
+            if (!config.success || !config.app_id) {
+                throw new Error('Invalid Agora configuration received');
+            }
+            
+            this.APP_ID = config.app_id;
+            return this.APP_ID;
+        } catch (error) {
+            console.error('Failed to load Agora App ID:', error);
+            throw new Error(`Cannot initialize Agora without App ID: ${error.message}`);
         }
     }
 
@@ -103,6 +133,10 @@ export class AgoraService {
     async joinChannel(channel, token, uid = null) {
         if (!this.client) {
             throw new Error("Client not initialized");
+        }
+
+        if (!this.APP_ID) {
+            throw new Error("App ID not loaded. Make sure init() was called successfully.");
         }
 
         try {

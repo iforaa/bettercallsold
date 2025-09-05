@@ -2,8 +2,10 @@ import { query } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, PLUGIN_EVENTS } from '$lib/constants.js';
 import { PluginService } from '$lib/services/PluginService.js';
+import { buildSearchPerformedPayload, buildSearchNoResultsPayload } from '$lib/payloads/index.js';
 
 export async function GET({ url }) {
+  const startTime = Date.now();
   try {
     const searchQuery = url.searchParams.get('q') || url.searchParams.get('query');
     const limit = parseInt(url.searchParams.get('limit')) || 20;
@@ -181,29 +183,38 @@ export async function GET({ url }) {
 
     // Trigger search events
     try {
-      const searchPayload = {
-        query: searchTerm,
-        user_id: DEFAULT_MOBILE_USER_ID,
-        results_count: total,
-        page: page,
-        limit: limit,
-        filters: {
-          collection_id: collectionId,
-          min_price: minPrice,
-          max_price: maxPrice,
-          sort_by: sortBy
-        },
-        searched_at: new Date().toISOString()
+      const searchTimeMs = Date.now() - startTime;
+      const searchId = `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const filtersApplied = {
+        collection_id: collectionId,
+        min_price: minPrice,
+        max_price: maxPrice,
+        sort_by: sortBy
       };
       
       if (total === 0) {
-        await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.SEARCH_NO_RESULTS, {
-          ...searchPayload,
-          suggestions: suggestions
+        const eventPayload = buildSearchNoResultsPayload({
+          searchId,
+          query: searchTerm,
+          userId: DEFAULT_MOBILE_USER_ID,
+          searchTimeMs,
+          suggestions,
+          filtersApplied
         });
+        
+        await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.SEARCH_NO_RESULTS, eventPayload);
         console.log('📤 Search no results event triggered for query:', searchTerm);
       } else {
-        await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.SEARCH_PERFORMED, searchPayload);
+        const eventPayload = buildSearchPerformedPayload({
+          searchId,
+          query: searchTerm,
+          userId: DEFAULT_MOBILE_USER_ID,
+          resultsCount: total,
+          searchTimeMs,
+          filtersApplied
+        });
+        
+        await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.SEARCH_PERFORMED, eventPayload);
         console.log('📤 Search performed event triggered for query:', searchTerm, 'Results:', total);
       }
     } catch (pluginError) {

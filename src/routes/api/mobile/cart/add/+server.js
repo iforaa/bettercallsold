@@ -2,6 +2,7 @@ import { query } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, PLUGIN_EVENTS } from '$lib/constants.js';
 import { PluginService } from '$lib/services/PluginService.js';
+import { buildCartItemAddedPayload, buildWaitlistItemAddedPayload } from '$lib/payloads/index.js';
 
 export async function POST({ request }) {
 	try {
@@ -63,18 +64,15 @@ export async function POST({ request }) {
 
 			// Trigger plugin event for waitlist addition
 			try {
-				const eventPayload = {
-					waitlist_id: waitlistResult.rows[0].id,
-					product_id: product_id,
-					product_name: inventory.product_name,
-					inventory_id: inventory_id,
-					user_id: DEFAULT_MOBILE_USER_ID,
+				const eventPayload = buildWaitlistItemAddedPayload({
+					waitlistId: waitlistResult.rows[0].id,
+					productId: product_id,
+					productName: inventory.product_name,
+					userId: DEFAULT_MOBILE_USER_ID,
+					userEmail: '',
 					size: inventory.size || 'One Size',
-					color: inventory.color || 'Default',
-					price: inventory.price || inventory.product_price || 0,
-					available_quantity: 0,
-					added_at: new Date().toISOString()
-				};
+					color: inventory.color || 'Default'
+				});
 
 				await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.WAITLIST_ITEM_ADDED, eventPayload);
 				console.log(`📤 Waitlist item added event triggered for product: ${product_id}`);
@@ -141,19 +139,16 @@ export async function POST({ request }) {
 
 			// Trigger plugin event for cart addition
 			try {
-				const eventPayload = {
-					cart_id: cartResult.rows[0].id,
-					product_id: product_id,
-					product_name: inventory.product_name,
-					inventory_id: inventory_id,
-					user_id: DEFAULT_MOBILE_USER_ID,
+				const eventPayload = buildCartItemAddedPayload({
+					cartId: cartResult.rows[0].id,
+					productId: product_id,
+					productName: inventory.product_name,
+					inventoryId: inventory_id,
+					userId: DEFAULT_MOBILE_USER_ID,
+					inventory,
 					quantity: 1,
-					size: inventory.size || 'One Size',
-					color: inventory.color || 'Default',
-					price: inventory.price || inventory.product_price || 0,
-					available_quantity: newQuantity,
-					added_at: new Date().toISOString()
-				};
+					availableQuantity: newQuantity
+				});
 
 				await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.CART_ITEM_ADDED, eventPayload);
 				console.log(`📤 Cart item added event triggered for product: ${product_id}`);

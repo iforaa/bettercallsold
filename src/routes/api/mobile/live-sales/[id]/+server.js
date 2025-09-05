@@ -10,6 +10,7 @@ import {
   PUSHER_KEY,
   PUSHER_SECRET,
   PUSHER_CLUSTER,
+  AGORA_APP_ID,
 } from "$env/static/private";
 import Pusher from "pusher";
 
@@ -293,9 +294,9 @@ async function transformLiveSaleDetailsForMobile(
     // Agora RTC information (prioritize current settings over stored data)
     agora_channel: agoraSettings.channel || liveSale.agora_channel || null,
     agora_token: agoraSettings.token || liveSale.agora_token || null,
-    agora_app_id: "1fe1d3f0d301498d9e43e0094f091800", // Static App ID
+    agora_app_id: AGORA_APP_ID, // From environment variable
     agora_settings: {
-      app_id: "1fe1d3f0d301498d9e43e0094f091800",
+      app_id: AGORA_APP_ID,
       channel: agoraSettings.channel || liveSale.agora_channel || null,
       token: agoraSettings.token || liveSale.agora_token || null,
       token_updated_at: agoraSettings.lastUpdated || null,

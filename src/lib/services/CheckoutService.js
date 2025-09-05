@@ -3,6 +3,7 @@ import { CartService } from './CartService.js';
 import { query } from '$lib/database.js';
 import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, PLUGIN_EVENTS } from '$lib/constants.js';
 import { PluginService } from './PluginService.js';
+import { buildCheckoutCompletedPayload, buildCheckoutFailedPayload } from '$lib/payloads/index.js';
 import crypto from 'crypto';
 
 /**
@@ -508,23 +509,19 @@ export class CheckoutService {
     processingTime
   }) {
     try {
-      const eventPayload = {
-        order_id: orderId,
-        payment_provider: provider,
-        payment_id: paymentResult.payment_id,
-        user_id: DEFAULT_MOBILE_USER_ID,
-        status: 'processing',
-        total_amount: calculatedPricing.total,
-        subtotal_amount: calculatedPricing.subtotal,
-        tax_amount: calculatedPricing.tax,
-        shipping_amount: calculatedPricing.shipping,
-        item_count: cartItems.length,
-        customer_name: customer_info.name || 'Guest Customer',
-        customer_email: customer_info.email || '',
-        customer_phone: customer_info.phone || '',
-        processing_time_ms: processingTime,
-        completed_at: new Date().toISOString()
-      };
+      const eventPayload = buildCheckoutCompletedPayload({
+        orderId,
+        userId: DEFAULT_MOBILE_USER_ID,
+        payment: {
+          provider,
+          payment_id: paymentResult.payment_id,
+          method: paymentResult.method || 'unknown'
+        },
+        customer: customer_info,
+        items: cartItems,
+        pricing: calculatedPricing,
+        metrics: { processingTime }
+      });
 
       await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.CHECKOUT_COMPLETED, eventPayload);
       console.log('📤 Checkout completed event triggered');
@@ -545,16 +542,14 @@ export class CheckoutService {
     processingTime
   }) {
     try {
-      const eventPayload = {
-        order_id: orderId,
-        payment_method,
-        user_id: DEFAULT_MOBILE_USER_ID,
-        error_message: error.message,
-        error_type: error.constructor.name,
-        customer_email: customer_info?.email || '',
-        processing_time_ms: processingTime,
-        failed_at: new Date().toISOString()
-      };
+      const eventPayload = buildCheckoutFailedPayload({
+        orderId,
+        userId: DEFAULT_MOBILE_USER_ID,
+        error,
+        paymentMethod: payment_method,
+        customer: customer_info,
+        metrics: { processingTime }
+      });
 
       await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.CHECKOUT_FAILED, eventPayload);
       console.log('📤 Checkout failed event triggered');

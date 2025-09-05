@@ -2,6 +2,7 @@ import { query } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, PLUGIN_EVENTS } from '$lib/constants.js';
 import { PluginService } from '$lib/services/PluginService.js';
+import { buildFavoriteAddedPayload } from '$lib/payloads/index.js';
 
 export async function GET() {
 	try {
@@ -129,14 +130,12 @@ export async function POST({ request }) {
 		
 		// Trigger favorite added event
 		try {
-			const favoriteAddedPayload = {
-				favorite_id: insertResult.rows[0].id,
-				product_id: product_id,
-				product_name: productData?.name || 'Unknown Product',
-				price: productData?.price || 0,
-				user_id: DEFAULT_MOBILE_USER_ID,
-				added_at: insertResult.rows[0].created_at
-			};
+			const favoriteAddedPayload = buildFavoriteAddedPayload({
+				favoriteId: insertResult.rows[0].id,
+				productId: product_id,
+				productName: productData?.name || 'Unknown Product',
+				userId: DEFAULT_MOBILE_USER_ID
+			});
 			
 			await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.FAVORITE_ADDED, favoriteAddedPayload);
 			console.log('📤 Favorite added event triggered for product:', product_id);

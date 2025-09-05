@@ -2,6 +2,7 @@ import { query } from '$lib/database.js';
 import { jsonResponse, internalServerErrorResponse, badRequestResponse, notFoundResponse } from '$lib/response.js';
 import { DEFAULT_TENANT_ID, DEFAULT_MOBILE_USER_ID, PLUGIN_EVENTS } from '$lib/constants.js';
 import { PluginService } from '$lib/services/PluginService.js';
+import { buildFavoriteRemovedPayload } from '$lib/payloads/index.js';
 
 export async function DELETE({ params }) {
 	try {
@@ -42,14 +43,12 @@ export async function DELETE({ params }) {
 		
 		// Trigger favorite removed event
 		try {
-			const favoriteRemovedPayload = {
-				favorite_id: favoriteId,
-				product_id: favoriteData.product_id,
-				product_name: favoriteData.product_name || 'Unknown Product',
-				price: favoriteData.price || 0,
-				user_id: DEFAULT_MOBILE_USER_ID,
-				removed_at: new Date().toISOString()
-			};
+			const favoriteRemovedPayload = buildFavoriteRemovedPayload({
+				favoriteId,
+				productId: favoriteData.product_id,
+				productName: favoriteData.product_name || 'Unknown Product',
+				userId: DEFAULT_MOBILE_USER_ID
+			});
 			
 			await PluginService.triggerEvent(DEFAULT_TENANT_ID, PLUGIN_EVENTS.FAVORITE_REMOVED, favoriteRemovedPayload);
 			console.log('📤 Favorite removed event triggered for product:', favoriteData.product_id);

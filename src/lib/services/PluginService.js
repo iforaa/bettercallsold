@@ -90,7 +90,8 @@ export class PluginService {
       return result.rows.map(row => ({
         ...row,
         config: typeof row.config === 'string' ? JSON.parse(row.config) : row.config,
-        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
+        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
+        registered_actions: typeof row.registered_actions === 'string' ? JSON.parse(row.registered_actions) : row.registered_actions
       }));
     } catch (error) {
       console.error('Error getting plugins:', error);
@@ -113,7 +114,8 @@ export class PluginService {
       return {
         ...plugin,
         config: typeof plugin.config === 'string' ? JSON.parse(plugin.config) : plugin.config,
-        metadata: typeof plugin.metadata === 'string' ? JSON.parse(plugin.metadata) : plugin.metadata
+        metadata: typeof plugin.metadata === 'string' ? JSON.parse(plugin.metadata) : plugin.metadata,
+        registered_actions: typeof plugin.registered_actions === 'string' ? JSON.parse(plugin.registered_actions) : plugin.registered_actions
       };
     } catch (error) {
       console.error('Error getting plugin by slug:', error);
@@ -375,6 +377,125 @@ export class PluginService {
         error: error.message,
         webhook_url: null
       };
+    }
+  }
+
+  /**
+   * Register actions that a plugin can handle
+   */
+  static async registerActions(tenantId, pluginSlug, actions) {
+    try {
+      // Validate action structure
+      for (const action of actions) {
+        this.validateAction(action);
+      }
+      
+      // Update plugin's registered_actions column
+      const result = await query(QUERIES.UPDATE_PLUGIN_ACTIONS, [
+        tenantId, 
+        pluginSlug, 
+        JSON.stringify({ actions })
+      ]);
+      
+      if (result.rowCount === 0) {
+        throw new Error(`Plugin with slug '${pluginSlug}' not found`);
+      }
+      
+      console.log(`✅ Registered ${actions.length} actions for plugin: ${pluginSlug}`);
+      return { 
+        plugin_slug: pluginSlug,
+        actions_count: actions.length,
+        updated_at: result.rows[0].updated_at
+      };
+    } catch (error) {
+      console.error('Error registering plugin actions:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get all registered actions across plugins
+   */
+  static async getRegisteredActions(tenantId, filters = {}) {
+    try {
+      const result = await query(QUERIES.GET_PLUGINS, [tenantId]);
+      
+      // Flatten actions from all plugins
+      const allActions = [];
+      for (const plugin of result.rows) {
+        // Skip plugins without registered actions
+        if (!plugin.registered_actions) continue;
+        
+        const pluginActions = typeof plugin.registered_actions === 'string' 
+          ? JSON.parse(plugin.registered_actions) 
+          : plugin.registered_actions;
+          
+        const actions = pluginActions?.actions || [];
+        for (const action of actions) {
+          allActions.push({
+            ...action,
+            plugin_id: plugin.id,           // Include plugin UUID
+            plugin_slug: plugin.slug,
+            plugin_name: plugin.name,
+            plugin_endpoint: plugin.api_endpoint
+          });
+        }
+      }
+      
+      // Apply filters
+      let filtered = allActions;
+      if (filters.category) {
+        filtered = filtered.filter(a => a.category === filters.category);
+      }
+      if (filters.plugin) {
+        filtered = filtered.filter(a => a.plugin_slug === filters.plugin);
+      }
+      
+      return filtered;
+    } catch (error) {
+      console.error('Error getting registered actions:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Find action registration by action_type and plugin_id
+   */
+  static async findActionRegistration(tenantId, actionType, pluginId) {
+    try {
+      const allActions = await this.getRegisteredActions(tenantId);
+      return allActions.find(action => 
+        action.action_type === actionType && action.plugin_id === pluginId
+      );
+    } catch (error) {
+      console.error('Error finding action registration:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Validate action structure
+   */
+  static validateAction(action) {
+    const required = ['action_type', 'title', 'required_fields'];
+    for (const field of required) {
+      if (!action[field]) {
+        throw new Error(`Missing required field: ${field}`);
+      }
+    }
+    
+    if (!Array.isArray(action.required_fields)) {
+      throw new Error('required_fields must be an array');
+    }
+    
+    // Validate optional fields if provided
+    if (action.optional_fields && !Array.isArray(action.optional_fields)) {
+      throw new Error('optional_fields must be an array');
+    }
+    
+    // Validate action_type format (no spaces, lowercase with underscores/hyphens)
+    if (!/^[a-z0-9_-]+$/.test(action.action_type)) {
+      throw new Error('action_type must contain only lowercase letters, numbers, underscores, and hyphens');
     }
   }
 }

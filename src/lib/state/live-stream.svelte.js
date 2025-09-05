@@ -78,7 +78,8 @@ export const liveStreamState = $state({
   
   // Metadata
   lastFetch: null,
-  initialized: false
+  initialized: false,
+  tokenCheckInterval: null
 });
 
 // Computed functions (can't export $derived from modules)
@@ -182,13 +183,33 @@ export const liveStreamActions = {
     const success = await LiveStreamService.initializeAgora(liveStreamState.services.agoraService, callbacks);
     
     if (success) {
-      // Auto-join if token is available
-      if (liveStreamState.settings.agoraSettings.token) {
+      // Check token status and auto-join if valid
+      const tokenStatus = await liveStreamActions.checkTokenStatus();
+      
+      if (tokenStatus.hasToken && !tokenStatus.isExpired) {
+        // Token is valid, auto-join
         await liveStreamActions.joinChannel();
+        
+        // Show warning if token expires soon (less than 2 hours)
+        if (tokenStatus.timeRemaining < 7200) { // 2 hours in seconds
+          const hoursLeft = Math.floor(tokenStatus.timeRemaining / 3600);
+          const minutesLeft = Math.floor((tokenStatus.timeRemaining % 3600) / 60);
+          toastService.show(`Token expires in ${hoursLeft}h ${minutesLeft}m`, 'warning');
+        }
       } else {
+        // Token is expired or missing
+        liveStreamState.ui.isTokenExpired = tokenStatus.isExpired;
         liveStreamState.ui.showTokenPrompt = true;
-        toastService.show("Please enter your Agora token to start streaming", 'info');
+        
+        if (tokenStatus.hasToken) {
+          toastService.show("Your Agora token has expired. Please generate a new one.", 'warning');
+        } else {
+          toastService.show("Please generate an Agora token to start streaming", 'info');
+        }
       }
+      
+      // Start periodic token check (every 30 minutes)
+      liveStreamActions.startTokenMonitoring();
     }
 
     return success;
@@ -532,9 +553,133 @@ export const liveStreamActions = {
     }
   },
 
+  // Token generation
+  async generateToken(channel = null) {
+    const currentChannel = channel || liveStreamState.settings.liveSellingForm.agora_channel || 'test-channel';
+    
+    try {
+      const response = await fetch('/api/agora/generate-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          channel: currentChannel,
+          role: 'publisher',
+          expire_hours: 24
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        const error = new Error(result.error || 'Failed to generate token');
+        error.code = result.code;
+        error.instructions = result.instructions;
+        throw error;
+      }
+      
+      // Update the form with the new token
+      liveStreamState.settings.liveSellingForm.agora_token = result.token;
+      liveStreamState.settings.liveSellingForm.agora_channel = result.channel;
+      
+      // Update the agora settings
+      liveStreamState.settings.agoraSettings.token = result.token;
+      liveStreamState.settings.agoraSettings.channel = result.channel;
+      liveStreamState.settings.agoraSettings.lastUpdated = new Date().toISOString();
+      
+      // Reset token expired status
+      liveStreamState.ui.isTokenExpired = false;
+      
+      toastService.show(`Token generated successfully! Valid for 24 hours.`, 'success');
+      return true;
+      
+    } catch (error) {
+      console.error('Token generation error:', error);
+      toastService.show(`Failed to generate token: ${error.message}`, 'error');
+      throw error;
+    }
+  },
+
+  // Check if token is expired or needs renewal
+  async checkTokenStatus() {
+    try {
+      const response = await fetch('/api/agora/generate-token');
+      const result = await response.json();
+      
+      if (result.success && result.has_token) {
+        const isExpired = result.is_expired;
+        const timeRemaining = result.time_remaining_hours;
+        
+        liveStreamState.ui.isTokenExpired = isExpired;
+        
+        // Show warning if token expires in less than 1 hour
+        if (!isExpired && timeRemaining < 1 && timeRemaining > 0) {
+          toastService.show(`Token expires in ${result.time_remaining_seconds} seconds`, 'warning');
+        }
+        
+        return {
+          hasToken: true,
+          isExpired,
+          timeRemaining: result.time_remaining_seconds
+        };
+      }
+      
+      return { hasToken: false, isExpired: true, timeRemaining: 0 };
+      
+    } catch (error) {
+      console.error('Token status check error:', error);
+      return { hasToken: false, isExpired: true, timeRemaining: 0 };
+    }
+  },
+
+  // Token monitoring
+  startTokenMonitoring() {
+    // Clear existing interval if any
+    if (liveStreamState.tokenCheckInterval) {
+      clearInterval(liveStreamState.tokenCheckInterval);
+    }
+    
+    // Check token status every 30 minutes
+    liveStreamState.tokenCheckInterval = setInterval(async () => {
+      const tokenStatus = await liveStreamActions.checkTokenStatus();
+      
+      if (tokenStatus.isExpired) {
+        // Token expired, show modal automatically
+        liveStreamState.ui.isTokenExpired = true;
+        liveStreamState.ui.showTokenPrompt = true;
+        toastService.show("Your Agora token has expired. Please generate a new one.", 'error');
+      } else if (tokenStatus.timeRemaining < 3600) { // Less than 1 hour
+        // Token expiring soon, warn user
+        const minutesLeft = Math.floor(tokenStatus.timeRemaining / 60);
+        toastService.show(`Token expires in ${minutesLeft} minutes. Consider generating a new one.`, 'warning');
+      }
+    }, 30 * 60 * 1000); // 30 minutes
+  },
+
+  stopTokenMonitoring() {
+    if (liveStreamState.tokenCheckInterval) {
+      clearInterval(liveStreamState.tokenCheckInterval);
+      liveStreamState.tokenCheckInterval = null;
+    }
+  },
+
+  // Retry initialization or connection
+  async retry() {
+    liveStreamActions.clearErrors();
+    if (!liveStreamState.initialized) {
+      return await liveStreamActions.initializeServices();
+    } else {
+      return await liveStreamActions.joinChannel();
+    }
+  },
+
   // Cleanup
   cleanup() {
     LiveStreamService.cleanup(liveStreamState.services);
+    
+    // Stop token monitoring
+    liveStreamActions.stopTokenMonitoring();
     
     // Reset state
     liveStreamState.connection = {

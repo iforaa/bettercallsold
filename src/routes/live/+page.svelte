@@ -125,6 +125,19 @@
 		return success;
 	}
 	
+	async function handleGenerateToken() {
+		try {
+			const success = await liveStreamActions.generateToken();
+			if (success) {
+				liveStreamActions.hideTokenPrompt();
+			}
+			return success;
+		} catch (error) {
+			console.error('Token generation failed:', error);
+			return false;
+		}
+	}
+	
 	function handleTokenCancel() {
 		liveStreamActions.hideTokenPrompt();
 	}
@@ -254,6 +267,7 @@
 	bind:show={uiState.showTokenPrompt}
 	isTokenExpired={uiState.isTokenExpired}
 	onSubmit={handleTokenSubmit}
+	onGenerateToken={handleGenerateToken}
 	onCancel={handleTokenCancel}
 />
 

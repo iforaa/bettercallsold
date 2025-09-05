@@ -276,14 +276,14 @@ export const QUERIES = {
   // Plugin Management
   GET_PLUGINS: `
     SELECT id, tenant_id, name, slug, status, api_endpoint, webhook_url,
-           events, config, metadata, created_at, updated_at
+           events, config, metadata, registered_actions, created_at, updated_at
     FROM plugins
     WHERE tenant_id = $1
     ORDER BY created_at DESC
   `,
   GET_PLUGIN_BY_SLUG: `
     SELECT id, tenant_id, name, slug, status, api_endpoint, webhook_url,
-           events, config, metadata, created_at, updated_at
+           events, config, metadata, registered_actions, created_at, updated_at
     FROM plugins
     WHERE tenant_id = $1 AND slug = $2
   `,
@@ -304,6 +304,12 @@ export const QUERIES = {
     UPDATE plugins
     SET status = $3, updated_at = NOW()
     WHERE tenant_id = $1 AND slug = $2
+  `,
+  UPDATE_PLUGIN_ACTIONS: `
+    UPDATE plugins
+    SET registered_actions = $3, updated_at = NOW()
+    WHERE tenant_id = $1 AND slug = $2
+    RETURNING id, updated_at
   `,
 
   // Plugin Events
@@ -335,7 +341,7 @@ export const QUERIES = {
   `,
   INCREMENT_EVENT_RETRY: `
     UPDATE plugin_events
-    SET retry_count = retry_count + 1, updated_at = NOW()
+    SET retry_count = retry_count + 1
     WHERE id = $1
   `,
 };

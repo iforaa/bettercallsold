@@ -6,6 +6,10 @@
 	let error = null;
 	let editingPlugin = null;
 	let showAddModal = false;
+	let pluginActions = []; // Store registered actions for current plugin
+	let loadingActions = false;
+	let availableEvents = []; // Dynamic events from API
+	let loadingEvents = false;
 
 	// Form data for editing/creating plugins
 	let formData = {
@@ -19,27 +23,38 @@
 		config: {}
 	};
 
-	// Available plugin events
-	const availableEvents = [
-		'product.created',
-		'product.updated', 
-		'product.deleted',
-		'cart.item_added',
-		'cart.item_removed',
-		'waitlist.item_added',
-		'waitlist.item_removed',
-		'waitlist.item_preauthorized',
-		'order.created',
-		'order.paid',
-		'order.shipped',
-		'order.delivered',
-		'order.cancelled',
-		'customer.created',
-		'customer.updated',
-		'inventory.low',
-		'inventory.out',
-		'inventory.updated'
-	];
+	// Load available events from platform API
+	async function loadAvailableEvents() {
+		try {
+			loadingEvents = true;
+			console.log('🔄 Loading available event types from platform...');
+			
+			const response = await fetch('/api/events/types');
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+			}
+			
+			const data = await response.json();
+			console.log(`✅ Loaded ${data.total_count} available event types`);
+			
+			if (!data.success) {
+				throw new Error(data.error || 'Failed to load event types');
+			}
+			
+			// Extract event IDs for the UI
+			availableEvents = (data.events || []).map(event => event.id);
+			
+		} catch (e) {
+			console.error('❌ Failed to load available events:', e.message);
+			// Fallback to minimal event list
+			availableEvents = [
+				'product.created', 'product.updated', 'product.deleted',
+				'cart.item_added', 'cart.item_removed', 'order.created', 'order.paid'
+			];
+		} finally {
+			loadingEvents = false;
+		}
+	}
 
 	const statusOptions = [
 		{ value: 'active', label: 'Active', color: '#28a745' },
@@ -64,6 +79,27 @@
 		}
 	}
 
+	async function loadPluginActions(pluginSlug) {
+		try {
+			loadingActions = true;
+			pluginActions = [];
+			
+			const response = await fetch(`/api/plugins/${pluginSlug}/register-actions`);
+			if (response.ok) {
+				const data = await response.json();
+				pluginActions = data.actions || [];
+			} else {
+				console.warn(`Failed to load actions for plugin ${pluginSlug}`);
+				pluginActions = [];
+			}
+		} catch (e) {
+			console.warn(`Error loading plugin actions: ${e.message}`);
+			pluginActions = [];
+		} finally {
+			loadingActions = false;
+		}
+	}
+
 	function openAddModal() {
 		formData = {
 			name: '',
@@ -79,7 +115,7 @@
 		showAddModal = true;
 	}
 
-	function openEditModal(plugin) {
+	async function openEditModal(plugin) {
 		formData = {
 			name: plugin.name,
 			slug: plugin.slug,
@@ -92,11 +128,15 @@
 		};
 		editingPlugin = plugin;
 		showAddModal = true;
+		
+		// Load plugin's registered actions
+		await loadPluginActions(plugin.slug);
 	}
 
 	function closeModal() {
 		showAddModal = false;
 		editingPlugin = null;
+		pluginActions = []; // Clear actions when closing modal
 		formData = {
 			name: '',
 			slug: '',
@@ -221,6 +261,7 @@
 
 	onMount(() => {
 		loadPlugins();
+		loadAvailableEvents();
 	});
 </script>
 
@@ -414,19 +455,99 @@
 
 				<div class="form-group">
 					<label>Subscribed Events</label>
-					<div class="events-grid">
-						{#each availableEvents as event}
-							<label class="checkbox-label">
-								<input 
-									type="checkbox" 
-									checked={formData.events.includes(event)}
-									on:change={() => toggleEvent(event)}
-								/>
-								<span class="event-name">{event}</span>
-							</label>
-						{/each}
-					</div>
+					{#if loadingEvents}
+						<div class="events-loading">
+							<div class="spinner-sm"></div>
+							<span>Loading available events...</span>
+						</div>
+					{:else}
+						<div class="events-grid">
+							{#each availableEvents as event}
+								<label class="checkbox-label">
+									<input 
+										type="checkbox" 
+										checked={formData.events.includes(event)}
+										on:change={() => toggleEvent(event)}
+									/>
+									<span class="event-name">{event}</span>
+								</label>
+							{/each}
+						</div>
+					{/if}
 				</div>
+
+				{#if editingPlugin}
+					<div class="form-group">
+						<label>Registered Actions</label>
+						<div class="actions-container">
+							{#if loadingActions}
+								<div class="actions-loading">
+									<div class="spinner-sm"></div>
+									<span>Loading actions...</span>
+								</div>
+							{:else if pluginActions.length === 0}
+								<div class="actions-empty">
+									<div class="empty-icon-sm">⚡</div>
+									<span>No actions registered</span>
+									<p class="empty-description">This plugin hasn't registered any actions yet.</p>
+								</div>
+							{:else}
+								<div class="actions-grid">
+									{#each pluginActions as action}
+										<div class="action-card">
+											<div class="action-header">
+												<div class="action-info">
+													<h4 class="action-title">{action.title}</h4>
+													<code class="action-type">{action.action_type}</code>
+												</div>
+												{#if action.category}
+													<span class="action-category" data-category={action.category}>
+														{action.category}
+													</span>
+												{/if}
+											</div>
+											
+											{#if action.description}
+												<p class="action-description">{action.description}</p>
+											{/if}
+
+											<div class="action-fields">
+												{#if action.required_fields && action.required_fields.length > 0}
+													<div class="field-group">
+														<strong class="field-label">Required:</strong>
+														<div class="field-tags">
+															{#each action.required_fields as field}
+																<span class="field-tag required">{field}</span>
+															{/each}
+														</div>
+													</div>
+												{/if}
+
+												{#if action.optional_fields && action.optional_fields.length > 0}
+													<div class="field-group">
+														<strong class="field-label">Optional:</strong>
+														<div class="field-tags">
+															{#each action.optional_fields as field}
+																<span class="field-tag optional">{field}</span>
+															{/each}
+														</div>
+													</div>
+												{/if}
+
+												{#if action.endpoint}
+													<div class="field-group">
+														<strong class="field-label">Endpoint:</strong>
+														<code class="action-endpoint">{action.endpoint}</code>
+													</div>
+												{/if}
+											</div>
+										</div>
+									{/each}
+								</div>
+							{/if}
+						</div>
+					</div>
+				{/if}
 
 				<div class="modal-actions">
 					<button type="button" class="btn btn-secondary" on:click={closeModal}>
@@ -747,6 +868,204 @@
 		font-family: var(--font-mono);
 	}
 
+	/* Registered Actions Styles */
+	.actions-container {
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-background);
+		min-height: 120px;
+	}
+
+	.actions-loading,
+	.actions-empty {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: 2rem;
+		text-align: center;
+		color: var(--color-text-secondary);
+	}
+
+	.spinner-sm {
+		width: 20px;
+		height: 20px;
+		border: 2px solid var(--color-border);
+		border-top: 2px solid var(--color-primary);
+		border-radius: 50%;
+		animation: spin 1s linear infinite;
+		margin-bottom: 0.5rem;
+	}
+
+	.empty-icon-sm {
+		font-size: 2rem;
+		opacity: 0.5;
+		margin-bottom: 0.5rem;
+	}
+
+	.actions-empty span {
+		font-weight: 500;
+		color: var(--color-text);
+		margin-bottom: 0.25rem;
+	}
+
+	.empty-description {
+		font-size: 0.875rem;
+		margin: 0;
+		color: var(--color-text-secondary);
+	}
+
+	.actions-grid {
+		display: grid;
+		gap: 1rem;
+		padding: 1rem;
+		max-height: 400px;
+		overflow-y: auto;
+	}
+
+	.action-card {
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		padding: 1rem;
+		transition: all 0.2s ease;
+	}
+
+	.action-card:hover {
+		border-color: var(--color-border-dark);
+		box-shadow: var(--shadow-sm);
+	}
+
+	.action-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		margin-bottom: 0.75rem;
+		gap: 1rem;
+	}
+
+	.action-info {
+		flex: 1;
+	}
+
+	.action-title {
+		margin: 0 0 0.25rem 0;
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--color-text);
+		line-height: 1.3;
+	}
+
+	.action-type {
+		display: inline-block;
+		background: var(--color-background);
+		color: var(--color-primary);
+		padding: 0.2rem 0.5rem;
+		border-radius: var(--radius-sm);
+		font-size: 0.75rem;
+		font-family: var(--font-mono);
+		border: 1px solid var(--color-border);
+	}
+
+	.action-category {
+		padding: 0.25rem 0.75rem;
+		border-radius: var(--radius-full);
+		font-size: 0.75rem;
+		font-weight: 500;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		flex-shrink: 0;
+	}
+
+	.action-category[data-category="email"] {
+		background: #e3f2fd;
+		color: #1976d2;
+	}
+
+	.action-category[data-category="analytics"] {
+		background: #f3e5f5;
+		color: #7b1fa2;
+	}
+
+	.action-category[data-category="notification"] {
+		background: #e8f5e8;
+		color: #388e3c;
+	}
+
+	.action-category[data-category="sms"] {
+		background: #fff3e0;
+		color: #f57c00;
+	}
+
+	.action-category:not([data-category]) {
+		background: var(--color-background);
+		color: var(--color-text-secondary);
+		border: 1px solid var(--color-border);
+	}
+
+	.action-description {
+		margin: 0 0 1rem 0;
+		font-size: 0.875rem;
+		color: var(--color-text-secondary);
+		line-height: 1.4;
+	}
+
+	.action-fields {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.field-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.field-label {
+		font-size: 0.8rem;
+		color: var(--color-text);
+		font-weight: 500;
+	}
+
+	.field-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+
+	.field-tag {
+		padding: 0.25rem 0.5rem;
+		border-radius: var(--radius-sm);
+		font-size: 0.75rem;
+		font-family: var(--font-mono);
+		font-weight: 500;
+	}
+
+	.field-tag.required {
+		background: #ffebee;
+		color: #c62828;
+		border: 1px solid #ffcdd2;
+	}
+
+	.field-tag.optional {
+		background: #e8f5e8;
+		color: #2e7d32;
+		border: 1px solid #c8e6c9;
+	}
+
+	.action-endpoint {
+		display: inline-block;
+		background: var(--color-background);
+		color: var(--color-text-secondary);
+		padding: 0.25rem 0.5rem;
+		border-radius: var(--radius-sm);
+		font-size: 0.75rem;
+		font-family: var(--font-mono);
+		border: 1px solid var(--color-border);
+		word-break: break-all;
+	}
+
 	.modal-actions {
 		display: flex;
 		justify-content: flex-end;
@@ -823,6 +1142,28 @@
 
 	.btn-danger:hover {
 		background: #c82333;
+	}
+
+	/* Events loading state */
+	.events-loading {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 1rem;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-background);
+		color: var(--color-text-secondary);
+		font-size: 0.875rem;
+	}
+
+	.spinner-sm {
+		width: 16px;
+		height: 16px;
+		border: 2px solid var(--color-border);
+		border-top: 2px solid var(--color-primary);
+		border-radius: 50%;
+		animation: spin 1s linear infinite;
 	}
 
 	@media (max-width: 768px) {

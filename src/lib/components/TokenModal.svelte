@@ -3,10 +3,14 @@
         show = $bindable(false), 
         isTokenExpired = false,
         onSubmit = null,
-        onCancel = null
+        onCancel = null,
+        onGenerateToken = null
     } = $props();
     
     let tokenInput = $state("");
+    let isGenerating = $state(false);
+    let generationError = $state("");
+    let showManualInput = $state(false);
     
     function handleSubmit() {
         if (onSubmit && tokenInput.trim()) {
@@ -16,16 +20,51 @@
     
     function handleCancel() {
         tokenInput = "";
+        generationError = "";
+        showManualInput = false;
         show = false;
         if (onCancel) {
             onCancel();
         }
     }
     
+    async function handleGenerateToken() {
+        if (!onGenerateToken) return;
+        
+        isGenerating = true;
+        generationError = "";
+        
+        try {
+            const success = await onGenerateToken();
+            if (success) {
+                show = false;
+                tokenInput = "";
+                showManualInput = false;
+            }
+        } catch (error) {
+            console.error('Token generation error:', error);
+            if (error.code === 'MISSING_APP_CERTIFICATE') {
+                generationError = 'Configuration needed: ' + error.error;
+            } else {
+                generationError = error.message || "Failed to generate token";
+            }
+        } finally {
+            isGenerating = false;
+        }
+    }
+    
+    function toggleManualInput() {
+        showManualInput = !showManualInput;
+        if (!showManualInput) {
+            tokenInput = "";
+            generationError = "";
+        }
+    }
+    
     function handleKeydown(event) {
         if (event.key === 'Escape') {
             handleCancel();
-        } else if (event.key === 'Enter' && event.ctrlKey) {
+        } else if (event.key === 'Enter' && event.ctrlKey && showManualInput) {
             handleSubmit();
         }
     }
@@ -46,38 +85,82 @@
                     {#if isTokenExpired}
                         Your Agora token has expired and needs to be updated to continue streaming.
                     {:else}
-                        Please enter your Agora token to start streaming.
+                        Your Agora token is required to start streaming.
                     {/if}
                 </p>
                 
-                <div class="token-input-group">
-                    <label for="tokenInput">Agora Token</label>
-                    <textarea
-                        id="tokenInput"
-                        bind:value={tokenInput}
-                        placeholder="Paste your Agora token here..."
-                        class="token-textarea"
-                        rows="4"
-                        onkeydown={handleKeydown}
-                        autofocus
-                    ></textarea>
-                    <p class="token-help">
-                        Get your token from the Agora Console or generate one using your App ID and Channel.
-                    </p>
-                </div>
+                {#if generationError}
+                    <div class="error-message">
+                        <span class="error-icon">⚠️</span>
+                        {generationError}
+                    </div>
+                {/if}
                 
-                <div class="token-actions">
-                    <button class="btn-secondary" onclick={handleCancel}>
-                        Cancel
-                    </button>
-                    <button 
-                        class="btn-primary" 
-                        onclick={handleSubmit}
-                        disabled={!tokenInput.trim()}
-                    >
-                        Save & Connect
-                    </button>
-                </div>
+                {#if !showManualInput}
+                    <!-- Automatic Token Generation (Default) -->
+                    <div class="generation-section">
+                        <div class="generation-info">
+                            <h4>🔄 Automatic Token Generation</h4>
+                            <p>We can automatically generate a new Agora token for you that will be valid for 24 hours.</p>
+                        </div>
+                        
+                        <div class="token-actions">
+                            <button class="btn-secondary" onclick={handleCancel}>
+                                Cancel
+                            </button>
+                            <button class="btn-secondary-outline" onclick={toggleManualInput}>
+                                Enter Manually
+                            </button>
+                            <button 
+                                class="btn-primary" 
+                                onclick={handleGenerateToken}
+                                disabled={isGenerating}
+                            >
+                                {#if isGenerating}
+                                    <span class="loading-spinner"></span>
+                                    Generating...
+                                {:else}
+                                    🔑 Generate New Token
+                                {/if}
+                            </button>
+                        </div>
+                    </div>
+                {:else}
+                    <!-- Manual Token Input (Fallback) -->
+                    <div class="manual-input-section">
+                        <div class="token-input-group">
+                            <label for="tokenInput">Agora Token</label>
+                            <textarea
+                                id="tokenInput"
+                                bind:value={tokenInput}
+                                placeholder="Paste your Agora token here..."
+                                class="token-textarea"
+                                rows="4"
+                                onkeydown={handleKeydown}
+                                autofocus
+                            ></textarea>
+                            <p class="token-help">
+                                Get your token from the Agora Console or generate one using your App ID and Channel.
+                            </p>
+                        </div>
+                        
+                        <div class="token-actions">
+                            <button class="btn-secondary" onclick={handleCancel}>
+                                Cancel
+                            </button>
+                            <button class="btn-secondary-outline" onclick={toggleManualInput}>
+                                Back to Auto
+                            </button>
+                            <button 
+                                class="btn-primary" 
+                                onclick={handleSubmit}
+                                disabled={!tokenInput.trim()}
+                            >
+                                Save & Connect
+                            </button>
+                        </div>
+                    </div>
+                {/if}
             </div>
         </div>
     </div>
@@ -207,7 +290,8 @@
     }
 
     .btn-primary,
-    .btn-secondary {
+    .btn-secondary,
+    .btn-secondary-outline {
         padding: 0.75rem 1.5rem;
         border-radius: 8px;
         font-size: 0.875rem;
@@ -215,6 +299,10 @@
         cursor: pointer;
         transition: all 0.15s ease;
         border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
     }
 
     .btn-primary {
@@ -239,6 +327,71 @@
 
     .btn-secondary:hover {
         background: #f6f6f7;
+    }
+
+    .btn-secondary-outline {
+        background: transparent;
+        color: #005bd3;
+        border: 1px solid #005bd3;
+    }
+
+    .btn-secondary-outline:hover {
+        background: #f0f6ff;
+    }
+
+    /* New UI Elements */
+    .error-message {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+        padding: 0.75rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .error-icon {
+        flex-shrink: 0;
+    }
+
+    .generation-section,
+    .manual-input-section {
+        margin-bottom: 1rem;
+    }
+
+    .generation-info h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #202223;
+    }
+
+    .generation-info p {
+        margin: 0 0 1.5rem 0;
+        color: #6d7175;
+        line-height: 1.5;
+        font-size: 0.875rem;
+    }
+
+    .loading-spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid transparent;
+        border-top: 2px solid currentColor;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
     }
 
     @keyframes tokenModalSlideIn {

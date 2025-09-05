@@ -8,6 +8,7 @@ import { DEFAULT_TENANT_ID, QUERIES, PLUGIN_EVENTS } from "$lib/constants.js";
 import { PluginService } from "$lib/services/PluginService.js";
 import { MediaService } from "$lib/services/MediaService.js";
 import { FeatureFlags } from "$lib/services/FeatureFlags.js";
+import { buildProductCreatedPayload } from "$lib/payloads/index.js";
 
 export async function GET({ url }) {
   try {
@@ -128,17 +129,16 @@ export async function POST({ request }) {
 
       // Trigger plugin event for product creation
       try {
-        const eventPayload = {
-          product_id: newProductId,
+        const eventPayload = buildProductCreatedPayload({
+          productId: newProductId,
           name: productData.name,
           description: productData.description,
           price: productData.price,
           status: productData.status || "active",
-          images: productData.images || [],
+          images: finalImages,
           tags: productData.tags || [],
-          collections: productData.collections || [],
-          created_at: new Date().toISOString(),
-        };
+          collections: productData.collections || []
+        });
 
         await PluginService.triggerEvent(
           DEFAULT_TENANT_ID,

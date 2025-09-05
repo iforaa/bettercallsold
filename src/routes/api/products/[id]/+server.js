@@ -8,6 +8,7 @@ import {
 } from "$lib/response.js";
 import { DEFAULT_TENANT_ID, QUERIES, PLUGIN_EVENTS } from "$lib/constants.js";
 import { PluginService } from "$lib/services/PluginService.js";
+import { buildProductUpdatedPayload, buildProductDeletedPayload } from "$lib/payloads/index.js";
 
 export async function GET({ params }) {
   try {
@@ -156,18 +157,16 @@ async function handleProductUpdate({ params, request }) {
 
     // Trigger plugin event for product update
     try {
-      const eventPayload = {
-        product_id: productId,
-        title: productData.title,
-        name: productData.title, // Keep name for backward compatibility
+      const eventPayload = buildProductUpdatedPayload({
+        productId,
+        name: productData.title,
         description: productData.description,
         price: productData.price,
         status: productData.status || "active",
         images: productData.images || [],
         tags: productData.tags || [],
-        collections: productData.collections || [],
-        updated_at: new Date().toISOString(),
-      };
+        collections: productData.collections || []
+      });
 
       await PluginService.triggerEvent(
         DEFAULT_TENANT_ID,
@@ -218,16 +217,10 @@ export async function DELETE({ params }) {
     // Trigger plugin event for product deletion
     if (productData) {
       try {
-        const eventPayload = {
-          product_id: productId,
-          name: productData.name,
-          description: productData.description,
-          price: productData.price,
-          status: productData.status,
-          images: productData.images || [],
-          tags: productData.tags || [],
-          deleted_at: new Date().toISOString(),
-        };
+        const eventPayload = buildProductDeletedPayload({
+          productId,
+          name: productData.name
+        });
 
         await PluginService.triggerEvent(
           DEFAULT_TENANT_ID,
