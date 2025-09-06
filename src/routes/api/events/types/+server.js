@@ -1,20 +1,32 @@
 import { jsonResponse } from '$lib/response.js';
 import { PLUGIN_EVENTS } from '$lib/constants.js';
+import { SchemaIntrospector } from '$lib/services/SchemaIntrospector.js';
 
 /**
  * GET /api/events/types - Get all available platform event types
  * This endpoint provides the complete list of events that plugins can subscribe to
+ * 
+ * Query parameters:
+ * - schema=true: Include field schema information for each event
  */
-export async function GET() {
+export async function GET({ url }) {
   try {
+    const includeSchema = url.searchParams.get('schema') === 'true';
+    
     // Get all event types from PLUGIN_EVENTS constant
     const eventTypes = Object.values(PLUGIN_EVENTS);
+    
+    // Get schema data if requested
+    let schemaData = {};
+    if (includeSchema) {
+      schemaData = SchemaIntrospector.getEventSchemas();
+    }
     
     // Create formatted event data with metadata
     const events = eventTypes.map(eventType => {
       const [domain, action] = eventType.split('.');
       
-      return {
+      const event = {
         id: eventType,
         name: formatEventName(eventType),
         domain: domain,
@@ -23,6 +35,13 @@ export async function GET() {
         icon: getEventIcon(eventType),
         category: getEventCategory(domain)
       };
+
+      // Add schema if requested and available
+      if (includeSchema && schemaData[eventType]) {
+        event.schema = schemaData[eventType].fields;
+      }
+
+      return event;
     });
 
     // Group events by domain for better organization

@@ -204,8 +204,11 @@ npx expo build           # Build mobile app
 
 ## 📚 Documentation
 
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Complete technical reference
-- **[DEVELOPMENT.md](./DEVELOPMENT.md)** - Development patterns and debugging
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Complete technical architecture
+- **[DEVELOPMENT.md](./DEVELOPMENT.md)** - Development patterns & debugging  
+- **[PLUGIN_SYSTEM.md](./PLUGIN_SYSTEM.md)** - Plugin development guide
+- **[MEDIA_SERVICE.md](./MEDIA_SERVICE.md)** - Centralized file upload system
+- **[docs/automation/](./docs/automation/)** - Automation system documentation
 - **[CLAUDE.md](./CLAUDE.md)** - AI assistant instructions
 - **Mobile API** - `/api/mobile/README.md` for complete mobile endpoint documentation
 
